@@ -5,7 +5,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 5/16
+- Completed: 8/16
 
 ## Planning Notes
 
@@ -27,9 +27,9 @@
 | 3 | T3 | 建立 IService / IInfrastructure / ITool 契约 | backend | T1, T2 | [x] | build + interface compile tests pass | 固化层间接口，保证 runtime 与表面解耦 | commit: 140ca9a |
 | 4 | T4 | 实现 ConfigManager、AnthropicProvider 与 AIEngine | backend | T2, T3 | [x] | build + provider tests pass | 包含 SSE 流式、provider 注入、未配置 provider 错误、基础 fallback 接口 | commit: 3a10e08 |
 | 5 | T5 | 实现 ToolRegistry 与基础只读工具集 | backend | T2, T3 | [x] | build + harness tests pass | 实现 `FileReadTool`、`GrepTool`、`GlobTool`，完成 safe_path / 工作区边界校验 | commit: 3a10e08 |
-| 6 | T6 | 实现权限系统与可写工具基线 | integration | T2, T3, T5 | [ ] | build + tests pass | 实现 `PermissionManager`、`FileWriteTool`、`FileEditTool`、写入审批与工作区外写入拒绝 |
-| 7 | T7 | 实现 ShellExecTool 与 Shell 安全策略 v0 | backend | T2, T3, T6 | [ ] | build + tests pass | 覆盖超时、危险命令拦截、工作目录限制、allowlist / denylist 基线 |
-| 8 | T8 | 实现 ContextManager 与三层压缩骨架 | backend | T2, T3, T4 | [ ] | build + tests pass | 先落 `estimateTokens`、窗口治理、Micro Compact / Auto Compact / Manual Compact 框架 |
+| 6 | T6 | 实现权限系统与可写工具基线 | integration | T2, T3, T5 | [x] | build + tests pass | 实现 `PermissionManager`、`FileWriteTool`、`FileEditTool`、写入审批与工作区外写入拒绝 | commit: 2d12f77 |
+| 7 | T7 | 实现 ShellExecTool 与 Shell 安全策略 v0 | backend | T2, T3, T6 | [x] | build + tests pass | 覆盖超时、危险命令拦截、工作目录限制、allowlist / denylist 基线 | commit: 2d12f77 |
+| 8 | T8 | 实现 ContextManager 与三层压缩骨架 | backend | T2, T3, T4 | [x] | build + tests pass | 先落 `estimateTokens`、窗口治理、Micro Compact / Auto Compact / Manual Compact 框架 | commit: 2d12f77 |
 | 9 | T9 | 实现 AgentLoop、TaskState 与 Checkpoint 骨架 | integration | T4, T5, T6, T7, T8 | [ ] | build + framework tests pass | 覆盖 tool_use 循环、权限拒绝后继续、结构化失败回传、基础 TaskState 流转 |
 | 10 | T10 | 实现 CLI REPL 与 JSON Lines runtime 协议 | frontend | T6, T7, T9 | [ ] | build + CLI e2e tests pass | 同时支持人类可读 REPL 和机器可读 `--json` 事件流，为 VS Code Extension 提供协议面 |
 | 11 | T11 | 实现 VS Code Extension MVP | frontend | T10 | [ ] | build + extension smoke workflow pass | 完成 `spawn aictl`、chat 入口、命令入口、权限响应回传、最小 diff 审核闭环 |
