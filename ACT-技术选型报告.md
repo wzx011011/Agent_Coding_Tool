@@ -1,14 +1,27 @@
 # ACT — 技术选型报告
 
-C++/Qt6 原生 AI IDE · 2026-03-23
+Runtime-first AI Coding Tool · 2026-03-23
 
 > 本文档是决策记录，写完即归档。技术选型变更需说明理由。
 
-技术路线总判断：ACT 的对外交付形态是 AI IDE，但技术内核是 coding agent runtime。因此选型优先级应围绕 runtime 的稳定执行、上下文质量、Tool 调用和跨表面复用，而不是单独优化某个 GUI 外壳。能力基准对标 Claude Code CLI，IDE 形态基准参考 TRAE 与 VS Code。
+技术路线总判断：ACT 的对外交付形态不再是“原生 GUI 优先的 AI IDE”，而是“独立 coding agent runtime + 多表面交付”。第一阶段优先通过 CLI 与 VS Code Extension 验证核心能力和产品闭环，第二阶段再建设 Native GUI 作为差异化桌面载体。因此选型优先级应围绕 runtime 的稳定执行、上下文质量、Tool 调用、扩展协议集成和跨表面复用，而不是单独优化某个 GUI 外壳。
 
 ---
 
-## 一、编程语言：C++20
+## 一、技术路线：runtime 独立 + VS Code Extension 优先
+
+| 维度         | 第一阶段选择                  | 第二阶段选择         | 理由                                                   |
+| ------------ | ----------------------------- | -------------------- | ------------------------------------------------------ |
+| runtime 内核 | 独立 C++ runtime              | 持续沿用             | 真正有壁垒的能力仍在 Tool Runtime、TaskState、Trace 等 |
+| 主产品表面   | CLI + VS Code Extension       | 保持                 | 借助成熟 IDE 壳层缩短产品验证周期                      |
+| 原生桌面表面 | 不作为第一阶段阻塞项          | Native GUI Beta      | 等 runtime 稳定后再承载原生差异化                      |
+| IDE 壳层策略 | 优先 extension，不直接深 fork | 视 API 限制再评估    | 先验证产品，不先承担 Code - OSS fork 维护成本          |
+
+这意味着 C++ 仍然保留，但承担范围收缩到 runtime core，而不是第一阶段同时承担 runtime 和整套 IDE 壳层。
+
+---
+
+## 二、编程语言：C++20
 
 | 项目           | 语言       | 优势                      | 劣势                    |
 | -------------- | ---------- | ------------------------- | ----------------------- |
@@ -18,11 +31,23 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 | Zed            | Rust       | 性能好、内存安全          | 学习曲线陡、Qt 生态缺失 |
 | Aider          | Python     | 开发最快                  | 性能差、不能做 GUI IDE  |
 
-**决策理由**：性能是核心卖点，C++ 是唯一选择。我们精通 C++ 是最大的可实施性保障。
+**决策理由**：性能、资源占用和系统级控制力仍然重要，但 C++ 不再承担第一阶段整套产品壳层，而是集中承担 runtime core、PatchTransaction、TaskState、Trace、Security 等真正有壁垒的内核能力。我们精通 C++ 仍然是可实施性保障，但产品验证速度将通过 VS Code Extension 路线对冲。
 
 ---
 
-## 二、GUI 框架：Qt6 QWidgets（非 QML）
+## 三、第一阶段产品表面：VS Code Extension
+
+| 方案               | 优势                                             | 劣势                                     |
+| ------------------ | ------------------------------------------------ | ---------------------------------------- |
+| VS Code Extension  | 编辑器、终端、Diff、工作区能力成熟，验证速度快   | 受 extension API 约束                    |
+| Code - OSS 深度改造 | 控制力更强                                       | 维护 fork 成本高，不适合作为第一步       |
+| 纯原生 GUI 先行    | 差异化最强                                       | 会大量消耗 GUI 工程资源，拖慢 runtime 验证 |
+
+**决策理由**：第一阶段优先采用 VS Code Extension，而不是直接深 fork Code - OSS，也不是让 Qt GUI 先行。目标是将编辑器、终端、Diff、工作区这些成熟能力直接借用，把资源集中投入 runtime 深水区能力。
+
+---
+
+## 四、Native GUI 框架：Qt6 QWidgets（非 QML）
 
 | 维度           | QWidgets                     | QML                              |
 | -------------- | ---------------------------- | -------------------------------- |
@@ -32,13 +57,13 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 | 成熟 IDE 先例  | Qt Creator 就是纯 QWidgets   | 无主流 IDE 使用                  |
 | 我们的经验     | 精通                         | 有了解但不精通                   |
 
-**决策理由**：QScintilla + QWidgets 是 IDE 场景最成熟的组合，Qt Creator 本身就是最佳证明。
+**决策理由**：QScintilla + QWidgets 是 Native GUI 第二阶段最成熟的组合，Qt Creator 本身就是最佳证明。
 
-补充：我们选择 QWidgets，不是为了复刻传统 C++ IDE，而是为了在原生栈里承载接近 TRAE 与 VS Code 的高密度 IDE 信息架构，包括活动栏、侧边栏、右侧 Agent 面板、底部终端与输出区的稳定编排。
+补充：Qt/QWidgets 不再承担第一阶段的产品验证任务，而是保留为第二阶段的桌面差异化方案，用来承载接近 TRAE 与 VS Code 的高密度 IDE 信息架构，包括活动栏、侧边栏、右侧 Agent 面板、底部终端与输出区的稳定编排。
 
 ---
 
-## 三、代码编辑器：QScintilla
+## 五、Native GUI 代码编辑器：QScintilla
 
 | 项目           | 编辑器内核       | 语法高亮      | 代码折叠 | 性能         |
 | -------------- | ---------------- | ------------- | -------- | ------------ |
@@ -51,7 +76,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-## 四、HTTP 客户端：cpp-httplib
+## 六、HTTP 客户端：cpp-httplib
 
 | 项目           | HTTP 库            | 说明                        |
 | -------------- | ------------------ | --------------------------- |
@@ -63,13 +88,13 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-## 五、JSON 解析：nlohmann/json
+## 七、JSON 解析：nlohmann/json
 
 C++ 生态事实标准 JSON 库，现代 API，Header-only。
 
 ---
 
-## 六、构建系统：CMake + vcpkg
+## 八、构建系统：CMake + vcpkg
 
 | 项目           | 构建系统         | 包管理       |
 | -------------- | ---------------- | ------------ |
@@ -82,7 +107,7 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 
 ---
 
-## 七、LLM API + Agent Loop：自研
+## 九、LLM API + Agent Loop：自研
 
 | 项目           | LLM 调用                | Agent Loop          | 说明            |
 | -------------- | ----------------------- | ------------------- | --------------- |
@@ -99,7 +124,7 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 - 各家 API 协议大同小异，自研最简单
 - 所有主流 AI IDE 的 LLM 层都是自研的
 
-补充：对 ACT 来说，自研并不是为了“重复造编辑器轮子”，而是为了掌握 runtime 核心链路。如果 Framework、Harness、AIEngine 不能自洽，Qt GUI 再完整也只是一个没有护城河的壳。
+补充：对 ACT 来说，自研并不是为了“重复造编辑器轮子”，而是为了掌握 runtime 核心链路。如果 Framework、Harness、AIEngine 不能自洽，那么无论 VS Code Extension 还是 Native GUI 都只是薄壳。
 
 能力对齐上，Claude Code CLI 是 runtime 行为基准，这意味着自研重点必须落在 AgentLoop、Tool Runtime、Permission、Context、Diff 审核和错误恢复，而不是优先追求 GUI 表层功能堆叠。
 
@@ -122,7 +147,7 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 
 ---
 
-## 八、其他依赖
+## 十、其他依赖
 
 | 组件          | 选型             | 用途                | 对标                | 架构层         |
 | ------------- | ---------------- | ------------------- | ------------------- | -------------- |
@@ -133,6 +158,7 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 | AST 解析      | tree-sitter      | Repo Map            | Aider 同款          | Core           |
 | CLI 交互      | GNU readline     | REPL 补全/历史      | Claude Code 同款    | Presentation   |
 | LSP 客户端    | 自研（P4）       | clangd/pyright      | VS Code 同款        | Harness (Tool) |
+| Extension 宿主 | VS Code          | 第一阶段主产品表面  | VS Code Extension   | Presentation   |
 
 ### 关键依赖版本策略
 
@@ -150,6 +176,7 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 | SSE / 多 Provider      | cpp-httplib       | 需验证在弱网和长连接场景下的稳定性                      | 若稳定性不足，补充更成熟的 HTTP/SSE 方案       |
 | Markdown 渲染          | cmark / hoedown   | 两套方案并列会增加维护分支                              | 尽快收敛为单一实现                             |
 | GUI 信息架构           | QWidgets 自研布局 | 需在原生技术栈中实现接近 TRAE 与 VS Code 的高密度工作流 | 先固化面板组织和交互约束，再逐步优化视觉细节   |
+| VS Code Extension API  | 第一阶段主产品表面 | 某些深层交互可能受 extension API 约束                   | 若关键体验受限，再评估 Code - OSS 定制发行版   |
 
 ### 尚需补充的工程能力
 
@@ -163,9 +190,26 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 
 这些能力不要求在 P1 一次做完，但必须在 P1-P3 阶段逐步前置定义，否则架构虽然成立，runtime 的稳定性和可维护性会在后期迅速失控。
 
+### C++ 的边界定义
+
+在新路线下，C++ 不再负责第一阶段整套 IDE 产品壳，而是聚焦在以下必须坚持的内核能力：
+
+- AgentLoop / AgentScheduler / ContextManager / PermissionManager
+- Tool Runtime / PatchTransaction / TaskState / Checkpoint / Resume
+- RuntimeEventLogger / RuntimeTraceStore / Failure Classifier / EvalRunner 基础设施
+- Shell / Web / MCP / ACP 的执行安全与隔离策略
+
+以下能力应尽量配置化、协议化或放在 TS 扩展层承接，避免高变化逻辑全部沉入 C++ 编译期实现：
+
+- Prompt Policy
+- Provider Profile 与模型切换策略
+- Tool Schema 展示与表面交互
+- VS Code 侧边栏、任务入口、命令面板、Diff 审核流
+- 评测任务集配置和产品层交互编排
+
 ---
 
-## 九、技术栈完整清单
+## 十一、技术栈完整清单
 
 | 架构层      | 技术             | 说明                                                            |
 | ----------- | ---------------- | --------------------------------------------------------------- |
@@ -173,8 +217,9 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 | Framework   | 自研             | AgentScheduler + AgentLoop + ContextManager + PermissionManager |
 | Harness     | 自研             | ITool 接口 + ToolRegistry + 16 个内置 Tool                      |
 | Core        | 自研             | AIEngine + ProjectManager + CodeAnalyzer + ConfigManager        |
-| GUI 框架    | Qt6 QWidgets     | 非 QML                                                          |
-| 代码编辑器  | QScintilla       | 语法高亮/折叠                                                   |
+| GUI 宿主    | VS Code Extension | 第一阶段主产品表面                                             |
+| Native GUI 框架 | Qt6 QWidgets  | 第二阶段 Native GUI，非 QML                                     |
+| Native GUI 编辑器  | QScintilla | 第二阶段原生编辑器                                               |
 | HTTP 客户端 | cpp-httplib      | Header-only                                                     |
 | JSON 解析   | nlohmann/json    | 现代 C++ JSON 库                                                |
 | 构建系统    | CMake + vcpkg    | 跨平台包管理                                                    |
@@ -188,19 +233,19 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 
 ---
 
-## 十、相关文档
+## 十二、相关文档
 
 - [ACT — PRD 产品需求文档](./ACT-PRD-%E4%BA%A7%E5%93%81%E9%9C%80%E6%B1%82%E6%96%87%E6%A1%A3.md)
 - [ACT — 技术选型报告](./ACT-%E6%8A%80%E6%9C%AF%E9%80%89%E5%9E%8B%E6%8A%A5%E5%91%8A.md)
 - [ACT — 系统架构设计](./ACT-%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1.md)
 - [ACT — 开发计划与进度](./ACT-%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92%E4%B8%8E%E8%BF%9B%E5%BA%A6.md)
 
-## 十一、术语表
+## 十三、术语表
 
 | 术语               | 定义                                                   |
 | ------------------ | ------------------------------------------------------ |
-| ACT                | AI Coding Tool，本文档描述的 C++/Qt6 原生 AI IDE 项目  |
-| Presentation Layer | 表现层，包含 CLI、Qt GUI、VS Code Extension 等交互入口 |
+| ACT                | AI Coding Tool，本文档描述的 runtime-first AI Coding 项目 |
+| Presentation Layer | 表现层，包含 CLI、VS Code Extension、Native GUI 等交互入口 |
 | Agent Framework    | 决定任务如何拆解、推进和确认的框架层                   |
 | Agent Harness      | 承载 Tool 注册、执行和权限分级的执行层                 |
 | Core Services      | 提供模型调用、项目状态、代码分析、配置管理的核心服务层 |
@@ -213,7 +258,7 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 | Diff 预览          | Agent 落地修改前向用户展示的变更对比视图               |
 | Fallback           | 主模型失败后切换到备用模型的降级机制                   |
 
-## 十二、风险矩阵
+## 十四、风险矩阵
 
 | 风险ID | 风险描述                                               | 概率 | 影响 | 应对策略                                                      |
 | ------ | ------------------------------------------------------ | ---- | ---- | ------------------------------------------------------------- |

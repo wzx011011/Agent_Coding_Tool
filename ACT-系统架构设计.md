@@ -1,24 +1,25 @@
 # ACT — 系统架构设计
 
-C++/Qt6 原生 AI IDE · 2026-03-23
+Runtime-first AI Coding Tool · 2026-03-23
 
 ## 一、设计理念：CLI 优先，多 Surface 渲染
 
 对标 Claude Code 的架构模式：
 
-|              | Claude Code             | 我们的方案                   |
-| ------------ | ----------------------- | ---------------------------- |
-| 核心语言     | Node.js（TS）           | C++                          |
-| 核心接口     | CLI（claude 命令）      | CLI（aictl 命令）            |
-| 桌面 GUI     | Electron 壳（调用 CLI） | Qt GUI（直接调用运行时接口） |
-| VS Code 集成 | TS 扩展 → spawn CLI     | TS 扩展 → spawn CLI          |
-| Desktop 性能 | Electron（重）          | Qt 原生（轻）                |
+|              | Claude Code                  | 我们的方案                                  |
+| ------------ | ---------------------------- | ------------------------------------------- |
+| 核心语言     | Node.js（TS）                | C++                                         |
+| 核心接口     | CLI（claude 命令）           | CLI（aictl 命令）                           |
+| 第一产品表面 | CLI / VS Code / Desktop      | CLI + VS Code Extension                     |
+| 第二产品表面 | Desktop / 多端同步扩展       | Native GUI（第二阶段接入独立 runtime）      |
+| VS Code 集成 | TS 扩展 → spawn CLI          | TS 扩展 → spawn aictl                       |
+| Desktop 性能 | Electron（重）               | Native GUI 保留为第二阶段差异化能力         |
 
-核心思路：一个 runtime core，多个前端。CLI 是最先成熟的入口，Qt GUI 和 VS Code 扩展是同一套 coding agent runtime 的不同载体。
+核心思路：一个 runtime core，多个前端。CLI 与 VS Code Extension 是最先成熟的入口，Native GUI 在 runtime 稳定后再接入同一套能力内核。
 
 产品定位上，ACT 对外呈现为 AI IDE；架构上，真正的核心是 Layer 2-4 组成的 runtime，而不是某一个具体 UI 壳层。
 
-基准拆分上，Layer 2-4 的行为对齐对象是 Claude Code CLI，Layer 1 的交互和信息架构参考对象是 TRAE 与 VS Code。前者决定 ACT 能不能完成真实工程任务，后者决定用户是否愿意长期使用这套能力。
+基准拆分上，Layer 2-4 的行为对齐对象是 Claude Code CLI；Layer 1 的第一阶段交互基准是 VS Code Extension 工作流，第二阶段桌面信息架构参考 TRAE 与 VS Code。前者决定 ACT 能不能完成真实工程任务，后者决定这些能力最终如何被用户消费。
 
 ---
 
@@ -27,7 +28,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 ```
 ┌──────────────────────────────────────────────────────────┐
 │           LAYER 1 · Presentation Layer（表现层）            │
-│     Qt GUI（桌面版）· CLI（aictl）· VS Code Extension      │
+│  CLI（aictl）· VS Code Extension（第一阶段）· Native GUI（第二阶段） │
 ├──────────────────────────────────────────────────────────┤
 │           LAYER 2 · Agent Framework（Agent 框架层）         │
 │   AgentLoop · AgentScheduler · ContextManager · Permission │
@@ -62,10 +63,11 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 **Presentation Layer（表现层）**
 
 - 纯 UI 壳，不含业务逻辑
-- CLI（aictl）、Qt GUI、VS Code Extension 三个前端
-- Qt GUI 直接调用 Layer 2-4 暴露的运行时接口
+- 第一阶段前端：CLI（aictl）与 VS Code Extension
+- 第二阶段前端：Native GUI
 - VS Code Extension 通过 spawn `aictl` 复用 CLI 能力，而不是直连内部对象
-- Qt GUI 的信息架构参考 TRAE 与 VS Code，保持活动栏、侧边栏、编辑区、右侧 Agent 面板、底部终端面板的高密度协同布局
+- Native GUI 在第二阶段直接调用 Layer 2-4 暴露的运行时接口，但不得形成分叉实现
+- 第一阶段优先复用 VS Code 的成熟编辑器与工作区能力，第二阶段再补原生桌面的信息架构差异化
 
 **Agent Framework（框架层）**
 
@@ -101,7 +103,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 这一拆分不只是工程分层，也是产品战略分层：
 
-- Presentation Layer 对应 ACT 的 AI IDE 产品形态
+- Presentation Layer 对应 ACT 的多表面产品形态，且具备明确的阶段优先级
 - Agent Framework + Agent Harness + Core Services 对应 ACT 的 coding agent runtime 内核
 - 多 Surface 复用同一 runtime，才能避免 GUI、CLI、Extension 各自长出一套逻辑
 
@@ -181,10 +183,10 @@ GUI 和 CLI 共用同一套权限逻辑，仅表现层不同：
 
 | Phase | 时间   | 核心交付                                 |
 | ----- | ------ | ---------------------------------------- |
-| P1    | 2-4周  | ITool + ToolRegistry + 6个基础Tool + CLI |
-| P2    | 4-6周  | Qt GUI + ChatPanel + Diff预览            |
-| P3    | 6-10周 | 多Agent编排 + RepoMap + Git Tool         |
-| P4    | 长期   | ExternalHarness + LSP + 插件系统         |
+| P1    | 2-4周  | 独立 runtime + CLI + VS Code Extension MVP |
+| P2    | 4-6周  | runtime 强化 + VS Code 深度产品化         |
+| P3    | 6-10周 | Native GUI Beta + 多Agent编排 + RepoMap   |
+| P4    | 长期   | 多表面统一 + ExternalHarness + LSP + 插件系统 |
 
 ---
 
@@ -242,7 +244,7 @@ GUI 和 CLI 共用同一套权限逻辑，仅表现层不同：
 
 ---
 
-## 六、GUI 布局
+## 六、第二阶段 Native GUI 布局
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -261,7 +263,7 @@ GUI 和 CLI 共用同一套权限逻辑，仅表现层不同：
 └──────────────────────────────────────────────────┘
 ```
 
-布局原则：左侧保留 VS Code 式活动栏与资源导航心智，中央保持编辑器与 Diff 为主工作区，右侧承载 TRAE 式 Agent 面板与任务状态，底部统一终端、诊断和输出。所有这些区域都必须服务于 Claude Code CLI 风格的任务推进链路，而不是与 runtime 各自为战。
+布局原则：该布局仅在第二阶段 Native GUI 接入时生效。第一阶段优先依托 VS Code 的成熟编辑器、终端、侧边栏与面板系统；第二阶段的 Native GUI 仍需保持左侧导航、中央编辑与 Diff、右侧 Agent 面板、底部终端输出的工作流，但必须复用同一套 runtime，而不是自带独立逻辑。
 
 ---
 

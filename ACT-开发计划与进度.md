@@ -1,6 +1,6 @@
 # ACT — 开发计划与进度
 
-C++/Qt6 原生 AI IDE · 2026-03-23
+Runtime-first AI Coding Tool · 2026-03-23
 
 ---
 
@@ -8,20 +8,20 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 | Phase         | 时间    | 核心模块                              | 交付物                     | 对标水平                              |
 | ------------- | ------- | ------------------------------------- | -------------------------- | ------------------------------------- |
-| P1 基础框架   | 2-4 周  | Framework 骨架 + Harness 6 Tool + CLI | aictl agent "修复bug" 可用 | Claude Code CLI Core                  |
-| P2 智能对话   | 4-6 周  | Qt GUI + Chat Panel + Diff 预览       | GUI Beta                   | TRAE + VS Code Native Beta            |
-| P3 Agent 智能 | 6-10 周 | 多 Agent 编排 + Repo Map + Git Tool   | 可用 IDE                   | Claude Code Runtime + IDE Integration |
-| P4 生态扩展   | 长期    | ExternalHarness + LSP + 插件系统      | 完整 IDE                   | VS Code Ecosystem                     |
+| P1 Runtime MVP | 2-4 周  | Framework 骨架 + Harness 6 Tool + CLI + VS Code Extension | VS Code 中可用的 agent MVP | Claude Code CLI Core + VS Code Workflow |
+| P2 Runtime 强化 | 4-6 周  | TaskState / Trace / Eval / PatchTransaction + Extension 深化 | VS Code 内完整任务闭环 | Claude Code Runtime Productization |
+| P3 Native GUI Beta | 6-10 周 | Native GUI 接入独立 runtime + Repo Map + Git Tool | 原生 GUI Beta | TRAE + VS Code Desktop Architecture |
+| P4 多表面统一 | 长期    | ExternalHarness + LSP + 插件系统 + 多表面统一 | CLI / VS Code / Native GUI 一体化 | VS Code Ecosystem + Runtime Platform |
 
-路线原则：先完成 coding agent runtime 的最小闭环，再叠加 GUI IDE 体验，最后开放生态扩展。ACT 不是先做编辑器壳子，再把 Agent 能力补进去。能力基准对标 Claude Code CLI，形态基准参考 TRAE 与 VS Code，两条基准不能混为一谈。
+路线原则：先完成独立 runtime 与 VS Code Extension 的产品闭环，再强化 runtime 深水区能力，最后建设 Native GUI 并开放生态扩展。ACT 不是原生 GUI 优先，而是 runtime 优先、VS Code 表面优先、Native GUI 第二阶段。
 
 ---
 
 ## 二、各阶段任务（按架构层分解）
 
-### P1 基础框架（2-4 周）
+### P1 Runtime MVP（2-4 周）
 
-目标：先证明 runtime 内核成立，确保 AgentLoop、Tool Runtime、权限确认、结构化错误和 CLI 闭环可用，并在核心行为上对齐 Claude Code CLI。
+目标：先证明 runtime 内核成立，并通过 CLI 与 VS Code Extension 形成最小可用产品闭环，确保 AgentLoop、Tool Runtime、权限确认、结构化错误和 Diff 审核在第一阶段就能被用户直接消费。
 
 **🟡 Agent Framework 层**
 
@@ -57,6 +57,8 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] CLI REPL 模式（GNU readline）
 - [ ] CLI Permission Handler（Y/N 确认）
 - [ ] Markdown 终端输出
+- [ ] VS Code Extension MVP（TS → spawn aictl）
+- [ ] VS Code Chat / Command / Diff 审核最小闭环
 
 **🧪 测试**
 
@@ -68,9 +70,9 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-### P2 智能对话（4-6 周）
+### P2 Runtime 强化（4-6 周）
 
-目标：把 P1 已稳定的 runtime 能力投射到 Qt GUI，形成 ACT 的第一代 AI IDE 交付形态，在布局和交互上吸收 TRAE 与 VS Code 的优秀设计。
+目标：继续强化 runtime 深水区能力，并在 VS Code Extension 内把任务状态、事件流、补丁预演、回归评测等能力产品化，形成第一阶段真正可持续迭代的交付表面。
 
 **🟡 Agent Framework 层**
 
@@ -84,20 +86,14 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] DiffViewTool（修改预览）
 - [ ] PatchTransaction v1 — 多文件预览、Accept / Reject、部分失败处理
 
-**🟢 Presentation Layer（GUI）**
+**🟢 Presentation Layer（VS Code Extension）**
 
-- [ ] Qt GUI 主窗口（QMainWindow + QDockWidget）
-- [ ] 活动栏 + 侧边栏布局（参考 VS Code 的导航心智）
-- [ ] AI Chat Panel（cmark Markdown 渲染）
-- [ ] 右侧 Agent 面板（参考 TRAE 的任务流与上下文可见性）
-- [ ] QScintilla 编辑器集成
-- [ ] PermissionDialog（图形化权限确认弹窗）
-- [ ] DiffWidget（并排 Diff 预览，Accept/Reject）
-- [ ] 底部终端（QTermWidget）
-- [ ] 底部终端 / 输出 / 诊断联动（参考 VS Code 的面板组织）
-- [ ] 文件浏览器 + 搜索
+- [ ] Chat View / Side Panel 产品化
+- [ ] 命令面板与任务入口
+- [ ] VS Code Diff 审核流接入 runtime
 - [ ] 任务状态区（显示 Running / Waiting / Failed / Completed）
 - [ ] Tool / Permission 事件流面板（最小可观测性 UI）
+- [ ] 工作区上下文选择与文件引用体验
 
 **🔵 Core Services 层**
 
@@ -106,9 +102,9 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-### P3 Agent 智能（6-10 周）
+### P3 Native GUI Beta（6-10 周）
 
-目标：把“能跑”提升为“能在真实仓库里持续推进任务”，补齐编排、Repo 理解和 Git 闭环。
+目标：在 runtime 已经被 CLI 与 VS Code 验证后，接入 Native GUI 作为第二阶段差异化载体，同时补齐 Repo 理解、Git 闭环和多任务编排。
 
 **🟡 Agent Framework 层**
 
@@ -123,6 +119,18 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] PatchTransaction v2 — 多文件原子提交、回滚、冲突处理
 - [ ] 执行隔离策略 v1 — 环境变量隔离、工作区外写入控制、网络访问分级
 
+**🟢 Presentation Layer（Native GUI）**
+
+- [ ] Qt GUI 主窗口（QMainWindow + QDockWidget）
+- [ ] 活动栏 + 侧边栏布局（参考 VS Code 的导航心智）
+- [ ] AI Chat Panel（cmark Markdown 渲染）
+- [ ] 右侧 Agent 面板（参考 TRAE 的任务流与上下文可见性）
+- [ ] QScintilla 编辑器集成
+- [ ] PermissionDialog（图形化权限确认弹窗）
+- [ ] DiffWidget（并排 Diff 预览，Accept/Reject）
+- [ ] 底部终端（QTermWidget）
+- [ ] 底部终端 / 输出 / 诊断联动（参考 VS Code 的面板组织）
+
 **🔵 Core Services 层**
 
 - [ ] CodeAnalyzer（tree-sitter AST）
@@ -133,9 +141,9 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-### P4 生态扩展（长期）
+### P4 多表面统一（长期）
 
-目标：让 ACT 从单一产品形态演进为可接入外部 Harness、IDE 和插件生态的运行时平台。
+目标：让 ACT 从“已验证的 runtime + 多个产品表面”演进为可接入外部 Harness、IDE 和插件生态的统一运行时平台。
 
 **🟡 Agent Framework 层**
 
@@ -154,7 +162,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 **🟢 Presentation Layer**
 
-- [ ] VS Code Extension（TS → spawn aictl）
+- [ ] VS Code Extension / Native GUI / CLI 多表面统一能力面
 
 **DevOps**
 
@@ -176,19 +184,19 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 ### P1 验收
 
 - `aictl agent "读取 main.cpp 并解释"` 可稳定跑通
+- VS Code Extension 中可触发同一任务并完成最小闭环
 - 6 个基础 Tool 均有单元测试
 - CLI 权限确认、超时控制、结构化错误返回可用
-- CLI-first runtime 可独立跑通，不依赖任何 GUI 组件
+- runtime 可独立跑通，不依赖任何 GUI 组件
 - 至少具备单任务 TaskState、基础 Checkpoint 接口和单文件 PatchTransaction
 - 回归任务集 v0 可稳定执行，并覆盖权限拒绝、命令失败和单文件修改场景
 
 ### P2 验收
 
-- Qt GUI 可完成对话、Diff 预览、权限确认闭环
-- GitStatusTool / GitDiffTool 能在 GUI 中展示结果
-- Chat Panel、编辑器、终端三块核心区域可联动
-- 活动栏、侧边栏、右侧 Agent 面板、底部终端区形成稳定的信息架构，不破坏 CLI-first runtime 的边界
-- GUI 可展示任务状态、Tool 事件和权限事件，用户能看清 runtime 当前在做什么
+- VS Code Extension 内可完成对话、Diff 预览、权限确认闭环
+- GitStatusTool / GitDiffTool 能在 VS Code 中展示结果
+- Chat、编辑器、终端、侧栏任务区形成稳定联动
+- VS Code 表面可展示任务状态、Tool 事件和权限事件，用户能看清 runtime 当前在做什么
 - 中断任务可从 Checkpoint 恢复，至少支持单任务恢复到最近一次确认点
 
 ### P3 验收
@@ -199,12 +207,13 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - 可在真实仓库中完成接近 Claude Code CLI 水平的多步任务推进与审阅闭环
 - 多文件补丁支持预演、原子提交与失败回滚
 - 标准任务集和回归任务集可持续运行，能区分模型问题、工具问题和权限问题
+- Native GUI 在不分叉 runtime 的前提下接入，并完成与 VS Code 相同的基础任务闭环
 
 ### P4 验收
 
 - 外部 Harness、LSP、插件系统形成稳定扩展点
 - 三平台 CI、打包和版本发布流程跑通
-- VS Code Extension 与原生 GUI 共用同一套 runtime 能力，不形成分叉实现
+- VS Code Extension 与 Native GUI 共用同一套 runtime 能力，不形成分叉实现
 - ACP / MCP / Plugin 调用进入统一权限与审计体系，不形成新的安全盲区
 
 ---
@@ -219,6 +228,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - Shell 安全策略 v0
 - RuntimeEventLogger v0
 - 回归任务集 v0
+- VS Code Extension MVP
 
 ### 最迟 P2 补齐
 
@@ -227,6 +237,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - 任务状态区与事件流面板
 - RuntimeTraceStore v1
 - EvalRunner v0
+- VS Code 表面内的任务状态与事件流体验
 
 ### 最迟 P3 补齐
 
