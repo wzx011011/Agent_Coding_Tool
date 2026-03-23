@@ -1,0 +1,15 @@
+add_library(act_framework STATIC
+    framework.cpp
+)
+
+target_include_directories(act_framework
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(act_framework
+    PUBLIC
+        act_harness
+)
+
+target_compile_features(act_framework PUBLIC cxx_std_20)

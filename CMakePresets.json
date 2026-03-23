@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
     "minor": 28,
@@ -9,14 +9,14 @@
     {
       "name": "default",
       "displayName": "Default",
-      "description": "Configure ACT with Ninja and vcpkg manifest mode.",
+      "description": "Configure ACT with Ninja, vcpkg manifest mode and Qt 6.10.2.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_CXX_STANDARD": "20",
         "CMAKE_CXX_STANDARD_REQUIRED": "ON",
-        "CMAKE_PREFIX_PATH": "$env{CMAKE_PREFIX_PATH}"
+        "CMAKE_PREFIX_PATH": "E:/Qt6.10"
       }
     }
   ],
