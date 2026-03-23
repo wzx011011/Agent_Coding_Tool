@@ -1,4 +1,5 @@
 add_library(act_framework STATIC
+    agent_loop.cpp
     framework.cpp
 )
 
