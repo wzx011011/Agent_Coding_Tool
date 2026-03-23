@@ -4,45 +4,27 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-## 一、四阶段路线
+## 一、五阶段路线
 
-| Phase         | 时间    | 核心模块                              | 交付物                     | 对标水平                              |
-| ------------- | ------- | ------------------------------------- | -------------------------- | ------------------------------------- |
-| P1 基础框架   | 2-4 周  | Framework 骨架 + Harness 6 Tool + CLI | aictl agent "修复bug" 可用 | Claude Code CLI Core                  |
-| P2 智能对话   | 4-6 周  | Qt GUI + Chat Panel + Diff 预览       | GUI Beta                   | TRAE + VS Code Native Beta            |
-| P3 Agent 智能 | 6-10 周 | 多 Agent 编排 + Repo Map + Git Tool   | 可用 IDE                   | Claude Code Runtime + IDE Integration |
-| P4 生态扩展   | 长期    | ExternalHarness + LSP + 插件系统      | 完整 IDE                   | VS Code Ecosystem                     |
+| Phase          | 时间    | 核心模块                              | 交付物                     | 对标水平                              |
+| -------------- | ------- | ------------------------------------- | -------------------------- | ------------------------------------- |
+| P1a 最小闭环   | 2 周    | AIEngine + 3 Tool + AgentLoop + CLI   | aictl agent 可跑通         | Claude Code CLI 最小内核              |
+| P1b 能力补齐   | 2 周    | +3 Tool + TaskState + Patch + Shell安全 | aictl agent 完整可用       | Claude Code CLI Core                  |
+| P2 智能对话    | 4-6 周  | Qt GUI + Chat Panel + Diff 预览       | GUI Beta                   | TRAE + VS Code Native Beta            |
+| P3 Agent 智能  | 6-10 周 | 多 Agent 编排 + Repo Map + Git Tool   | 可用 IDE                   | Claude Code Runtime + IDE Integration |
+| P4 生态扩展    | 长期    | ExternalHarness + LSP + 插件系统      | 完整 IDE                   | VS Code Ecosystem                     |
 
 路线原则：先完成 coding agent runtime 的最小闭环，再叠加 GUI IDE 体验，最后开放生态扩展。ACT 不是先做编辑器壳子，再把 Agent 能力补进去。能力基准对标 Claude Code CLI，形态基准参考 TRAE 与 VS Code，两条基准不能混为一谈。
+
+**P1 拆分理由**：原 P1 包含 28 个交付项，2-4 周内全部完成风险过高（R6）。拆分为 P1a（证明最小闭环）和 P1b（补齐能力），降低延期风险，尽早建立团队信心。
 
 ---
 
 ## 二、各阶段任务（按架构层分解）
 
-### P1 基础框架（2-4 周）
+### P1a 最小闭环（2 周）
 
-目标：先证明 runtime 内核成立，确保 AgentLoop、Tool Runtime、权限确认、结构化错误和 CLI 闭环可用，并在核心行为上对齐 Claude Code CLI。
-
-**🟡 Agent Framework 层**
-
-- [ ] AgentLoop — 单任务循环、Tool Call 决策、结果推进
-- [ ] ContextManager — 消息管理 + 窗口计算
-- [ ] PermissionManager — CLI Y/N 确认（注入式设计）
-- [ ] TaskState — 单任务运行状态模型（Running / WaitingApproval / ToolRunning / Cancelled / Failed / Completed）
-- [ ] Checkpoint 基础结构 — 为长任务取消、失败恢复预留快照接口
-
-**🟠 Agent Harness 层**
-
-- [ ] ITool 接口定义（itool.h）— Framework 与 Harness 的统一契约
-- [ ] ToolRegistry — Tool 注册/发现/执行
-- [ ] FileReadTool（支持行范围）
-- [ ] FileWriteTool
-- [ ] FileEditTool（精确替换）
-- [ ] ShellExecTool（含超时控制）
-- [ ] GlobTool（文件模式匹配）
-- [ ] GrepTool（正则搜索）
-- [ ] PatchTransaction v0 — 单文件修改预览、确认、提交链路
-- [ ] Shell 安全策略 v0 — 工作目录限制、危险命令拦截、基础 allowlist / denylist
+目标：证明 runtime 最小闭环成立——AgentLoop 能驱动 Tool 执行并返回结果，CLI 可完成一次完整的 Agent 任务。
 
 **🔵 Core Services 层**
 
@@ -50,7 +32,20 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] ILLMProvider 抽象接口
 - [ ] AnthropicProvider（SSE 流式）
 - [ ] ConfigManager（模型/Key 管理）
-- [ ] RuntimeEventLogger v0 — Task / Tool / Permission / Provider 结构化事件日志
+
+**🟠 Agent Harness 层**
+
+- [ ] ITool 接口定义（itool.h）— Framework 与 Harness 的统一契约
+- [ ] ToolRegistry — Tool 注册/发现/执行
+- [ ] FileReadTool（支持行范围）
+- [ ] FileWriteTool
+- [ ] GrepTool（正则搜索）
+
+**🟡 Agent Framework 层**
+
+- [ ] AgentLoop — 单任务循环、Tool Call 决策、结果推进
+- [ ] ContextManager — 消息管理 + 窗口计算
+- [ ] PermissionManager — CLI Y/N 确认（注入式设计）
 
 **🟢 Presentation Layer**
 
@@ -60,10 +55,42 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 **🧪 测试**
 
-- [ ] Harness 层单元测试（6 个 Tool）
+- [ ] Harness 层单元测试（FileReadTool、FileWriteTool、GrepTool）
 - [ ] Framework 层单元测试（AgentLoop、ContextManager）
-- [ ] Harness 层单元测试（ToolRegistry）
 - [ ] 端到端测试：aictl agent "读取 main.cpp 并解释"
+
+**🏗️ CI**
+
+- [ ] GitHub Actions 单平台 CI（Windows 编译 + 单元测试）
+- [ ] vcpkg.json + baseline 提交锁定依赖
+
+---
+
+### P1b 能力补齐（2 周）
+
+目标：在闭环成立的基础上补齐剩余 Tool、安全策略和运行时基础能力。
+
+**🟡 Agent Framework 层**
+
+- [ ] TaskState — 单任务运行状态模型（Running / WaitingApproval / ToolRunning / Cancelled / Failed / Completed）
+- [ ] Checkpoint 基础结构 — 为长任务取消、失败恢复预留快照接口
+
+**🟠 Agent Harness 层**
+
+- [ ] FileEditTool（精确替换）
+- [ ] ShellExecTool（含超时控制）
+- [ ] GlobTool（文件模式匹配）
+- [ ] PatchTransaction v0 — 单文件修改预览、确认、提交链路
+- [ ] Shell 安全策略 v0 — 工作目录限制、危险命令拦截、基础 allowlist / denylist
+
+**🔵 Core Services 层**
+
+- [ ] RuntimeEventLogger v0 — Task / Tool / Permission / Provider 结构化事件日志（基于 spdlog）
+
+**🧪 测试**
+
+- [ ] Harness 层单元测试（FileEditTool、ShellExecTool、GlobTool）
+- [ ] Harness 层单元测试（ToolRegistry）
 - [ ] 回归任务集 v0：读取文件、搜索代码、编辑单文件、执行命令、权限拒绝后继续推进
 
 ---
@@ -88,7 +115,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 - [ ] Qt GUI 主窗口（QMainWindow + QDockWidget）
 - [ ] 活动栏 + 侧边栏布局（参考 VS Code 的导航心智）
-- [ ] AI Chat Panel（cmark Markdown 渲染）
+- [ ] AI Chat Panel（cmark-gfm Markdown 渲染）
 - [ ] 右侧 Agent 面板（参考 TRAE 的任务流与上下文可见性）
 - [ ] QScintilla 编辑器集成
 - [ ] PermissionDialog（图形化权限确认弹窗）
@@ -158,7 +185,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 **DevOps**
 
-- [ ] GitHub Actions CI（Linux / Windows / macOS）
+- [ ] GitHub Actions CI 扩展三平台（Linux / macOS）
 - [ ] 自动发布（.exe / .AppImage / .dmg）
 
 ---
@@ -173,13 +200,20 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ## 四、阶段验收口径
 
-### P1 验收
+### P1a 验收
 
 - `aictl agent "读取 main.cpp 并解释"` 可稳定跑通
-- 6 个基础 Tool 均有单元测试
-- CLI 权限确认、超时控制、结构化错误返回可用
+- FileReadTool、FileWriteTool、GrepTool 均有单元测试
+- CLI 权限确认可用，用户拒绝后 AgentLoop 可继续推理
 - CLI-first runtime 可独立跑通，不依赖任何 GUI 组件
+- GitHub Actions 单平台 CI 可自动编译并运行单元测试
+
+### P1b 验收
+
+- 6 个基础 Tool 均有单元测试
+- 超时控制、结构化错误返回可用
 - 至少具备单任务 TaskState、基础 Checkpoint 接口和单文件 PatchTransaction
+- Shell 安全策略 v0 可拦截危险命令并限制工作目录
 - 回归任务集 v0 可稳定执行，并覆盖权限拒绝、命令失败和单文件修改场景
 
 ### P2 验收
@@ -211,7 +245,15 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ## 五、运行时补强优先级
 
-### 必须进入 P1
+### 必须进入 P1a
+
+- AIEngine + AnthropicProvider + SSE 流式
+- ITool + ToolRegistry + 3 核心 Tool
+- AgentLoop + ContextManager + PermissionManager
+- CLI REPL + Permission Handler
+- GitHub Actions 单平台 CI
+
+### 必须进入 P1b
 
 - TaskState 基础模型
 - Checkpoint 接口预留
@@ -238,7 +280,196 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-## 六、进度追踪
+## 六、核心模块验收标准
+
+每个模块验收分两部分：**接口合约**（输入/输出）和**必测场景**列表。单元测试必须覆盖所有"必测场景"才算该模块通过 P1 Gate。
+
+### 6.1 P1a 模块
+
+#### AnthropicProvider
+| 项目 | 内容 |
+|------|------|
+| 接口 | `chat(messages, toolSchemas) → [streamToken signal...] → LLMMessage` |
+| 输出类型 | `LLMMessage { role, content, toolCall? }` |
+
+必测场景：
+
+| # | 输入 | 期望输出 |
+|---|------|---------|
+| 1 | 正常对话请求 | emit 多个 streamToken + 最终完整 LLMMessage |
+| 2 | 含 Tool Call 的响应 | LLMMessage.toolCall 有效，名称/参数可解析 |
+| 3 | 401 Invalid API Key | 立即返回 `errorCode: AUTH_ERROR` |
+| 4 | 网络超时 (> configurable\_timeout) | `errorCode: PROVIDER_TIMEOUT`，已收 token 不丢失 |
+| 5 | Rate limit (429) | 等 retry-after → 重试一次；再失败 → `errorCode: RATE_LIMIT` |
+
+#### AIEngine
+| 项目 | 内容 |
+|------|------|
+| 接口 | `setProvider(name)` / `chat(messages)` / `requestCompletion(prefix) → QString` |
+
+必测场景：
+
+| # | 输入 | 期望输出 |
+|---|------|---------|
+| 1 | setProvider("anthropic") → setProvider("openai") | 后续 chat 调用目标切换为 OpenAI Provider |
+| 2 | chat() 正常 | streaming 信号透传到调用方 |
+| 3 | Provider 未设置时调用 chat() | `errorCode: NO_PROVIDER` |
+
+#### ContextManager
+| 项目 | 内容 |
+|------|------|
+| 接口 | `buildContext(messages, maxTokens) → QList<LLMMessage>` / `estimateTokens(msgs) → int` |
+
+必测场景：
+
+| # | 条件 | 期望行为 |
+|---|------|---------|
+| 1 | 总量 < 80% 窗口 | 原样返回，不修改任何消息 |
+| 2 | 总量 > 80% 窗口 | Truncate：系统消息保留，最旧消息先丢弃 |
+| 3 | 单条消息 > 50% 窗口 | 该消息内容截断至 40% 窗口大小 |
+| 4 | estimateTokens 精度 | 与实际 token 数误差 < ±25%（chars/3.5 基线） |
+
+#### PermissionManager
+| 项目 | 内容 |
+|------|------|
+| 接口 | `checkPermission(PermissionRequest) → bool`（确认函数由构造注入） |
+
+必测场景：
+
+| # | 条件 | 期望行为 |
+|---|------|---------|
+| 1 | Read 级请求 | 直接 true，不调用确认函数 |
+| 2 | Write 级，mock 返回 true | true |
+| 3 | Write 级，mock 返回 false | false，不执行后续操作 |
+| 4 | Destructive 级 | 确认函数被调用两次（二次确认） |
+| 5 | 只读模式下 Write/Exec/Destructive | 直接 false，不调用确认函数 |
+| 6 | 工作区外路径（任意级别） | 直接 false，`errorCode: OUTSIDE_WORKSPACE` |
+
+#### AgentLoop
+| 项目 | 内容 |
+|------|------|
+| 接口 | `executeTask(taskDesc, workspacePath)` → 通过信号输出事件流 |
+| 输出信号 | `streamToken` / `toolCallStarted` / `toolCallCompleted` / `permissionRequested` / `taskStateChanged` / `errorOccurred` |
+
+必测场景：
+
+| # | 场景 | 期望信号序列 |
+|---|------|-------------|
+| 1 | 无 Tool Call 任务（"你好"） | streamToken × N → taskCompleted，无 toolCallStarted |
+| 2 | 单 Tool（FileRead）任务 | toolCallStarted → toolCallCompleted → streamToken → taskCompleted |
+| 3 | Tool Chain（Read → Edit） | toolCallStarted(read) → toolCallCompleted → toolCallStarted(edit) → toolCallCompleted → taskCompleted |
+| 4 | Write 权限被拒 | permissionRequested → 拒绝 → agent 继续推理（不卡死） |
+| 5 | Provider 超时 | taskStateChanged(Failed) + errorOccurred("PROVIDER_TIMEOUT", …) |
+| 6 | LLM 返回不存在的 Tool 名 | Tool 错误作为 tool result 回传 → agent 继续推理 |
+
+#### ITool / ToolRegistry
+| 项目 | 内容 |
+|------|------|
+| 接口 | `registerTool(ITool*)` / `executeTool(name, params) → ToolResult` / `getTool(name) → ITool*` |
+
+必测场景：
+
+| # | 场景 | 期望结果 |
+|---|------|---------|
+| 1 | 注册后检索 | getTool(name) 返回注册的实例 |
+| 2 | 重复注册同名 Tool | 抛出异常或返回错误 |
+| 3 | executeTool 已注册 Tool | 调用 execute()，结果透传 |
+| 4 | executeTool 未注册 Tool | `ToolResult{success:false, errorCode:"TOOL_NOT_FOUND"}` |
+| 5 | executeTool Write 级，权限未批准 | 不调用 execute()，返回权限拒绝错误 |
+
+#### FileReadTool
+| 项目 | 内容 |
+|------|------|
+| 接口 | `execute({path, start_line?, end_line?}) → ToolResult` |
+
+必测场景：
+
+| # | 输入 | 期望结果 |
+|---|------|---------|
+| 1 | 正常文件路径 | success:true, output 为文件完整内容 |
+| 2 | 带行范围 start=10, end=20 | 仅返回第 10–20 行 |
+| 3 | 不存在的文件 | `errorCode: FILE_NOT_FOUND` |
+| 4 | 工作区外路径 | `errorCode: OUTSIDE_WORKSPACE` |
+| 5 | 二进制文件（非 UTF-8） | `errorCode: BINARY_FILE` |
+| 6 | 超大文件（> 10MB） | 返回前 500 行 + metadata.truncated:true |
+
+#### FileWriteTool
+| 项目 | 内容 |
+|------|------|
+| 接口 | `execute({path, content}) → ToolResult` |
+
+必测场景：
+
+| # | 输入 | 期望结果 |
+|---|------|---------|
+| 1 | 正常写入 | success:true，文件内容与 content 一致 |
+| 2 | 父目录不存在 | 自动创建父目录后写入 |
+| 3 | 工作区外路径 | `errorCode: OUTSIDE_WORKSPACE` |
+| 4 | 系统无写权限 | `errorCode: PERMISSION_DENIED` |
+
+#### GrepTool
+| 项目 | 内容 |
+|------|------|
+| 接口 | `execute({pattern, path?, recursive?}) → ToolResult` |
+
+必测场景：
+
+| # | 输入 | 期望结果 |
+|---|------|---------|
+| 1 | 有效正则，有匹配 | output 为 `文件名:行号:内容` 格式逐行列出 |
+| 2 | 有效正则，无匹配 | success:true, output 为空字符串 |
+| 3 | 非法正则 | `errorCode: INVALID_PATTERN` |
+| 4 | path 为工作区外 | `errorCode: OUTSIDE_WORKSPACE` |
+
+---
+
+### 6.2 P1b 模块
+
+#### FileEditTool
+| 项目 | 内容 |
+|------|------|
+| 接口 | `execute({path, old_string, new_string}) → ToolResult` |
+
+必测场景：
+
+| # | 输入 | 期望结果 |
+|---|------|---------|
+| 1 | old_string 唯一匹配 | success:true，替换完成，metadata 含 diff |
+| 2 | old_string 不存在 | `errorCode: STRING_NOT_FOUND` |
+| 3 | old_string 多处匹配 | `errorCode: AMBIGUOUS_MATCH`，不执行替换 |
+| 4 | 工作区外路径 | `errorCode: OUTSIDE_WORKSPACE` |
+
+#### ShellExecTool
+| 项目 | 内容 |
+|------|------|
+| 接口 | `execute({command, timeout?, workdir?}) → ToolResult` |
+
+必测场景：
+
+| # | 输入 | 期望结果 |
+|---|------|---------|
+| 1 | `echo hello` | success:true, output 含 stdout "hello" |
+| 2 | 退出码非零（`exit 1`） | success:false, metadata.exit\_code:1, output 含 stderr |
+| 3 | 命令超时（执行 > timeout 秒） | 进程终止，`errorCode: TIMEOUT`，output 含已有输出 |
+| 4 | 黑名单命令（`rm -rf /`） | 不执行，`errorCode: COMMAND_BLOCKED` |
+| 5 | workdir 外的 cd | P1b 软限制（记录警告）；P3 升级为硬隔离 |
+
+#### GlobTool
+| 项目 | 内容 |
+|------|------|
+| 接口 | `execute({pattern, basePath?}) → ToolResult` |
+
+必测场景：
+
+| # | 输入 | 期望结果 |
+|---|------|---------|
+| 1 | `**/*.cpp` | 返回工作区内所有 .cpp 文件路径列表 |
+| 2 | 无匹配 pattern | success:true, output 为空列表 |
+| 3 | basePath 为工作区外 | `errorCode: OUTSIDE_WORKSPACE` |
+
+---
+
+## 七、进度追踪
 
 项目进度表：https://gcnaf7ct1kpv.feishu.cn/base/WDPPbs2mKakUpzsndzmcr1Qvncf
 
@@ -246,40 +477,22 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-## 七、相关文档
+## 八、相关文档
 
 - [ACT — PRD 产品需求文档](./ACT-PRD-%E4%BA%A7%E5%93%81%E9%9C%80%E6%B1%82%E6%96%87%E6%A1%A3.md)
 - [ACT — 技术选型报告](./ACT-%E6%8A%80%E6%9C%AF%E9%80%89%E5%9E%8B%E6%8A%A5%E5%91%8A.md)
 - [ACT — 系统架构设计](./ACT-%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1.md)
 - [ACT — 开发计划与进度](./ACT-%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92%E4%B8%8E%E8%BF%9B%E5%BA%A6.md)
+- [ACT — 术语表](./ACT-%E6%9C%AF%E8%AF%AD%E8%A1%A8.md)
+- [ACT — 风险矩阵](./ACT-%E9%A3%8E%E9%99%A9%E7%9F%A9%E9%98%B5.md)
 
-## 八、术语表
+## 九、术语表
 
-| 术语               | 定义                                                   |
-| ------------------ | ------------------------------------------------------ |
-| ACT                | AI Coding Tool，本文档描述的 C++/Qt6 原生 AI IDE 项目  |
-| Presentation Layer | 表现层，包含 CLI、Qt GUI、VS Code Extension 等交互入口 |
-| Agent Framework    | 决定任务如何拆解、推进和确认的框架层                   |
-| Agent Harness      | 承载 Tool 注册、执行和权限分级的执行层                 |
-| Core Services      | 提供模型调用、项目状态、代码分析、配置管理的核心服务层 |
-| Infrastructure     | 文件系统、网络、进程、终端等基础设施抽象层             |
-| AgentLoop          | 单任务 Agent 循环，负责在回复与 Tool Call 之间做决策   |
-| AgentScheduler     | 多任务调度器，负责串行流水线和并行 worker 编排         |
-| ITool              | Framework 与 Harness 之间的标准 Tool 接口              |
-| Provider           | 大模型服务提供方，例如 OpenAI、Claude、GLM             |
-| Repo Map           | 面向仓库结构理解的代码摘要与上下文索引                 |
-| Diff 预览          | Agent 落地修改前向用户展示的变更对比视图               |
-| Fallback           | 主模型失败后切换到备用模型的降级机制                   |
+> 完整术语表维护于 [ACT — 术语表](./ACT-%E6%9C%AF%E8%AF%AD%E8%A1%A8.md)，此处不再重复。
 
-## 九、风险矩阵
+## 十、风险矩阵
 
-| 风险ID | 风险描述                                               | 概率 | 影响 | 应对策略                                                      |
-| ------ | ------------------------------------------------------ | ---- | ---- | ------------------------------------------------------------- |
-| R1     | QScintilla 对 Ghost Text、复杂标记和 Diff 装饰支持不足 | 中   | 高   | 在 P2 前完成编辑器能力验证，不足时补自绘层或调整交互方案      |
-| R2     | 自研 LSP Client 成本过高，导致 P4 范围失控             | 中   | 高   | P4 优先封装成熟库，保留渐进替换空间                           |
-| R3     | cpp-httplib 在弱网、SSE、长连接下稳定性不足            | 中   | 中   | 提前做 Provider 联调和断网压测，必要时替换 HTTP/SSE 方案      |
-| R4     | 权限确认、危险命令拦截和只读模式定义不完整             | 中   | 高   | 在 Framework/Harness 设计阶段固化权限等级、确认流程和拒绝路径 |
-| R5     | 三平台依赖版本漂移，导致本地与 CI 结果不一致           | 高   | 中   | 锁定 Qt、CMake、vcpkg baseline 及关键三方库版本               |
+> 完整风险矩阵维护于 [ACT — 风险矩阵](./ACT-%E9%A3%8E%E9%99%A9%E7%9F%A9%E9%98%B5.md)，此处不再重复。
 
 ---
 
