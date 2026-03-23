@@ -11,6 +11,7 @@ target_link_libraries(aictl
     PRIVATE
         act_core
         act_framework
+        act_services
         Qt6::Core
 )
 

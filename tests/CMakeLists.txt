@@ -19,6 +19,7 @@ gtest_discover_tests(act_core_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
 add_executable(act_framework_tests
     framework/SmokeTest.cpp
     framework/AgentLoopTest.cpp
+    framework/CliReplTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
 gtest_discover_tests(act_framework_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
