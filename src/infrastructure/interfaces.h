@@ -1,8 +1,10 @@
 #pragma once
 
-#include <QObject>
+#include <QJsonObject>
 #include <QString>
 #include <QStringList>
+
+#include <functional>
 
 namespace act::infrastructure
 {
@@ -23,11 +25,10 @@ public:
     virtual bool removeFile(const QString &path) = 0;
 };
 
-class INetwork : public QObject
+class INetwork
 {
-    Q_OBJECT
 public:
-    ~INetwork() override = default;
+    virtual ~INetwork() = default;
 
     virtual void httpRequest(const QJsonObject &request,
                              std::function<void(QJsonObject)> callback) = 0;
@@ -37,11 +38,10 @@ public:
                             std::function<void(QString)> onError) = 0;
 };
 
-class IProcess : public QObject
+class IProcess
 {
-    Q_OBJECT
 public:
-    ~IProcess() override = default;
+    virtual ~IProcess() = default;
 
     virtual void execute(const QString &command,
                          const QStringList &args,

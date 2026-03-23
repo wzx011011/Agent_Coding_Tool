@@ -1,9 +1,10 @@
 #pragma once
 
-#include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QJsonObject>
+
+#include <functional>
 
 #include "core/types.h"
 
@@ -22,11 +23,10 @@ public:
     [[nodiscard]] virtual QString workspacePath() const = 0;
 };
 
-class IAIEngine : public QObject
+class IAIEngine
 {
-    Q_OBJECT
 public:
-    ~IAIEngine() override = default;
+    virtual ~IAIEngine() = default;
 
     virtual void chat(const QList<act::core::LLMMessage> &messages,
                       std::function<void(act::core::LLMMessage)> onMessage,

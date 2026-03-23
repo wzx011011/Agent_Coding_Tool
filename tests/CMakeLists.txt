@@ -23,6 +23,8 @@ gtest_discover_tests(act_framework_tests)
 add_executable(act_harness_tests
     harness/SmokeTest.cpp
     harness/ToolInterfaceTest.cpp
+    harness/ToolRegistryTest.cpp
+    harness/ReadOnlyToolsTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
 gtest_discover_tests(act_harness_tests)
@@ -31,6 +33,8 @@ gtest_discover_tests(act_harness_tests)
 add_executable(act_services_tests
     services/SmokeTest.cpp
     services/ServiceInterfaceTest.cpp
+    services/ConfigManagerTest.cpp
+    services/AIEngineTest.cpp
 )
 target_link_libraries(act_services_tests PRIVATE act_services GTest::gtest_main)
 gtest_discover_tests(act_services_tests)

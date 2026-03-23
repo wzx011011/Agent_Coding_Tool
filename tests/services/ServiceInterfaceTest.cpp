@@ -12,11 +12,10 @@ TEST(IConfigManagerTest, InterfaceIsDefined)
     ASSERT_EQ(cfg, nullptr);
 }
 
-TEST(IAIEngineTest, InheritsQObject)
+TEST(IAIEngineTest, InterfaceIsDefined)
 {
     IAIEngine *engine = nullptr;
-    QObject *obj = engine;
-    ASSERT_EQ(obj, nullptr);
+    ASSERT_EQ(engine, nullptr);
 }
 
 TEST(IProjectManagerTest, InterfaceIsDefined)

@@ -15,17 +15,16 @@ TEST(IFileSystemTest, InterfaceIsDefined)
 
 TEST(INetworkTest, InheritsQObject)
 {
-    // INetwork inherits QObject — verify through pointer conversion
+    // INetwork is a standalone interface (not QObject)
     INetwork *net = nullptr;
-    QObject *obj = net;
-    ASSERT_EQ(obj, nullptr);
+    ASSERT_EQ(net, nullptr);
 }
 
 TEST(IProcessTest, InheritsQObject)
 {
+    // IProcess is a standalone interface (not QObject)
     IProcess *proc = nullptr;
-    QObject *obj = proc;
-    ASSERT_EQ(obj, nullptr);
+    ASSERT_EQ(proc, nullptr);
 }
 
 TEST(ITerminalTest, InterfaceIsDefined)

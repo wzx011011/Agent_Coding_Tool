@@ -1,5 +1,8 @@
 add_library(act_services STATIC
     services.cpp
+    config_manager.cpp
+    anthropic_provider.cpp
+    ai_engine.cpp
 )
 
 target_include_directories(act_services

@@ -5,7 +5,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 0/16
+- Completed: 3/16
 
 ## Planning Notes
 
@@ -22,9 +22,9 @@
 
 | # | ID  | Title | Scope | Depends | Status | Verification | Notes |
 |---|-----|-------|-------|---------|--------|--------------|-------|
-| 1 | T1 | 初始化工程骨架与分层目标 | infra | - | [ ] | configure + build + smoke test pass | 建立 `src/core`、`src/framework`、`src/harness`、`src/cli`、`src/presentation/vscode-protocol`、`tests/`、vcpkg manifest、CMake preset；CLI 仅链接 `QtCore` |
-| 2 | T2 | 定义核心类型、错误码与事件模型 | backend | T1 | [ ] | build + unit tests pass | 包含 `ToolResult`、`ToolCall`、`LLMMessage`、`PermissionRequest`、`TaskState`、`RuntimeEvent`、结构化 error code |
-| 3 | T3 | 建立 IService / IInfrastructure / ITool 契约 | backend | T1, T2 | [ ] | build + interface compile tests pass | 固化层间接口，保证 runtime 与表面解耦 |
+| 1 | T1 | 初始化工程骨架与分层目标 | infra | - | [x] | configure + build + smoke test pass | 建立 `src/core`、`src/framework`、`src/harness`、`src/cli`、`src/presentation/vscode-protocol`、`tests/`、vcpkg manifest、CMake preset；CLI 仅链接 `QtCore` | commit: 68fcb49 |
+| 2 | T2 | 定义核心类型、错误码与事件模型 | backend | T1 | [x] | build + unit tests pass | 包含 `ToolResult`、`ToolCall`、`LLMMessage`、`PermissionRequest`、`TaskState`、`RuntimeEvent`、结构化 error code | commit: 59ba7da |
+| 3 | T3 | 建立 IService / IInfrastructure / ITool 契约 | backend | T1, T2 | [x] | build + interface compile tests pass | 固化层间接口，保证 runtime 与表面解耦 | commit: 140ca9a |
 | 4 | T4 | 实现 ConfigManager、AnthropicProvider 与 AIEngine | backend | T2, T3 | [ ] | build + provider tests pass | 包含 SSE 流式、provider 注入、未配置 provider 错误、基础 fallback 接口 |
 | 5 | T5 | 实现 ToolRegistry 与基础只读工具集 | backend | T2, T3 | [ ] | build + harness tests pass | 实现 `FileReadTool`、`GrepTool`、`GlobTool`，完成 safe_path / 工作区边界校验 |
 | 6 | T6 | 实现权限系统与可写工具基线 | integration | T2, T3, T5 | [ ] | build + tests pass | 实现 `PermissionManager`、`FileWriteTool`、`FileEditTool`、写入审批与工作区外写入拒绝 |
