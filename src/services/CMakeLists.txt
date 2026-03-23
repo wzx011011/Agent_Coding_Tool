@@ -4,11 +4,12 @@ add_library(act_services STATIC
 
 target_include_directories(act_services
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/src
 )
 
 target_link_libraries(act_services
     PUBLIC
+        act_core
         act_infrastructure
         spdlog::spdlog
         nlohmann_json::nlohmann_json

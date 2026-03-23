@@ -4,7 +4,7 @@ add_library(act_vscode_protocol STATIC
 
 target_include_directories(act_vscode_protocol
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${PROJECT_SOURCE_DIR}/src
 )
 
 target_link_libraries(act_vscode_protocol
