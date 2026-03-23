@@ -25,6 +25,9 @@ add_executable(act_harness_tests
     harness/ToolInterfaceTest.cpp
     harness/ToolRegistryTest.cpp
     harness/ReadOnlyToolsTest.cpp
+    harness/WriteToolsTest.cpp
+    harness/ShellSecurityTest.cpp
+    harness/ContextManagerTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
 gtest_discover_tests(act_harness_tests)

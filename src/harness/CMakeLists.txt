@@ -1,9 +1,14 @@
 add_library(act_harness STATIC
     harness.cpp
     tool_registry.cpp
+    permission_manager.cpp
+    context_manager.cpp
     tools/file_read_tool.cpp
+    tools/file_write_tool.cpp
+    tools/file_edit_tool.cpp
     tools/grep_tool.cpp
     tools/glob_tool.cpp
+    tools/shell_exec_tool.cpp
 )
 
 target_include_directories(act_harness

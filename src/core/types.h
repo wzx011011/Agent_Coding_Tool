@@ -29,9 +29,11 @@ struct ToolResult
         return {true, std::move(output), {}, {}, std::move(metadata)};
     }
 
-    [[nodiscard]] static ToolResult err(QString errorCode, QString error)
+    [[nodiscard]] static ToolResult err(QString errorCode,
+                                         QString error,
+                                         QJsonObject metadata = {})
     {
-        return {false, {}, std::move(error), std::move(errorCode), {}};
+        return {false, {}, std::move(error), std::move(errorCode), std::move(metadata)};
     }
 };
 
