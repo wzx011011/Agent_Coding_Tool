@@ -1,57 +1,77 @@
-# Task Queue — ACT CLI Runtime MVP (P1a + P1b)
+# Task Queue — ACT Runtime-First Implementation Plan
 
 ## Metadata
 - Created: 2026-03-23
-- Source: ACT-开发计划与进度.md（P1a 最小闭环 + P1b 能力补齐）
-- Status: pending
-- Completed: 0/14
+- Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
+- Scope: P1a / P1b / P2 / P3 implementation planning
+- Status: pending approval
+- Completed: 0/16
 
 ## Planning Notes
 
-- 本队列只覆盖可直接进入实现的 P1a / P1b，P2-P4 保留在路线图中，待 P1 稳定后再单独拆分。
-- 每个任务必须满足独立可验证；验证默认基于 `cmake --preset default`、`cmake --build build --config RelWithDebInfo`、`ctest --test-dir build --config RelWithDebInfo --output-on-failure`。
-- 任务命名按“先搭骨架，再接 Provider，再接 Tool，再闭环，再补齐安全与回归”的顺序组织。
+- 本队列基于当前已经更新后的 ACT 设计口径：`runtime-first + CLI / VS Code Extension 优先 + Native GUI 第二阶段`。
+- 队列不再沿用旧的“先 CLI 闭环、后补几个 Tool”的窄 P1 拆法，而是按 ACT 现在明确的 runtime 机制栈组织：Stable Loop、Tool Dispatch、Skill Injection、Subagent Isolation、Context Compact、Task Graph、Execution Isolation。
+- 每个任务都要求独立可验证；默认验证命令为：
+	- `cmake --preset default`
+	- `cmake --build build --config RelWithDebInfo`
+	- `ctest --test-dir build --config RelWithDebInfo --output-on-failure`
+- P4 `Multi-Agent / ExternalHarness / MCP / ACP / Plugin` 暂不进入本轮任务队列，避免把 implementation queue 拉成不可执行的长期愿景清单。
+- P1 CLI 目标必须保持 headless：只允许 `QtCore`，禁止把 `QtWidgets`、`QScintilla`、`QTermWidget` 混入 runtime / CLI 目标。
 
 ## Tasks
 
-| # | ID | Title | Scope | Depends | Status | Verification | Notes |
-|---|----|-------|-------|---------|--------|--------------|-------|
-| 1 | T1 | 初始化 CMake 工程骨架与目录结构 | infra | - | [-] | configure + build + test pass | 建立 `src/`、`tests/`、`app/cli`、vcpkg manifest、CMake presets、headless CLI target（仅 QtCore）、preflight 检查、README 启动说明 |
-| 2 | T2 | 建立核心类型与服务接口 | backend | T1 | [ ] | build pass + unit: core types compile coverage | 包含 `ToolResult`、`LLMMessage`、`TaskState`、`PermissionRequest`、`ILLMProvider`、`IAIEngine` |
-| 3 | T3 | 实现 ConfigManager 与 AnthropicProvider 流式调用 | backend | T1, T2 | [ ] | build + test pass + mock/provider stream test green | 含 API Key 读取、SSE 流解析、结构化错误返回 |
-| 4 | T4 | 实现 AIEngine 门面与 Provider 切换 | backend | T2, T3 | [ ] | build + test pass | 验证 provider 注入、透传 streaming、未设置 provider 错误 |
-| 5 | T5 | 定义 ITool 契约并实现 ToolRegistry | backend | T1, T2 | [ ] | build + test pass | 完成 Tool 注册、查找、重复注册保护、执行入口 |
-| 6 | T6 | 实现 FileReadTool 与 GrepTool | backend | T5 | [ ] | build + test pass | 覆盖行范围读取、正则搜索、工作区边界校验 |
-| 7 | T7 | 实现 FileWriteTool 与 PermissionManager | integration | T2, T5 | [ ] | build + test pass | 覆盖写权限审批、目录自动创建、工作区外写入拒绝 |
-| 8 | T8 | 实现 ContextManager 与 token 估算策略 | backend | T2 | [ ] | build + test pass | 实现窗口估算、截断策略、系统消息保留 |
-| 9 | T9 | 实现 AgentLoop 最小单任务闭环 | integration | T4, T5, T6, T7, T8 | [ ] | build + test pass + unit: agent loop scenarios green | 覆盖 tool call、权限拒绝后继续、provider 错误回传 |
-| 10 | T10 | 实现 CLI REPL、权限确认与 Markdown 终端渲染 | frontend | T7, T9 | [ ] | build + manual: CLI single task works + no QtWidgets linkage | 提供 `aictl agent` 与交互式确认链路，保持 CLI headless（禁止 QtWidgets/QScintilla/QTermWidget） |
-| 11 | T11 | 补齐 P1a 测试与 Windows 单平台 CI | testing | T6, T7, T8, T9, T10 | [ ] | build + test pass + CI workflow green | 含 vcpkg baseline 锁定、Harness/Framework 单测、P1a e2e |
-| 12 | T12 | 实现 TaskState、Checkpoint 骨架与 RuntimeEventLogger | backend | T9 | [ ] | build + test pass | 为长任务恢复、事件记录、状态可观测性预留稳定接口 |
-| 13 | T13 | 实现 FileEditTool、GlobTool、ShellExecTool 与 Shell 安全策略 | backend | T5, T7, T12 | [ ] | build + test pass | 覆盖超时、危险命令拦截、工作目录限制、精确替换 |
-| 14 | T14 | 实现 PatchTransaction v0 与 P1b 回归任务集 | testing | T10, T11, T12, T13 | [ ] | build + test pass + regression suite green | 覆盖读取、搜索、编辑、命令执行、权限拒绝后继续推进 |
+| # | ID  | Title | Scope | Depends | Status | Verification | Notes |
+|---|-----|-------|-------|---------|--------|--------------|-------|
+| 1 | T1 | 初始化工程骨架与分层目标 | infra | - | [ ] | configure + build + smoke test pass | 建立 `src/core`、`src/framework`、`src/harness`、`src/cli`、`src/presentation/vscode-protocol`、`tests/`、vcpkg manifest、CMake preset；CLI 仅链接 `QtCore` |
+| 2 | T2 | 定义核心类型、错误码与事件模型 | backend | T1 | [ ] | build + unit tests pass | 包含 `ToolResult`、`ToolCall`、`LLMMessage`、`PermissionRequest`、`TaskState`、`RuntimeEvent`、结构化 error code |
+| 3 | T3 | 建立 IService / IInfrastructure / ITool 契约 | backend | T1, T2 | [ ] | build + interface compile tests pass | 固化层间接口，保证 runtime 与表面解耦 |
+| 4 | T4 | 实现 ConfigManager、AnthropicProvider 与 AIEngine | backend | T2, T3 | [ ] | build + provider tests pass | 包含 SSE 流式、provider 注入、未配置 provider 错误、基础 fallback 接口 |
+| 5 | T5 | 实现 ToolRegistry 与基础只读工具集 | backend | T2, T3 | [ ] | build + harness tests pass | 实现 `FileReadTool`、`GrepTool`、`GlobTool`，完成 safe_path / 工作区边界校验 |
+| 6 | T6 | 实现权限系统与可写工具基线 | integration | T2, T3, T5 | [ ] | build + tests pass | 实现 `PermissionManager`、`FileWriteTool`、`FileEditTool`、写入审批与工作区外写入拒绝 |
+| 7 | T7 | 实现 ShellExecTool 与 Shell 安全策略 v0 | backend | T2, T3, T6 | [ ] | build + tests pass | 覆盖超时、危险命令拦截、工作目录限制、allowlist / denylist 基线 |
+| 8 | T8 | 实现 ContextManager 与三层压缩骨架 | backend | T2, T3, T4 | [ ] | build + tests pass | 先落 `estimateTokens`、窗口治理、Micro Compact / Auto Compact / Manual Compact 框架 |
+| 9 | T9 | 实现 AgentLoop、TaskState 与 Checkpoint 骨架 | integration | T4, T5, T6, T7, T8 | [ ] | build + framework tests pass | 覆盖 tool_use 循环、权限拒绝后继续、结构化失败回传、基础 TaskState 流转 |
+| 10 | T10 | 实现 CLI REPL 与 JSON Lines runtime 协议 | frontend | T6, T7, T9 | [ ] | build + CLI e2e tests pass | 同时支持人类可读 REPL 和机器可读 `--json` 事件流，为 VS Code Extension 提供协议面 |
+| 11 | T11 | 实现 VS Code Extension MVP | frontend | T10 | [ ] | build + extension smoke workflow pass | 完成 `spawn aictl`、chat 入口、命令入口、权限响应回传、最小 diff 审核闭环 |
+| 12 | T12 | 实现 SkillCatalog、SkillLoader 与 load_skill | backend | T3, T8, T9 | [ ] | build + tests pass | 实现两层技能注入：system prompt 摘要常驻，正文按需以 tool_result 注入；记录 Skill Trace |
+| 13 | T13 | 实现 SubagentManager 与 Explore / Code 子智能体 | integration | T9, T10, T12 | [ ] | build + tests pass | 子任务使用独立 `messages[]`，Explore 默认只读，主会话仅接收摘要与结构化结果 |
+| 14 | T14 | 实现 PatchTransaction、Git 只读工具与 RuntimeTraceStore | integration | T6, T7, T9, T10 | [ ] | build + tests pass | 落地 `GitStatusTool`、`GitDiffTool`、`PatchTransaction v0/v1`、`RuntimeEventLogger`、`RuntimeTraceStore v1` |
+| 15 | T15 | 实现 Task Graph、Resume / Replay 与 Execution Lane | backend | T9, T13, T14 | [ ] | build + tests pass | 引入 `TaskStateStore`、依赖图、artifact 引用、background lane、worktree lane 抽象 |
+| 16 | T16 | 接入 Native GUI Beta 与 P1-P3 回归评测 | integration | T11, T14, T15 | [ ] | build + test + targeted regression pass | 接入 Qt GUI 壳、任务状态与事件流面板、DiffWidget、EvalRunner v0/v1、关键回归任务集 |
 
 ## Dependency Waves
 
 | Wave | Tasks |
 |------|-------|
 | 1 | T1 |
-| 2 | T2, T5 |
-| 3 | T3, T6, T7, T8 |
-| 4 | T4, T9 |
-| 5 | T10, T12 |
-| 6 | T11, T13 |
-| 7 | T14 |
+| 2 | T2, T3 |
+| 3 | T4, T5 |
+| 4 | T6, T7, T8 |
+| 5 | T9 |
+| 6 | T10 |
+| 7 | T11, T12 |
+| 8 | T13, T14 |
+| 9 | T15 |
+| 10 | T16 |
+
+## Round Estimate
+
+- 任务数：16
+- 预估执行轮次：10 轮
+- 并行潜力：Wave 3、Wave 4、Wave 7、Wave 8 可局部并行
+- 风险最高阶段：T13（Subagent）、T15（Task Graph + Execution Lane）、T16（Native GUI + Regression）
 
 ## Approval Checklist
 
-- [ ] 任务范围聚焦 P1a / P1b，无混入 P2 GUI 交付
+- [ ] 任务队列已对齐当前 runtime-first 设计，而不是旧版原生 GUI 优先路线
 - [ ] 每个任务都能独立 build + test 验证
 - [ ] 依赖关系已显式声明，无隐式前置条件
-- [ ] 队列顺序符合“先闭环、再补能力、最后补回归”的策略
+- [ ] P1 CLI 保持 headless，不混入 GUI 依赖
+- [ ] 技能加载、子智能体隔离、上下文压缩、任务图与执行通道都已进入实现队列
 
-## Deferred Phases
+## Deferred Scope
 
-- P2：Qt GUI、Diff 预览、终端面板、任务状态 UI
-- P3：AgentScheduler、RepoMap、多 Provider、Fallback、Failure Classifier
-- P4：VS Code Extension、MCP/ACP、插件系统、三平台发布
+- P4 `Multi-Agent / Team Protocol / ExternalHarness / ACP / MCP / PluginLoader`
+- 三平台完整发布流水线
+- Native GUI 的高级交互打磨和视觉优化
+- 更完整的权限治理、信任策略和组织级策略中心

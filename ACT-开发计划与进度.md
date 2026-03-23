@@ -1,20 +1,20 @@
 # ACT — 开发计划与进度
 
-C++/Qt6 原生 AI IDE · 2026-03-23
+Runtime-first AI Coding Tool · 2026-03-23
 
 ---
 
 ## 一、五阶段路线
 
-| Phase          | 时间    | 核心模块                              | 交付物                     | 对标水平                              |
-| -------------- | ------- | ------------------------------------- | -------------------------- | ------------------------------------- |
-| P1a 最小闭环   | 2 周    | AIEngine + 3 Tool + AgentLoop + CLI   | aictl agent 可跑通         | Claude Code CLI 最小内核              |
-| P1b 能力补齐   | 2 周    | +3 Tool + TaskState + Patch + Shell安全 | aictl agent 完整可用       | Claude Code CLI Core                  |
-| P2 智能对话    | 4-6 周  | Qt GUI + Chat Panel + Diff 预览       | GUI Beta                   | TRAE + VS Code Native Beta            |
-| P3 Agent 智能  | 6-10 周 | 多 Agent 编排 + Repo Map + Git Tool   | 可用 IDE                   | Claude Code Runtime + IDE Integration |
-| P4 生态扩展    | 长期    | ExternalHarness + LSP + 插件系统      | 完整 IDE                   | VS Code Ecosystem                     |
+| Phase             | 时间    | 核心模块                                                    | 交付物                     | 对标水平                              |
+| ----------------- | ------- | ----------------------------------------------------------- | -------------------------- | ------------------------------------- |
+| P1a Runtime MVP   | 2 周    | AIEngine + 3 Tool + AgentLoop + CLI + VS Code Extension MVP | CLI / VS Code 最小闭环     | Claude Code CLI 最小内核              |
+| P1b Runtime Core  | 2 周    | +3 Tool + TaskState + Patch + Shell 安全 + RuntimeEvent     | aictl agent 完整可用       | Claude Code CLI Core                  |
+| P2 Runtime 强化   | 4-6 周  | Skill Loading + Subagent + Context Compact + Trace / Eval   | 长任务可持续推进的 runtime | Claude Code Runtime Productization    |
+| P3 执行隔离与桌面 | 6-10 周 | Task Graph + Execution Lane + Repo Map + Native GUI Beta    | 可并行执行的 AI IDE Beta   | Claude Code Runtime + IDE Integration |
+| P4 生态扩展       | 长期    | Multi-Agent / ExternalHarness + LSP + 插件系统              | 多表面统一 runtime 平台    | VS Code Ecosystem                     |
 
-路线原则：先完成 coding agent runtime 的最小闭环，再叠加 GUI IDE 体验，最后开放生态扩展。ACT 不是先做编辑器壳子，再把 Agent 能力补进去。能力基准对标 Claude Code CLI，形态基准参考 TRAE 与 VS Code，两条基准不能混为一谈。
+路线原则：先完成独立 runtime 与 VS Code Extension 的产品闭环，再补齐技能加载、上下文压缩、子任务隔离与执行通道等深水区能力，最后建设 Native GUI 并开放生态扩展。ACT 不是先做编辑器壳子，再把 Agent 能力补进去。
 
 **P1 拆分理由**：原 P1 包含 28 个交付项，2-4 周内全部完成风险过高（R6）。拆分为 P1a（证明最小闭环）和 P1b（补齐能力），降低延期风险，尽早建立团队信心。
 
@@ -22,9 +22,9 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ## 二、各阶段任务（按架构层分解）
 
-### P1a 最小闭环（2 周）
+### P1a Runtime MVP（2 周）
 
-目标：证明 runtime 最小闭环成立——AgentLoop 能驱动 Tool 执行并返回结果，CLI 可完成一次完整的 Agent 任务。
+目标：证明 runtime 最小闭环成立。AgentLoop 能驱动 Tool 执行并返回结果，CLI 与 VS Code Extension MVP 都可完成一次完整 Agent 任务。
 
 **🔵 Core Services 层**
 
@@ -52,6 +52,8 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] CLI REPL 模式（GNU readline）
 - [ ] CLI Permission Handler（Y/N 确认）
 - [ ] Markdown 终端输出
+- [ ] VS Code Extension MVP（TS → spawn aictl）
+- [ ] VS Code Chat / Command / Diff 入口最小闭环
 
 **🧪 测试**
 
@@ -66,7 +68,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-### P1b 能力补齐（2 周）
+### P1b Runtime Core（2 周）
 
 目标：在闭环成立的基础上补齐剩余 Tool、安全策略和运行时基础能力。
 
@@ -74,6 +76,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 - [ ] TaskState — 单任务运行状态模型（Running / WaitingApproval / ToolRunning / Cancelled / Failed / Completed）
 - [ ] Checkpoint 基础结构 — 为长任务取消、失败恢复预留快照接口
+- [ ] SkillCatalog 元信息索引 — 技能名称、描述、标签常驻 system prompt
 
 **🟠 Agent Harness 层**
 
@@ -82,6 +85,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] GlobTool（文件模式匹配）
 - [ ] PatchTransaction v0 — 单文件修改预览、确认、提交链路
 - [ ] Shell 安全策略 v0 — 工作目录限制、危险命令拦截、基础 allowlist / denylist
+- [ ] load_skill Tool — 完整技能正文以 tool_result 按需注入
 
 **🔵 Core Services 层**
 
@@ -95,13 +99,14 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ---
 
-### P2 智能对话（4-6 周）
+### P2 Runtime 强化（4-6 周）
 
-目标：把 P1 已稳定的 runtime 能力投射到 Qt GUI，形成 ACT 的第一代 AI IDE 交付形态，在布局和交互上吸收 TRAE 与 VS Code 的优秀设计。
+目标：把 runtime 从“能跑”提升到“能长时间稳定推进真实任务”。重点补齐技能加载、子智能体隔离、三层上下文压缩、结构化 Trace 与基础评测。
 
 **🟡 Agent Framework 层**
 
-- [ ] ContextManager 增强：自动压缩策略
+- [ ] SubagentManager — Explore / Code 子智能体角色与独立 messages[]
+- [ ] ContextManager 增强：Micro Compact / Auto Compact / Manual Compact
 - [ ] ResumeTask — 从 Checkpoint 恢复中断任务
 
 **🟠 Agent Harness 层**
@@ -110,8 +115,41 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] GitDiffTool
 - [ ] DiffViewTool（修改预览）
 - [ ] PatchTransaction v1 — 多文件预览、Accept / Reject、部分失败处理
+- [ ] SkillLoader v1 — 支持多技能叠加与 Skill Trace
 
-**🟢 Presentation Layer（GUI）**
+**🟢 Presentation Layer（CLI / VS Code）**
+
+- [ ] VS Code 任务状态区（显示 Running / Waiting / Failed / Completed）
+- [ ] Tool / Permission 事件流面板（最小可观测性 UI）
+- [ ] 技能调用、子任务摘要和 compact 状态的表面可视化
+
+**🔵 Core Services 层**
+
+- [ ] RuntimeTraceStore v1 — 按任务聚合 Tool、Permission、Provider 事件
+- [ ] EvalRunner v0 — 可执行基础回归任务集并记录通过率
+
+---
+
+### P3 执行隔离与桌面（6-10 周）
+
+目标：把“能推进任务”提升为“能并行推进任务且不互相污染”，同时接入 Native GUI 作为第二阶段桌面载体。
+
+**🟡 Agent Framework 层**
+
+- [ ] AgentScheduler — 并行任务编排
+- [ ] AgentScheduler — 串行流水线
+- [ ] Task Replay / Resume v1 — 多步任务恢复与复盘
+- [ ] Task Graph v1 — 任务依赖、blockedBy、owner、artifact 引用
+
+**🟠 Agent Harness 层**
+
+- [ ] GitCommitTool
+- [ ] RepoMapTool（tree-sitter）
+- [ ] PatchTransaction v2 — 多文件原子提交、回滚、冲突处理
+- [ ] 执行隔离策略 v1 — 环境变量隔离、工作区外写入控制、网络访问分级
+- [ ] ExecutionLane / WorktreeManager v1 — 任务与执行目录解耦
+
+**🟢 Presentation Layer（Native GUI）**
 
 - [ ] Qt GUI 主窗口（QMainWindow + QDockWidget）
 - [ ] 活动栏 + 侧边栏布局（参考 VS Code 的导航心智）
@@ -123,32 +161,6 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - [ ] 底部终端（QTermWidget）
 - [ ] 底部终端 / 输出 / 诊断联动（参考 VS Code 的面板组织）
 - [ ] 文件浏览器 + 搜索
-- [ ] 任务状态区（显示 Running / Waiting / Failed / Completed）
-- [ ] Tool / Permission 事件流面板（最小可观测性 UI）
-
-**🔵 Core Services 层**
-
-- [ ] RuntimeTraceStore v1 — 按任务聚合 Tool、Permission、Provider 事件
-- [ ] EvalRunner v0 — 可执行基础回归任务集并记录通过率
-
----
-
-### P3 Agent 智能（6-10 周）
-
-目标：把“能跑”提升为“能在真实仓库里持续推进任务”，补齐编排、Repo 理解和 Git 闭环。
-
-**🟡 Agent Framework 层**
-
-- [ ] AgentScheduler — 并行任务编排
-- [ ] AgentScheduler — 串行流水线
-- [ ] Task Replay / Resume v1 — 多步任务恢复与复盘
-
-**🟠 Agent Harness 层**
-
-- [ ] GitCommitTool
-- [ ] RepoMapTool（tree-sitter）
-- [ ] PatchTransaction v2 — 多文件原子提交、回滚、冲突处理
-- [ ] 执行隔离策略 v1 — 环境变量隔离、工作区外写入控制、网络访问分级
 
 **🔵 Core Services 层**
 
@@ -162,11 +174,12 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 ### P4 生态扩展（长期）
 
-目标：让 ACT 从单一产品形态演进为可接入外部 Harness、IDE 和插件生态的运行时平台。
+目标：让 ACT 从已验证的 runtime 演进为可接入多 Agent 协作、外部 Harness、IDE 和插件生态的统一运行时平台。
 
 **🟡 Agent Framework 层**
 
 - [ ] 嵌套编排（main → orchestrator → workers）
+- [ ] Team Protocol — 子智能体协作协议、计划审批、任务认领
 
 **🟠 Agent Harness 层**
 
@@ -181,7 +194,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 **🟢 Presentation Layer**
 
-- [ ] VS Code Extension（TS → spawn aictl）
+- [ ] VS Code Extension / Native GUI / CLI 多表面统一能力面
 
 **DevOps**
 
@@ -203,6 +216,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 ### P1a 验收
 
 - `aictl agent "读取 main.cpp 并解释"` 可稳定跑通
+- VS Code Extension 中可触发同一任务并完成最小闭环
 - FileReadTool、FileWriteTool、GrepTool 均有单元测试
 - CLI 权限确认可用，用户拒绝后 AgentLoop 可继续推理
 - CLI-first runtime 可独立跑通，不依赖任何 GUI 组件
@@ -215,14 +229,14 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - 至少具备单任务 TaskState、基础 Checkpoint 接口和单文件 PatchTransaction
 - Shell 安全策略 v0 可拦截危险命令并限制工作目录
 - 回归任务集 v0 可稳定执行，并覆盖权限拒绝、命令失败和单文件修改场景
+- 技能元信息常驻 system prompt，技能正文通过 load_skill 按需注入
 
 ### P2 验收
 
-- Qt GUI 可完成对话、Diff 预览、权限确认闭环
-- GitStatusTool / GitDiffTool 能在 GUI 中展示结果
-- Chat Panel、编辑器、终端三块核心区域可联动
-- 活动栏、侧边栏、右侧 Agent 面板、底部终端区形成稳定的信息架构，不破坏 CLI-first runtime 的边界
-- GUI 可展示任务状态、Tool 事件和权限事件，用户能看清 runtime 当前在做什么
+- Explore 子智能体可独立执行只读任务，并仅向主会话返回摘要
+- 三层上下文压缩可在长任务中持续工作，不破坏任务因果链
+- VS Code / CLI 可展示任务状态、Tool 事件、权限事件和技能调用事件
+- GitStatusTool / GitDiffTool 能在 VS Code 或 CLI 中展示结果
 - 中断任务可从 Checkpoint 恢复，至少支持单任务恢复到最近一次确认点
 
 ### P3 验收
@@ -233,6 +247,8 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - 可在真实仓库中完成接近 Claude Code CLI 水平的多步任务推进与审阅闭环
 - 多文件补丁支持预演、原子提交与失败回滚
 - 标准任务集和回归任务集可持续运行，能区分模型问题、工具问题和权限问题
+- Task Graph 与 Execution Lane 可独立演进，worktree 切换不破坏任务状态
+- Native GUI 在不分叉 runtime 的前提下接入，并完成与 VS Code 相同的基础任务闭环
 
 ### P4 验收
 
@@ -240,6 +256,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - 三平台 CI、打包和版本发布流程跑通
 - VS Code Extension 与原生 GUI 共用同一套 runtime 能力，不形成分叉实现
 - ACP / MCP / Plugin 调用进入统一权限与审计体系，不形成新的安全盲区
+- Multi-Agent 协作协议在统一 Task Graph 与 Event Trace 中可观察、可审计、可恢复
 
 ---
 
@@ -261,6 +278,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - Shell 安全策略 v0
 - RuntimeEventLogger v0
 - 回归任务集 v0
+- load_skill Tool + SkillCatalog 摘要注入
 
 ### 最迟 P2 补齐
 
@@ -269,6 +287,8 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - 任务状态区与事件流面板
 - RuntimeTraceStore v1
 - EvalRunner v0
+- SubagentManager v1
+- 三层 Context Compact
 
 ### 最迟 P3 补齐
 
@@ -277,6 +297,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 - 执行隔离策略 v1
 - EvalRunner v1
 - Failure Classifier
+- ExecutionLane / WorktreeManager v1
 
 ---
 
@@ -287,185 +308,197 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 ### 6.1 P1a 模块
 
 #### AnthropicProvider
-| 项目 | 内容 |
-|------|------|
-| 接口 | `chat(messages, toolSchemas) → [streamToken signal...] → LLMMessage` |
-| 输出类型 | `LLMMessage { role, content, toolCall? }` |
+
+| 项目     | 内容                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| 接口     | `chat(messages, toolSchemas) → [streamToken signal...] → LLMMessage` |
+| 输出类型 | `LLMMessage { role, content, toolCall? }`                            |
 
 必测场景：
 
-| # | 输入 | 期望输出 |
-|---|------|---------|
-| 1 | 正常对话请求 | emit 多个 streamToken + 最终完整 LLMMessage |
-| 2 | 含 Tool Call 的响应 | LLMMessage.toolCall 有效，名称/参数可解析 |
-| 3 | 401 Invalid API Key | 立即返回 `errorCode: AUTH_ERROR` |
-| 4 | 网络超时 (> configurable\_timeout) | `errorCode: PROVIDER_TIMEOUT`，已收 token 不丢失 |
-| 5 | Rate limit (429) | 等 retry-after → 重试一次；再失败 → `errorCode: RATE_LIMIT` |
+| #   | 输入                              | 期望输出                                                    |
+| --- | --------------------------------- | ----------------------------------------------------------- |
+| 1   | 正常对话请求                      | emit 多个 streamToken + 最终完整 LLMMessage                 |
+| 2   | 含 Tool Call 的响应               | LLMMessage.toolCall 有效，名称/参数可解析                   |
+| 3   | 401 Invalid API Key               | 立即返回 `errorCode: AUTH_ERROR`                            |
+| 4   | 网络超时 (> configurable_timeout) | `errorCode: PROVIDER_TIMEOUT`，已收 token 不丢失            |
+| 5   | Rate limit (429)                  | 等 retry-after → 重试一次；再失败 → `errorCode: RATE_LIMIT` |
 
 #### AIEngine
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                                           |
+| ---- | ------------------------------------------------------------------------------ |
 | 接口 | `setProvider(name)` / `chat(messages)` / `requestCompletion(prefix) → QString` |
 
 必测场景：
 
-| # | 输入 | 期望输出 |
-|---|------|---------|
-| 1 | setProvider("anthropic") → setProvider("openai") | 后续 chat 调用目标切换为 OpenAI Provider |
-| 2 | chat() 正常 | streaming 信号透传到调用方 |
-| 3 | Provider 未设置时调用 chat() | `errorCode: NO_PROVIDER` |
+| #   | 输入                                             | 期望输出                                 |
+| --- | ------------------------------------------------ | ---------------------------------------- |
+| 1   | setProvider("anthropic") → setProvider("openai") | 后续 chat 调用目标切换为 OpenAI Provider |
+| 2   | chat() 正常                                      | streaming 信号透传到调用方               |
+| 3   | Provider 未设置时调用 chat()                     | `errorCode: NO_PROVIDER`                 |
 
 #### ContextManager
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                                                   |
+| ---- | -------------------------------------------------------------------------------------- |
 | 接口 | `buildContext(messages, maxTokens) → QList<LLMMessage>` / `estimateTokens(msgs) → int` |
 
 必测场景：
 
-| # | 条件 | 期望行为 |
-|---|------|---------|
-| 1 | 总量 < 80% 窗口 | 原样返回，不修改任何消息 |
-| 2 | 总量 > 80% 窗口 | Truncate：系统消息保留，最旧消息先丢弃 |
-| 3 | 单条消息 > 50% 窗口 | 该消息内容截断至 40% 窗口大小 |
-| 4 | estimateTokens 精度 | 与实际 token 数误差 < ±25%（chars/3.5 基线） |
+| #   | 条件                | 期望行为                                     |
+| --- | ------------------- | -------------------------------------------- |
+| 1   | 总量 < 80% 窗口     | 原样返回，不修改任何消息                     |
+| 2   | 总量 > 80% 窗口     | Truncate：系统消息保留，最旧消息先丢弃       |
+| 3   | 单条消息 > 50% 窗口 | 该消息内容截断至 40% 窗口大小                |
+| 4   | estimateTokens 精度 | 与实际 token 数误差 < ±25%（chars/3.5 基线） |
 
 #### PermissionManager
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                              |
+| ---- | ----------------------------------------------------------------- |
 | 接口 | `checkPermission(PermissionRequest) → bool`（确认函数由构造注入） |
 
 必测场景：
 
-| # | 条件 | 期望行为 |
-|---|------|---------|
-| 1 | Read 级请求 | 直接 true，不调用确认函数 |
-| 2 | Write 级，mock 返回 true | true |
-| 3 | Write 级，mock 返回 false | false，不执行后续操作 |
-| 4 | Destructive 级 | 确认函数被调用两次（二次确认） |
-| 5 | 只读模式下 Write/Exec/Destructive | 直接 false，不调用确认函数 |
-| 6 | 工作区外路径（任意级别） | 直接 false，`errorCode: OUTSIDE_WORKSPACE` |
+| #   | 条件                              | 期望行为                                   |
+| --- | --------------------------------- | ------------------------------------------ |
+| 1   | Read 级请求                       | 直接 true，不调用确认函数                  |
+| 2   | Write 级，mock 返回 true          | true                                       |
+| 3   | Write 级，mock 返回 false         | false，不执行后续操作                      |
+| 4   | Destructive 级                    | 确认函数被调用两次（二次确认）             |
+| 5   | 只读模式下 Write/Exec/Destructive | 直接 false，不调用确认函数                 |
+| 6   | 工作区外路径（任意级别）          | 直接 false，`errorCode: OUTSIDE_WORKSPACE` |
 
 #### AgentLoop
-| 项目 | 内容 |
-|------|------|
-| 接口 | `executeTask(taskDesc, workspacePath)` → 通过信号输出事件流 |
+
+| 项目     | 内容                                                                                                                   |
+| -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 接口     | `executeTask(taskDesc, workspacePath)` → 通过信号输出事件流                                                            |
 | 输出信号 | `streamToken` / `toolCallStarted` / `toolCallCompleted` / `permissionRequested` / `taskStateChanged` / `errorOccurred` |
 
 必测场景：
 
-| # | 场景 | 期望信号序列 |
-|---|------|-------------|
-| 1 | 无 Tool Call 任务（"你好"） | streamToken × N → taskCompleted，无 toolCallStarted |
-| 2 | 单 Tool（FileRead）任务 | toolCallStarted → toolCallCompleted → streamToken → taskCompleted |
-| 3 | Tool Chain（Read → Edit） | toolCallStarted(read) → toolCallCompleted → toolCallStarted(edit) → toolCallCompleted → taskCompleted |
-| 4 | Write 权限被拒 | permissionRequested → 拒绝 → agent 继续推理（不卡死） |
-| 5 | Provider 超时 | taskStateChanged(Failed) + errorOccurred("PROVIDER_TIMEOUT", …) |
-| 6 | LLM 返回不存在的 Tool 名 | Tool 错误作为 tool result 回传 → agent 继续推理 |
+| #   | 场景                        | 期望信号序列                                                                                          |
+| --- | --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1   | 无 Tool Call 任务（"你好"） | streamToken × N → taskCompleted，无 toolCallStarted                                                   |
+| 2   | 单 Tool（FileRead）任务     | toolCallStarted → toolCallCompleted → streamToken → taskCompleted                                     |
+| 3   | Tool Chain（Read → Edit）   | toolCallStarted(read) → toolCallCompleted → toolCallStarted(edit) → toolCallCompleted → taskCompleted |
+| 4   | Write 权限被拒              | permissionRequested → 拒绝 → agent 继续推理（不卡死）                                                 |
+| 5   | Provider 超时               | taskStateChanged(Failed) + errorOccurred("PROVIDER_TIMEOUT", …)                                       |
+| 6   | LLM 返回不存在的 Tool 名    | Tool 错误作为 tool result 回传 → agent 继续推理                                                       |
 
 #### ITool / ToolRegistry
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                                                         |
+| ---- | -------------------------------------------------------------------------------------------- |
 | 接口 | `registerTool(ITool*)` / `executeTool(name, params) → ToolResult` / `getTool(name) → ITool*` |
 
 必测场景：
 
-| # | 场景 | 期望结果 |
-|---|------|---------|
-| 1 | 注册后检索 | getTool(name) 返回注册的实例 |
-| 2 | 重复注册同名 Tool | 抛出异常或返回错误 |
-| 3 | executeTool 已注册 Tool | 调用 execute()，结果透传 |
-| 4 | executeTool 未注册 Tool | `ToolResult{success:false, errorCode:"TOOL_NOT_FOUND"}` |
-| 5 | executeTool Write 级，权限未批准 | 不调用 execute()，返回权限拒绝错误 |
+| #   | 场景                             | 期望结果                                                |
+| --- | -------------------------------- | ------------------------------------------------------- |
+| 1   | 注册后检索                       | getTool(name) 返回注册的实例                            |
+| 2   | 重复注册同名 Tool                | 抛出异常或返回错误                                      |
+| 3   | executeTool 已注册 Tool          | 调用 execute()，结果透传                                |
+| 4   | executeTool 未注册 Tool          | `ToolResult{success:false, errorCode:"TOOL_NOT_FOUND"}` |
+| 5   | executeTool Write 级，权限未批准 | 不调用 execute()，返回权限拒绝错误                      |
 
 #### FileReadTool
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                   |
+| ---- | ------------------------------------------------------ |
 | 接口 | `execute({path, start_line?, end_line?}) → ToolResult` |
 
 必测场景：
 
-| # | 输入 | 期望结果 |
-|---|------|---------|
-| 1 | 正常文件路径 | success:true, output 为文件完整内容 |
-| 2 | 带行范围 start=10, end=20 | 仅返回第 10–20 行 |
-| 3 | 不存在的文件 | `errorCode: FILE_NOT_FOUND` |
-| 4 | 工作区外路径 | `errorCode: OUTSIDE_WORKSPACE` |
-| 5 | 二进制文件（非 UTF-8） | `errorCode: BINARY_FILE` |
-| 6 | 超大文件（> 10MB） | 返回前 500 行 + metadata.truncated:true |
+| #   | 输入                      | 期望结果                                |
+| --- | ------------------------- | --------------------------------------- |
+| 1   | 正常文件路径              | success:true, output 为文件完整内容     |
+| 2   | 带行范围 start=10, end=20 | 仅返回第 10–20 行                       |
+| 3   | 不存在的文件              | `errorCode: FILE_NOT_FOUND`             |
+| 4   | 工作区外路径              | `errorCode: OUTSIDE_WORKSPACE`          |
+| 5   | 二进制文件（非 UTF-8）    | `errorCode: BINARY_FILE`                |
+| 6   | 超大文件（> 10MB）        | 返回前 500 行 + metadata.truncated:true |
 
 #### FileWriteTool
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                    |
+| ---- | --------------------------------------- |
 | 接口 | `execute({path, content}) → ToolResult` |
 
 必测场景：
 
-| # | 输入 | 期望结果 |
-|---|------|---------|
-| 1 | 正常写入 | success:true，文件内容与 content 一致 |
-| 2 | 父目录不存在 | 自动创建父目录后写入 |
-| 3 | 工作区外路径 | `errorCode: OUTSIDE_WORKSPACE` |
-| 4 | 系统无写权限 | `errorCode: PERMISSION_DENIED` |
+| #   | 输入         | 期望结果                              |
+| --- | ------------ | ------------------------------------- |
+| 1   | 正常写入     | success:true，文件内容与 content 一致 |
+| 2   | 父目录不存在 | 自动创建父目录后写入                  |
+| 3   | 工作区外路径 | `errorCode: OUTSIDE_WORKSPACE`        |
+| 4   | 系统无写权限 | `errorCode: PERMISSION_DENIED`        |
 
 #### GrepTool
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                 |
+| ---- | ---------------------------------------------------- |
 | 接口 | `execute({pattern, path?, recursive?}) → ToolResult` |
 
 必测场景：
 
-| # | 输入 | 期望结果 |
-|---|------|---------|
-| 1 | 有效正则，有匹配 | output 为 `文件名:行号:内容` 格式逐行列出 |
-| 2 | 有效正则，无匹配 | success:true, output 为空字符串 |
-| 3 | 非法正则 | `errorCode: INVALID_PATTERN` |
-| 4 | path 为工作区外 | `errorCode: OUTSIDE_WORKSPACE` |
+| #   | 输入             | 期望结果                                  |
+| --- | ---------------- | ----------------------------------------- |
+| 1   | 有效正则，有匹配 | output 为 `文件名:行号:内容` 格式逐行列出 |
+| 2   | 有效正则，无匹配 | success:true, output 为空字符串           |
+| 3   | 非法正则         | `errorCode: INVALID_PATTERN`              |
+| 4   | path 为工作区外  | `errorCode: OUTSIDE_WORKSPACE`            |
 
 ---
 
 ### 6.2 P1b 模块
 
 #### FileEditTool
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                   |
+| ---- | ------------------------------------------------------ |
 | 接口 | `execute({path, old_string, new_string}) → ToolResult` |
 
 必测场景：
 
-| # | 输入 | 期望结果 |
-|---|------|---------|
-| 1 | old_string 唯一匹配 | success:true，替换完成，metadata 含 diff |
-| 2 | old_string 不存在 | `errorCode: STRING_NOT_FOUND` |
-| 3 | old_string 多处匹配 | `errorCode: AMBIGUOUS_MATCH`，不执行替换 |
-| 4 | 工作区外路径 | `errorCode: OUTSIDE_WORKSPACE` |
+| #   | 输入                | 期望结果                                 |
+| --- | ------------------- | ---------------------------------------- |
+| 1   | old_string 唯一匹配 | success:true，替换完成，metadata 含 diff |
+| 2   | old_string 不存在   | `errorCode: STRING_NOT_FOUND`            |
+| 3   | old_string 多处匹配 | `errorCode: AMBIGUOUS_MATCH`，不执行替换 |
+| 4   | 工作区外路径        | `errorCode: OUTSIDE_WORKSPACE`           |
 
 #### ShellExecTool
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                                  |
+| ---- | ----------------------------------------------------- |
 | 接口 | `execute({command, timeout?, workdir?}) → ToolResult` |
 
 必测场景：
 
-| # | 输入 | 期望结果 |
-|---|------|---------|
-| 1 | `echo hello` | success:true, output 含 stdout "hello" |
-| 2 | 退出码非零（`exit 1`） | success:false, metadata.exit\_code:1, output 含 stderr |
-| 3 | 命令超时（执行 > timeout 秒） | 进程终止，`errorCode: TIMEOUT`，output 含已有输出 |
-| 4 | 黑名单命令（`rm -rf /`） | 不执行，`errorCode: COMMAND_BLOCKED` |
-| 5 | workdir 外的 cd | P1b 软限制（记录警告）；P3 升级为硬隔离 |
+| #   | 输入                          | 期望结果                                              |
+| --- | ----------------------------- | ----------------------------------------------------- |
+| 1   | `echo hello`                  | success:true, output 含 stdout "hello"                |
+| 2   | 退出码非零（`exit 1`）        | success:false, metadata.exit_code:1, output 含 stderr |
+| 3   | 命令超时（执行 > timeout 秒） | 进程终止，`errorCode: TIMEOUT`，output 含已有输出     |
+| 4   | 黑名单命令（`rm -rf /`）      | 不执行，`errorCode: COMMAND_BLOCKED`                  |
+| 5   | workdir 外的 cd               | P1b 软限制（记录警告）；P3 升级为硬隔离               |
 
 #### GlobTool
-| 项目 | 内容 |
-|------|------|
+
+| 项目 | 内容                                         |
+| ---- | -------------------------------------------- |
 | 接口 | `execute({pattern, basePath?}) → ToolResult` |
 
 必测场景：
 
-| # | 输入 | 期望结果 |
-|---|------|---------|
-| 1 | `**/*.cpp` | 返回工作区内所有 .cpp 文件路径列表 |
-| 2 | 无匹配 pattern | success:true, output 为空列表 |
-| 3 | basePath 为工作区外 | `errorCode: OUTSIDE_WORKSPACE` |
+| #   | 输入                | 期望结果                           |
+| --- | ------------------- | ---------------------------------- |
+| 1   | `**/*.cpp`          | 返回工作区内所有 .cpp 文件路径列表 |
+| 2   | 无匹配 pattern      | success:true, output 为空列表      |
+| 3   | basePath 为工作区外 | `errorCode: OUTSIDE_WORKSPACE`     |
 
 ---
 

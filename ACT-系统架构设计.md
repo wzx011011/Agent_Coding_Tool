@@ -1,24 +1,25 @@
 # ACT — 系统架构设计
 
-C++/Qt6 原生 AI IDE · 2026-03-23
+Runtime-first AI Coding Tool · 2026-03-23
 
 ## 一、设计理念：CLI 优先，多 Surface 渲染
 
 对标 Claude Code 的架构模式：
 
-|              | Claude Code             | 我们的方案                   |
-| ------------ | ----------------------- | ---------------------------- |
-| 核心语言     | Node.js（TS）           | C++                          |
-| 核心接口     | CLI（claude 命令）      | CLI（aictl 命令）            |
-| 桌面 GUI     | Electron 壳（调用 CLI） | Qt GUI（直接调用运行时接口） |
-| VS Code 集成 | TS 扩展 → spawn CLI     | TS 扩展 → spawn CLI          |
-| Desktop 性能 | Electron（重）          | Qt 原生（轻）                |
+|              | Claude Code             | 我们的方案                             |
+| ------------ | ----------------------- | -------------------------------------- |
+| 核心语言     | Node.js（TS）           | C++                                    |
+| 核心接口     | CLI（claude 命令）      | CLI（aictl 命令）                      |
+| 第一产品表面 | CLI / VS Code / Desktop | CLI + VS Code Extension                |
+| 第二产品表面 | Desktop / 多端扩展      | Native GUI（第二阶段接入独立 runtime） |
+| VS Code 集成 | TS 扩展 → spawn CLI     | TS 扩展 → spawn aictl                  |
+| Desktop 性能 | Electron（重）          | Native GUI 保留为第二阶段差异化能力    |
 
-核心思路：一个 runtime core，多个前端。CLI 是最先成熟的入口，Qt GUI 和 VS Code 扩展是同一套 coding agent runtime 的不同载体。
+核心思路：一个 runtime core，多个前端。CLI 与 VS Code Extension 是最先成熟的入口，Native GUI 在 runtime 稳定后再接入同一套能力内核。
 
 产品定位上，ACT 对外呈现为 AI IDE；架构上，真正的核心是 Layer 2-4 组成的 runtime，而不是某一个具体 UI 壳层。
 
-基准拆分上，Layer 2-4 的行为对齐对象是 Claude Code CLI，Layer 1 的交互和信息架构参考对象是 TRAE 与 VS Code。前者决定 ACT 能不能完成真实工程任务，后者决定用户是否愿意长期使用这套能力。
+基准拆分上，Layer 2-4 的行为对齐对象是 Claude Code CLI；Layer 1 的第一阶段交互基准是 VS Code Extension 工作流，第二阶段桌面信息架构参考 TRAE 与 VS Code。前者决定 ACT 能不能完成真实工程任务，后者决定这些能力最终如何被用户消费。
 
 ---
 
@@ -27,7 +28,7 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 ```
 ┌──────────────────────────────────────────────────────────┐
 │           LAYER 1 · Presentation Layer（表现层）            │
-│     Qt GUI（桌面版）· CLI（aictl）· VS Code Extension      │
+│  CLI（aictl）· VS Code Extension（第一阶段）· Native GUI（第二阶段） │
 ├──────────────────────────────────────────────────────────┤
 │           LAYER 2 · Agent Framework（Agent 框架层）         │
 │   AgentLoop · AgentScheduler · ContextManager · Permission │
@@ -55,6 +56,16 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 
 三者通过 **ITool 标准接口** 解耦，各自独立演进。
 
+### Runtime 机制演进原则
+
+ACT 吸收 Claude Code 类 runtime 的经验后，明确采用“稳定 loop + 机制外插”的演进方式：
+
+- Agent Loop 尽量保持小而稳定，不因新增能力不断改写主循环
+- 新能力作为独立运行时机制叠加到 loop 周围，而不是拼接为巨大的条件分支
+- 运行时能力按六类机制持续演进：Tool Dispatch、Skill Injection、Subagent Isolation、Context Compact、Task Graph、Execution Isolation
+
+这意味着 ACT 的核心竞争力不是单个 Tool 或单个 UI，而是这些机制能否形成统一、可恢复、可观测、可扩展的 runtime。
+
 ### 各层职责
 
 这五层里，Layer 1 决定产品如何被使用，Layer 2-4 决定产品是否真的具备 agentic coding 能力。因此 ACT 的路线不是“先做 IDE 再补 AI”，而是“先做 runtime，再把 runtime 投射到 IDE”。
@@ -62,19 +73,20 @@ C++/Qt6 原生 AI IDE · 2026-03-23
 **Presentation Layer（表现层）**
 
 - 纯 UI 壳，不含业务逻辑
-- CLI（aictl）、Qt GUI、VS Code Extension 三个前端
-- Qt GUI 直接调用 Layer 2-4 暴露的运行时接口
+- 第一阶段前端：CLI（aictl）与 VS Code Extension
+- 第二阶段前端：Native GUI
 - VS Code Extension 通过 spawn `aictl` 复用 CLI 能力，而不是直连内部对象
-- Qt GUI 的信息架构参考 TRAE 与 VS Code，保持活动栏、侧边栏、编辑区、右侧 Agent 面板、底部终端面板的高密度协同布局
+- Native GUI 在第二阶段直接调用 Layer 2-4 暴露的运行时接口，但不得形成分叉实现
+- 第一阶段优先复用 VS Code 的成熟编辑器与工作区能力，第二阶段再补原生桌面的信息架构差异化
 
 **Agent Framework（框架层）**
 
-- 负责任务编排、Agent 循环、上下文管理、权限决策
+- 负责任务编排、Agent 循环、上下文管理、权限决策、子任务隔离
 - 不直接接触文件系统、终端、Git 等具体副作用
 
 **Agent Harness（执行层）**
 
-- 负责 Tool 注册、Tool 执行、权限分级、结果回传
+- 负责 Tool 注册、Tool 执行、权限分级、结果回传、技能注入、执行通道适配
 - 通过 ITool 将具体副作用能力暴露给 Framework
 
 **Core Services（核心服务层）**
@@ -101,12 +113,12 @@ ITool 定义了 Layer 2（Framework）与 Layer 3（Harness）之间的契约。
 
 **IService 接口族（Layer 2/3 → Layer 4 的契约）**
 
-| 接口             | 职责                                     |
-| ---------------- | ---------------------------------------- |
-| IAIEngine        | 模型调用、流式补全、多轮对话与 Tool Call |
-| IProjectManager  | 工作区状态、文件列表、路径解析           |
-| ICodeAnalyzer    | Repo Map 构建、AST 分析、上下文裁剪     |
-| IConfigManager   | 模型/Key/Settings 读写                   |
+| 接口            | 职责                                     |
+| --------------- | ---------------------------------------- |
+| IAIEngine       | 模型调用、流式补全、多轮对话与 Tool Call |
+| IProjectManager | 工作区状态、文件列表、路径解析           |
+| ICodeAnalyzer   | Repo Map 构建、AST 分析、上下文裁剪      |
+| IConfigManager  | 模型/Key/Settings 读写                   |
 
 所有 Core Service 必须面向接口编程，Framework 和 Harness 只依赖 `IService` 指针，不直接 `#include` 具体实现头文件。
 
@@ -127,9 +139,23 @@ ITool 定义了 Layer 2（Framework）与 Layer 3（Harness）之间的契约。
 
 这一拆分不只是工程分层，也是产品战略分层：
 
-- Presentation Layer 对应 ACT 的 AI IDE 产品形态
+- Presentation Layer 对应 ACT 的多表面产品形态，且具备明确的阶段优先级
 - Agent Framework + Agent Harness + Core Services 对应 ACT 的 coding agent runtime 内核
 - 多 Surface 复用同一 runtime，才能避免 GUI、CLI、Extension 各自长出一套逻辑
+
+### 核心机制栈
+
+吸收 learn-claude-code 这类逆向教学仓库之后，ACT 将运行时机制明确拆为以下七个可独立演进的子系统：
+
+| 机制                | ACT 组件                               | 作用                                       |
+| ------------------- | -------------------------------------- | ------------------------------------------ |
+| Stable Loop         | AgentLoop                              | 保持主循环稳定，所有高级能力围绕它叠加     |
+| Tool Dispatch       | ToolRegistry + ITool                   | 统一工具定义、执行、权限和审计入口         |
+| Skill Injection     | SkillCatalog + SkillLoader             | 两层技能注入，避免 system prompt 膨胀      |
+| Subagent Isolation  | SubagentManager                        | 子任务使用独立消息空间，主上下文只接收摘要 |
+| Context Compact     | ContextManager + ContextCompactor      | 微压缩、自动压缩、手动压缩                 |
+| Task Graph          | TaskManager + TaskStateStore           | 目标状态、依赖和恢复点的持久化             |
+| Execution Isolation | ExecutionLaneManager / WorktreeManager | 执行目录、后台任务、并行通道与任务状态解耦 |
 
 ### 为什么 Framework + Harness 分离？
 
@@ -146,12 +172,16 @@ ITool 定义了 Layer 2（Framework）与 Layer 3（Harness）之间的契约。
 | Agent Framework | AgentLoop         | 单轮推理、Tool Call 决策、任务推进            |
 |                 | AgentScheduler    | 多任务编排、串并行调度、Worker 协作           |
 |                 | ContextManager    | 消息管理、窗口计算、自动压缩                  |
+|                 | SubagentManager   | 生成只读/可写子智能体并隔离上下文             |
 |                 | PermissionManager | 权限检查、GUI弹窗/CLI确认注入                 |
 | Agent Harness   | ToolRegistry      | Tool 注册/发现/执行/权限检查                  |
 |                 | ITool 实现        | FileRead/Write/Edit, ShellExec, Glob, Grep 等 |
+|                 | SkillCatalog      | 技能目录扫描、摘要暴露、正文按需注入          |
+|                 | ExecutionLane     | CLI、Background、Worktree 等执行通道适配      |
 | Core Services   | AIEngine          | 多模型 LLM 抽象、Streaming、Fallback          |
 |                 | ProjectManager    | 工作区、文件、Git 管理                        |
 |                 | CodeAnalyzer      | Repo Map、tree-sitter AST                     |
+|                 | TaskStateStore    | TaskState、Checkpoint、Resume 元数据持久化    |
 
 ### ITool 接口（Framework 和 Harness 的唯一桥梁）
 
@@ -160,6 +190,37 @@ ITool 定义了 Layer 2（Framework）与 Layer 3（Harness）之间的契约。
 - `name()` / `description()` / `schema()` — 元信息（供 LLM 生成 Tool Call）
 - `execute(params) → ToolResult` — 实际执行
 - `permissionLevel() → Read | Write | Exec | Network | Destructive`
+
+### SkillLoader：两层技能注入
+
+ACT 不把所有 workflow 说明、代码规范、工具约束全文放进 system prompt，而采用两层注入：
+
+- **Layer 1**：系统提示中仅常驻技能名称、简介、标签和适用条件
+- **Layer 2**：模型需要时调用 `load_skill`，将完整技能正文以 `tool_result` 注入当前上下文
+
+设计目的：
+
+- 避免 system prompt 被大量低命中率知识膨胀
+- 让技能像 Tool 一样进入统一审计和 Trace 链路
+- 支持多个技能叠加，但只让真正被调用的内容消耗 token
+
+SkillLoader 属于 Harness 层，因为它本质上是“向模型注入外部知识的执行机制”，而不是调度器。
+
+### Subagent：上下文隔离而非消息堆叠
+
+ACT 的子智能体不是主会话里再塞一轮 prompt，而是独立 runtime 会话：
+
+- 主 Agent 通过 `run_subagent` / `task` 触发子任务
+- 子智能体获得独立 `messages[]`、受限工具集和角色提示
+- 子智能体完成后只返回摘要、结论、引用位置和结构化结果
+- 主会话禁止直接吞入子会话完整历史，避免上下文污染
+
+第一阶段至少支持两类子智能体：
+
+- `Explore`：只读工具集，用于搜索、阅读、定位信息
+- `Code`：完整工具集，用于实现类子任务
+
+后续可扩展到 `Review`、`Test`、`Plan` 等角色。
 
 ### 权限等级
 
@@ -193,6 +254,29 @@ GUI 和 CLI 共用同一套权限逻辑，仅表现层不同：
 - 用户拒绝权限时，AgentLoop 应将拒绝结果作为显式上下文继续推理，而不是静默失败
 - 长任务必须支持取消，避免 GUI 和 CLI 被阻塞
 
+### Context Compact：三层压缩策略
+
+ACT 明确采用三层上下文压缩，而不是只在 token 超限时做一次摘要：
+
+1. **Micro Compact**：把较旧的 ToolResult、权限结果、技能正文替换为短占位符或摘要引用
+2. **Auto Compact**：达到阈值后，归档完整会话片段并生成阶段摘要，替换中旧消息
+3. **Manual Compact**：模型或用户显式触发 compact，对当前长任务进行主动收缩
+
+压缩的目标不是单纯“省 token”，而是维持任务推进的因果链：决策、拒绝、失败、补丁确认和技能加载都必须以可复盘的形式保留下来。
+
+### Task Graph 与 Execution Lane 解耦
+
+ACT 不将任务和执行目录混为一个概念，而是拆成两个正交模型：
+
+- **Task Graph**：记录任务目标、状态、依赖、责任人、Checkpoint、评测结果
+- **Execution Lane**：记录任务在哪个执行通道中运行，如当前工作区、后台通道或独立 worktree
+
+这样设计的收益：
+
+- 任务状态可以持久化和恢复，而不依赖具体目录是否仍存在
+- 并行任务可以共享同一任务系统，但各自拥有独立执行空间
+- Background Run、Worktree Run、GUI 触发执行都能进入同一 runtime 观察链路
+
 ### 运行时事件总线（RuntimeEventBus）
 
 文档提到"GUI 用 signal/slot，CLI 用回调"，但 Layer 2-4 之间的异步通信机制需要形式化定义。引入轻量 RuntimeEventBus，统一所有运行时事件的分发：
@@ -204,7 +288,7 @@ GUI 和 CLI 共用同一套权限逻辑，仅表现层不同：
 | TaskStateChanged      | AgentLoop         | Presentation（状态区）     |
 | ToolExecutionProgress | ToolRegistry      | Presentation（事件流）     |
 | StreamToken           | AIEngine          | ChatPanel / CLI 输出       |
-| PermissionRequested   | PermissionManager | GUI弹窗 / CLI Y/N         |
+| PermissionRequested   | PermissionManager | GUI弹窗 / CLI Y/N          |
 | PermissionResolved    | Presentation      | PermissionManager          |
 | ErrorOccurred         | 任意层            | Presentation + EventLogger |
 
@@ -237,12 +321,12 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 
 ### 开发阶段
 
-| Phase | 时间   | 核心交付                                 |
-| ----- | ------ | ---------------------------------------- |
-| P1    | 2-4周  | ITool + ToolRegistry + 6个基础Tool + CLI |
-| P2    | 4-6周  | Qt GUI + ChatPanel + Diff预览            |
-| P3    | 6-10周 | 多Agent编排 + RepoMap + Git Tool         |
-| P4    | 长期   | ExternalHarness + LSP + 插件系统         |
+| Phase | 时间   | 核心交付                                           |
+| ----- | ------ | -------------------------------------------------- |
+| P1    | 2-4周  | 独立 runtime + CLI + VS Code Extension MVP         |
+| P2    | 4-6周  | Skill / Subagent / Context Compact / Runtime Trace |
+| P3    | 6-10周 | Task Graph + Execution Lane + Native GUI Beta      |
+| P4    | 长期   | 多Agent协作 + ExternalHarness + LSP + 插件系统     |
 
 ---
 
@@ -264,14 +348,14 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 
 ### 5.1 Agent Framework
 
-| 组件              | 关键方法        | 功能                          | 对标                  |
-| ----------------- | --------------- | ----------------------------- | --------------------- |
-| AgentLoop         | executeTask     | 驱动单任务 Agent 循环         | Claude Code agentic   |
-|                   | planNextStep    | 决定回复还是调用 Tool         | Cline Tool loop       |
-| AgentScheduler    | submitTask      | 多任务入口                    | OpenClaw orchestrator |
-|                   | runPipeline     | 串行流水线 / 并行 worker 编排 | 多 Agent 协作         |
-| ContextManager    | buildContext    | 上下文拼装与裁剪              | smart context         |
-|                   | compressHistory | 长会话压缩（见下方压缩策略）  | context compaction    |
+| 组件           | 关键方法        | 功能                          | 对标                  |
+| -------------- | --------------- | ----------------------------- | --------------------- |
+| AgentLoop      | executeTask     | 驱动单任务 Agent 循环         | Claude Code agentic   |
+|                | planNextStep    | 决定回复还是调用 Tool         | Cline Tool loop       |
+| AgentScheduler | submitTask      | 多任务入口                    | OpenClaw orchestrator |
+|                | runPipeline     | 串行流水线 / 并行 worker 编排 | 多 Agent 协作         |
+| ContextManager | buildContext    | 上下文拼装与裁剪              | smart context         |
+|                | compressHistory | 长会话压缩（见下方压缩策略）  | context compaction    |
 
 **ContextManager 压缩策略**
 
@@ -282,8 +366,8 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 3. **混合模式（Hybrid）**：对最早 60% 截断，对中间 30% 摘要，保留最近 10% 原始消息。平衡成本与信息保留。
 
 默认使用混合模式。压缩触发阈值为当前 token 窗口的 80%，压缩后目标为窗口的 50%。
-| PermissionManager | checkPermission | 权限判断                      | Claude Code 确认      |
-|                   | requestApproval | 注入 GUI/CLI 确认             | permission prompt     |
+| PermissionManager | checkPermission | 权限判断 | Claude Code 确认 |
+| | requestApproval | 注入 GUI/CLI 确认 | permission prompt |
 
 ### 5.2 Agent Harness
 
@@ -311,7 +395,7 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 
 ---
 
-## 六、GUI 布局
+## 六、第二阶段 Native GUI 布局
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -330,7 +414,7 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 └──────────────────────────────────────────────────┘
 ```
 
-布局原则：左侧保留 VS Code 式活动栏与资源导航心智，中央保持编辑器与 Diff 为主工作区，右侧承载 TRAE 式 Agent 面板与任务状态，底部统一终端、诊断和输出。所有这些区域都必须服务于 Claude Code CLI 风格的任务推进链路，而不是与 runtime 各自为战。
+布局原则：该布局仅在第二阶段 Native GUI 接入时生效。第一阶段优先依托 VS Code 的成熟编辑器、终端、侧边栏与面板系统；第二阶段的 Native GUI 仍需保持左侧导航、中央编辑与 Diff、右侧 Agent 面板、底部终端输出的工作流，但必须复用同一套 runtime，而不是自带独立逻辑。
 
 ---
 
@@ -353,11 +437,11 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 
 ### API Key 存储策略
 
-| 平台    | 首选方案                    | 降级方案           |
-| ------- | --------------------------- | ------------------ |
-| Windows | Windows Credential Manager  | 加密本地配置文件   |
-| macOS   | Keychain                    | 加密本地配置文件   |
-| Linux   | libsecret / GNOME Keyring   | 加密本地配置文件   |
+| 平台    | 首选方案                   | 降级方案         |
+| ------- | -------------------------- | ---------------- |
+| Windows | Windows Credential Manager | 加密本地配置文件 |
+| macOS   | Keychain                   | 加密本地配置文件 |
+| Linux   | libsecret / GNOME Keyring  | 加密本地配置文件 |
 
 - 禁止明文存储 API Key
 - 配置文件中只保存加密后的密文，运行时解密到内存
@@ -372,13 +456,13 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 
 ### Shell 命令安全
 
-| 策略           | 说明                                                     |
-| -------------- | -------------------------------------------------------- |
-| 危险命令黑名单 | `rm -rf /`、`format`、`mkfs`、`dd if=`、`:(){ :|:& };:` 等 |
-| 安全命令白名单 | `ls`、`cat`、`grep`、`find`、`git status`、`git diff` 等    |
-| 工作目录限制   | ShellExecTool 强制在工作区目录内执行，禁止 `cd /` 逃逸     |
-| 超时控制       | 默认 30s 超时，用户可配置上限 300s                          |
-| 输出截断       | 单次命令输出上限 100KB，超出截断并提示                      |
+| 策略           | 说明                                                         |
+| -------------- | ------------------------------------------------------------ | ---------- |
+| 危险命令黑名单 | `rm -rf /`、`format`、`mkfs`、`dd if=`、`:(){ :              | :& };:` 等 |
+| 安全命令白名单 | `ls`、`cat`、`grep`、`find`、`git status`、`git diff` 等     |
+| 工作目录限制   | ShellExecTool 强制在工作区目录内执行，禁止 `cd /` 逃逸       |
+| 超时控制       | 默认 30s 超时，用户可配置上限 300s                           |
+| 输出截断       | 单次命令输出上限 100KB，超出截断并提示                       |
 | 环境变量隔离   | 子进程仅继承白名单环境变量，API Key 等敏感变量不泄露给 shell |
 
 ### 网络访问分级
@@ -386,7 +470,7 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 | 等级     | 说明                                               | 行为     |
 | -------- | -------------------------------------------------- | -------- |
 | Provider | 访问已配置的 LLM API Endpoint（OpenAI/Claude/GLM） | 自动放行 |
-| Internal | 访问 localhost / 127.0.0.1                          | 自动放行 |
+| Internal | 访问 localhost / 127.0.0.1                         | 自动放行 |
 | External | 访问任意外部 URL（WebFetchTool）                   | 需确认   |
 | Blocked  | SSRF 高危目标（云元数据 169.254.169.254 等）       | 强制拦截 |
 
@@ -417,13 +501,13 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 
 > 完整术语表维护于 [ACT — 术语表](./ACT-%E6%9C%AF%E8%AF%AD%E8%A1%A8.md)，此处仅列本文档新增术语。
 
-| 术语                | 定义                                                              |
-| ------------------- | ----------------------------------------------------------------- |
-| IService            | Core Services 层向 Framework/Harness 暴露的标准服务接口族         |
-| IInfrastructure     | Infrastructure 层向上层暴露的标准基础设施接口族                   |
-| RuntimeEventBus     | 运行时事件实时分发总线，Layer 2-4 发布、Presentation 订阅        |
-| FileLockManager     | Harness 层文件并发访问协调器，提供共享锁和排他锁                 |
-| CacheManager        | 高开销计算结果的缓存管理器，基于时间戳+hash失效                  |
+| 术语            | 定义                                                      |
+| --------------- | --------------------------------------------------------- |
+| IService        | Core Services 层向 Framework/Harness 暴露的标准服务接口族 |
+| IInfrastructure | Infrastructure 层向上层暴露的标准基础设施接口族           |
+| RuntimeEventBus | 运行时事件实时分发总线，Layer 2-4 发布、Presentation 订阅 |
+| FileLockManager | Harness 层文件并发访问协调器，提供共享锁和排他锁          |
+| CacheManager    | 高开销计算结果的缓存管理器，基于时间戳+hash失效           |
 
 ## 十一、风险矩阵
 
@@ -436,7 +520,7 @@ P3 引入 AgentScheduler 支持并行 worker 编排后，多个 Agent/Worker 可
 | R3     | cpp-httplib 在弱网、SSE、长连接下稳定性不足            | 中   | 中   | 提前做 Provider 联调和断网压测，必要时替换 HTTP/SSE 方案      |
 | R4     | 权限确认、危险命令拦截和只读模式定义不完整             | 中   | 高   | 在 Framework/Harness 设计阶段固化权限等级、确认流程和拒绝路径 |
 | R5     | 三平台依赖版本漂移，导致本地与 CI 结果不一致           | 高   | 中   | 锁定 Qt、CMake、vcpkg baseline 及关键三方库版本               |
-| R6     | P1 范围过大导致延期，影响团队信心                      | 高   | 高   | 拆分 P1a/P1b，先证明最小闭环再补齐能力                       |
+| R6     | P1 范围过大导致延期，影响团队信心                      | 高   | 高   | 拆分 P1a/P1b，先证明最小闭环再补齐能力                        |
 | R7     | 层间通信未形式化，P2 加 GUI 时大量返工                 | 中   | 高   | P1 定义 RuntimeEventBus 接口和 IService 接口族                |
 | R8     | 无 CI 导致三平台问题积累到 P4 才发现                   | 高   | 中   | P1 搭建单平台 CI，P2 扩展三平台                               |
 | R9     | 并发 Agent 文件冲突导致数据丢失                        | 低   | 高   | P1 预留 FileLockManager 接口，P3 实现完整并发控制             |
