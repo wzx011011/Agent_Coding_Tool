@@ -6,6 +6,7 @@ set(ACT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
 # Core tests
 add_executable(act_core_tests
     core/RuntimeVersionTest.cpp
+    core/CoreTypesTest.cpp
 )
 target_include_directories(act_core_tests PRIVATE ${ACT_SOURCE_DIR})
 target_link_libraries(act_core_tests PRIVATE act_core Qt6::Core GTest::gtest_main)
