@@ -19,6 +19,14 @@
 - Use `QString` at API boundaries; use `std::string_view` for internal string processing.
 - Memory: parent-child ownership where possible; `std::unique_ptr` otherwise.
 
+### Qt 6.10 Pitfalls
+
+- **No implicit `const char*` to `QString` via `QJsonValueRef`**: Always use `QStringLiteral("key")` for `QJsonObject::operator[]` and `QJsonObject::contains()`. The bare `"key"` will fail to compile.
+- **`Q_OBJECT` on pure virtual interfaces**: Causes LNK2001 if the interface has no signals/slots (moc can't generate symbols). Use `std::function` callbacks instead of QObject inheritance for pure interfaces.
+- **`CMAKE_AUTOMOC ON`**: Required in root CMakeLists.txt for any class using `Q_OBJECT`. Without it, moc won't run and signals/slots won't work.
+- **`QEventLoop` without `QCoreApplication`**: Will hang. Tests using code with `QEventLoop` need either a `QCoreApplication` fixture or test only pre-event-loop logic. Use `--timeout` on ctest as safety net.
+- **GTest `operator<<` can't stream `QString`**: Use `.toStdString()` in GTest assertions: `ASSERT_TRUE(x) << qstr.toStdString();`
+
 ## Layer Boundaries
 
 - P1 CLI is runtime-first, not GUI-first. Keep `QtWidgets`-based code out of CLI deliverables.

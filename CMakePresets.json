@@ -31,9 +31,11 @@
     {
       "name": "default",
       "configurePreset": "default",
-      "configuration": "RelWithDebInfo",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "timeout": 10
       }
     }
   ]

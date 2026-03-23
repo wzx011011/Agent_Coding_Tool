@@ -23,22 +23,30 @@ This repository uses Claude Code for assisted development with autonomous task e
 
 ## Build
 
-**Build:** `cmake --build build --config RelWithDebInfo`
-**Dev:**   `cmake --preset default`
-**Test:**  `ctest --test-dir build --config RelWithDebInfo --output-on-failure`
-**Lint:**  `clang-tidy -p build src/**/*.cpp`
+Windows 环境必须通过 `_build.bat` 构建（初始化 MSVC toolchain）。
+
+| Command      | Script                  |
+| ------------ | ----------------------- |
+| Full build   | `_build.bat`            |
+| Build only   | `_build.bat --no-test`  |
+| Test only    | `_build.bat --test-only`|
+
+从 Git Bash 调用时，必须将输出重定向到文件，不能用 pipe：
+
+```bash
+WIN_TMP=$(cygpath -w /tmp)
+cmd.exe //c "E:\\ai\\Agent_Coding_Tool\\_build.bat" > /tmp/build.txt 2>&1
+cat /tmp/build.txt | tail -20
+```
 
 ## Toolchain Baseline
 
-- CMake `>= 3.28`
-- Ninja `>= 1.11`
-- Qt `6.10.2` provided externally (`QtCore` for P1 CLI, `QtWidgets` from P2+)
-- MSVC `19.40+` / VS 2022 `17.10+`
-- Clang `>= 17` or GCC `>= 13`
-- `VCPKG_ROOT` must point to a valid vcpkg checkout
-- `CMAKE_PREFIX_PATH` or `Qt6_DIR` must point to the Qt 6.10.2 install prefix
-
-If a local toolchain is below these requirements, install or upgrade it. Do not lower project version constraints to match the machine.
+- CMake `>= 3.28` (installed: 4.2.3)
+- Ninja `>= 1.11` (installed: 1.12.1)
+- Qt `6.10.2` at `E:\Qt6.10` (`QtCore` for P1 CLI, `QtWidgets` from P2+)
+- MSVC `19.40+` / VS 2022 `17.10+` (installed: VS 18 Community, MSVC 19.50)
+- vcpkg manifest mode, shallow clone at `E:\vcpkg`
+- Git `>= 2.44`
 
 ## Engineering Constraints
 
