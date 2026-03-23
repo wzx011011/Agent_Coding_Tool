@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Claude Code 最佳实践框架</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    width: 1200px;
+    padding: 50px 60px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 45px;
+  }
+  .header h1 {
+    font-size: 30px;
+    color: #e6edf3;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .header .sub {
+    font-size: 15px;
+    color: #8b949e;
+  }
+
+  /* ── User Flow ── */
+  .user-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 40px;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, rgba(88,166,255,0.06), rgba(137,87,229,0.06));
+    border: 1px solid #21262d;
+    border-radius: 10px;
+  }
+  .flow-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 18px;
+  }
+  .flow-step .icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: #0d1117;
+  }
+  .flow-step:nth-child(1) .icon { background: #58a6ff; }
+  .flow-step:nth-child(3) .icon { background: #8957e5; }
+  .flow-step:nth-child(5) .icon { background: #3fb950; }
+  .flow-step:nth-child(7) .icon { background: #ffa657; }
+  .flow-step .label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+  .flow-step .cmd {
+    font-size: 11px;
+    color: #58a6ff;
+    background: rgba(88,166,255,0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .flow-arrow {
+    font-size: 18px;
+    color: #30363d;
+    padding: 0 4px;
+  }
+
+  /* ── Three-Layer Architecture ── */
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #e6edf3;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title .badge {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    background: rgba(88,166,255,0.15);
+    color: #58a6ff;
+    font-weight: 600;
+  }
+
+  .arch-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 40px;
+  }
+  .arch-layer {
+    border-radius: 8px;
+    padding: 16px 20px;
+    position: relative;
+  }
+  .layer-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .layer-tag {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+  .layer-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e6edf3;
+  }
+  .layer-load {
+    font-size: 11px;
+    color: #484f58;
+    margin-left: auto;
+    font-style: italic;
+  }
+
+  /* Rules layer */
+  .layer-rules {
+    background: rgba(88, 166, 255, 0.06);
+    border: 1px solid rgba(88, 166, 255, 0.2);
+  }
+  .layer-rules .layer-tag { background: #58a6ff; color: #0d1117; }
+
+  .file-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .file-card {
+    background: rgba(13, 17, 23, 0.6);
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+  .file-card .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e6edf3;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    margin-bottom: 4px;
+  }
+  .file-card .desc {
+    font-size: 11px;
+    color: #8b949e;
+    line-height: 1.4;
+  }
+  .file-card .adapt {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-top: 4px;
+  }
+  .adapt-auto { background: rgba(247,129,102,0.15); color: #f78166; }
+  .adapt-trim { background: rgba(210,168,255,0.15); color: #d2a8ff; }
+  .adapt-generic { background: rgba(63,185,80,0.15); color: #3fb950; }
+
+  /* Agents layer */
+  .layer-agents {
+    background: rgba(137, 87, 229, 0.06);
+    border: 1px solid rgba(137, 87, 229, 0.2);
+  }
+  .layer-agents .layer-tag { background: #8957e5; color: #fff; }
+
+  .agent-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .agent-card {
+    background: rgba(13, 17, 23, 0.6);
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .agent-card .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #d2a8ff;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .agent-card .desc {
+    font-size: 11px;
+    color: #8b949e;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+  .agent-specs {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .agent-specs .spec {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(137,87,229,0.1);
+    color: #d2a8ff;
+    border: 1px solid rgba(137,87,229,0.2);
+  }
+
+  /* Skills layer */
+  .layer-skills {
+    background: rgba(63, 185, 80, 0.06);
+    border: 1px solid rgba(63, 185, 80, 0.2);
+  }
+  .layer-skills .layer-tag { background: #3fb950; color: #0d1117; }
+
+  .skill-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .skill-card {
+    background: rgba(13, 17, 23, 0.6);
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .skill-card .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #7ee787;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .skill-card .role {
+    font-size: 11px;
+    color: #3fb950;
+    margin-top: 2px;
+  }
+  .skill-card .desc {
+    font-size: 11px;
+    color: #8b949e;
+    line-height: 1.4;
+    margin-top: 6px;
+  }
+  .skill-card .refs {
+    font-size: 10px;
+    color: #484f58;
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  /* ── Execution Pipeline ── */
+  .pipeline {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 30px;
+  }
+  .pipeline-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #e6edf3;
+    margin-bottom: 20px;
+  }
+
+  .pipeline-flow {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 20px;
+  }
+  .pipe-step {
+    flex: 1;
+    text-align: center;
+    padding: 16px 12px;
+    position: relative;
+  }
+  .pipe-step::after {
+    content: '→';
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #30363d;
+    font-size: 18px;
+    z-index: 1;
+  }
+  .pipe-step:last-child::after { display: none; }
+
+  .pipe-step .step-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    margin: 0 auto 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .pipe-step:nth-child(1) .step-icon { background: rgba(88,166,255,0.2); color: #58a6ff; }
+  .pipe-step:nth-child(2) .step-icon { background: rgba(137,87,229,0.2); color: #8957e5; }
+  .pipe-step:nth-child(3) .step-icon { background: rgba(63,185,80,0.2); color: #3fb950; }
+  .pipe-step:nth-child(4) .step-icon { background: rgba(255,166,87,0.2); color: #ffa657; }
+
+  .pipe-step .step-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e6edf3;
+    margin-bottom: 4px;
+  }
+  .pipe-step .step-desc {
+    font-size: 11px;
+    color: #8b949e;
+    line-height: 1.4;
+  }
+
+  /* Closed loop detail */
+  .loop-detail {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .loop-box {
+    flex: 1;
+    background: rgba(255,123,114,0.06);
+    border: 1px solid rgba(255,123,114,0.2);
+    border-radius: 8px;
+    padding: 14px 18px;
+  }
+  .loop-box .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ff7b72;
+    margin-bottom: 8px;
+  }
+  .loop-flow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .loop-step {
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: rgba(13,17,23,0.6);
+    color: #c9d1d9;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .loop-step.verify { color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); }
+  .loop-step.fix { color: #ff7b72; border: 1px solid rgba(255,123,114,0.3); }
+  .loop-step.commit { color: #3fb950; border: 1px solid rgba(63,185,80,0.3); }
+  .loop-arrow { color: #30363d; }
+
+  .topo-box {
+    flex: 1;
+    background: rgba(210,168,255,0.06);
+    border: 1px solid rgba(210,168,255,0.2);
+    border-radius: 8px;
+    padding: 14px 18px;
+  }
+  .topo-box .title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #d2a8ff;
+    margin-bottom: 8px;
+  }
+  .topo-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .topo-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .topo-label {
+    color: #484f58;
+    min-width: 55px;
+    font-family: 'Cascadia Code', monospace;
+    font-size: 11px;
+  }
+  .topo-tasks {
+    display: flex;
+    gap: 4px;
+  }
+  .topo-task {
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: rgba(137,87,229,0.12);
+    color: #d2a8ff;
+    font-weight: 600;
+    font-size: 11px;
+    border: 1px solid rgba(137,87,229,0.2);
+  }
+  .topo-parallel {
+    font-size: 10px;
+    color: #3fb950;
+    margin-left: 4px;
+  }
+
+  /* ── /loop Integration ── */
+  .loop-integration {
+    background: linear-gradient(135deg, rgba(255,166,87,0.06), rgba(255,123,114,0.06));
+    border: 1px solid rgba(255,166,87,0.2);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 30px;
+  }
+  .loop-integration .title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffa657;
+    margin-bottom: 12px;
+  }
+  .loop-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .loop-iter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: rgba(13,17,23,0.4);
+    border-radius: 6px;
+    border: 1px solid #21262d;
+  }
+  .loop-iter .time {
+    font-size: 12px;
+    color: #ffa657;
+    font-weight: 700;
+    min-width: 90px;
+    font-family: 'Cascadia Code', monospace;
+  }
+  .loop-iter .action {
+    font-size: 13px;
+    color: #c9d1d9;
+  }
+  .loop-iter .note {
+    font-size: 11px;
+    color: #484f58;
+    margin-left: auto;
+  }
+
+  /* ── Key Metrics ── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .metric {
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    padding: 16px 20px;
+    text-align: center;
+  }
+  .metric .value {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .metric:nth-child(1) .value { color: #58a6ff; }
+  .metric:nth-child(2) .value { color: #3fb950; }
+  .metric:nth-child(3) .value { color: #ffa657; }
+  .metric:nth-child(4) .value { color: #d2a8ff; }
+  .metric .label {
+    font-size: 12px;
+    color: #8b949e;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Claude Code 自主开发最佳实践框架</h1>
+  <div class="sub">三层架构 · 闭环执行 · 依赖感知 · 自我迭代</div>
+</div>
+
+<!-- User Flow -->
+<div class="user-flow">
+  <div class="flow-step">
+    <div class="icon">1</div>
+    <div class="label">复制模板</div>
+    <div class="cmd">cp -r .claude/</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">2</div>
+    <div class="label">适配项目</div>
+    <div class="cmd">/adapting-project-structure</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">3</div>
+    <div class="label">拆分需求</div>
+    <div class="cmd">/planning-requirements</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">4</div>
+    <div class="label">执行任务</div>
+    <div class="cmd">/executing-tasks all</div>
+  </div>
+</div>
+
+<!-- Architecture -->
+<div class="section-title">
+  三层分离架构
+  <span class="badge">Rules · Agents · Skills</span>
+</div>
+
+<div class="arch-container">
+  <!-- Rules -->
+  <div class="arch-layer layer-rules">
+    <div class="layer-header">
+      <span class="layer-tag">RULES</span>
+      <span class="layer-name">全局约束 — 不该做什么</span>
+      <span class="layer-load">每会话自动加载</span>
+    </div>
+    <div class="file-grid">
+      <div class="file-card">
+        <div class="name">build-rules.md</div>
+        <div class="desc">构建命令、测试命令、Monorepo 约束</div>
+        <span class="adapt adapt-auto">自动适配 PM/框架</span>
+      </div>
+      <div class="file-card">
+        <div class="name">code-quality.md</div>
+        <div class="desc">框架约定、TS 规则、Lint、反模式</div>
+        <span class="adapt adapt-trim">裁剪至检测框架</span>
+      </div>
+      <div class="file-card">
+        <div class="name">git-workflow.md</div>
+        <div class="desc">分支策略、提交规范、PR 规则</div>
+        <span class="adapt adapt-generic">通用不适配</span>
+      </div>
+      <div class="file-card">
+        <div class="name">task-execution.md</div>
+        <div class="desc">闭环执行规则、重试策略、验证要求</div>
+        <span class="adapt adapt-generic">通用不适配</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agents -->
+  <div class="arch-layer layer-agents">
+    <div class="layer-header">
+      <span class="layer-tag">AGENTS</span>
+      <span class="layer-name">运行时约束 — 工具、隔离、轮次</span>
+      <span class="layer-load">委派时加载</span>
+    </div>
+    <div class="agent-cards">
+      <div class="agent-card">
+        <div class="name">task-worker</div>
+        <div class="desc">闭环任务执行器：read → implement → verify → commit。Worktree 隔离，最多 30 轮。</div>
+        <div class="agent-specs">
+          <span class="spec">worktree</span>
+          <span class="spec">maxTurns: 30</span>
+          <span class="spec">no AskUser</span>
+          <span class="spec">model: inherit</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skills -->
+  <div class="arch-layer layer-skills">
+    <div class="layer-header">
+      <span class="layer-tag">SKILLS</span>
+      <span class="layer-name">用户工作流 — 该做什么</span>
+      <span class="layer-load">用户调用时加载</span>
+    </div>
+    <div class="skill-cards">
+      <div class="skill-card">
+        <div class="name">adapting-project-structure</div>
+        <div class="role">初始化适配</div>
+        <div class="desc">检测技术栈，裁剪模板文件，生成 CLAUDE.md。替代 /init。</div>
+        <div class="refs">无 reference（自适应）</div>
+      </div>
+      <div class="skill-card">
+        <div class="name">planning-requirements</div>
+        <div class="role">需求拆分</div>
+        <div class="desc">分析需求，拆分为可验证任务，生成 task-queue.md。</div>
+        <div class="refs">reference/queue-format.md</div>
+      </div>
+      <div class="skill-card">
+        <div class="name">executing-tasks</div>
+        <div class="role">执行引擎</div>
+        <div class="desc">拓扑排序、并行委派、闭环验证、更新队列。</div>
+        <div class="refs">reference/ closed-loop · topology · stop-conditions</div>
+      </div>
+      <div class="skill-card">
+        <div class="name">reviewing-code</div>
+        <div class="role">代码审查</div>
+        <div class="desc">只读分析，不修改文件。按严重性分类问题。</div>
+        <div class="refs">reference/output-format.md</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Execution Pipeline -->
+<div class="pipeline">
+  <div class="pipeline-title">任务执行流水线</div>
+  <div class="pipeline-flow">
+    <div class="pipe-step">
+      <div class="step-icon">Q</div>
+      <div class="step-title">读取队列</div>
+      <div class="step-desc">解析 task-queue.md<br>恢复全局状态</div>
+    </div>
+    <div class="pipe-step">
+      <div class="step-icon">T</div>
+      <div class="step-title">拓扑分组</div>
+      <div class="step-desc">依赖分析<br>分层并行调度</div>
+    </div>
+    <div class="pipe-step">
+      <div class="step-icon">E</div>
+      <div class="step-title">闭环执行</div>
+      <div class="step-desc">implement → verify<br>fix → retry ×3</div>
+    </div>
+    <div class="pipe-step">
+      <div class="step-icon">U</div>
+      <div class="step-title">更新状态</div>
+      <div class="step-desc">标记 [x] / [!]<br>写回队列文件</div>
+    </div>
+  </div>
+
+  <div class="loop-detail">
+    <div class="loop-box">
+      <div class="title">闭环执行</div>
+      <div class="loop-flow">
+        <span class="loop-step">READ</span>
+        <span class="loop-arrow">→</span>
+        <span class="loop-step">IMPLEMENT</span>
+        <span class="loop-arrow">→</span>
+        <span class="loop-step verify">VERIFY</span>
+        <span class="loop-arrow">→</span>
+        <span class="loop-step fix">FIX ×3</span>
+        <span class="loop-arrow">→</span>
+        <span class="loop-step commit">COMMIT</span>
+      </div>
+    </div>
+    <div class="topo-box">
+      <div class="title">拓扑并行调度</div>
+      <div class="topo-layers">
+        <div class="topo-row">
+          <span class="topo-label">Layer 0</span>
+          <div class="topo-tasks">
+            <span class="topo-task">T1</span>
+            <span class="topo-task">T4</span>
+            <span class="topo-parallel">← 并行</span>
+          </div>
+        </div>
+        <div class="topo-row">
+          <span class="topo-label">Layer 1</span>
+          <div class="topo-tasks">
+            <span class="topo-task">T2</span>
+            <span class="topo-task">T3</span>
+            <span class="topo-parallel">← 并行</span>
+          </div>
+        </div>
+        <div class="topo-row">
+          <span class="topo-label">Layer 2</span>
+          <div class="topo-tasks">
+            <span class="topo-task">T5</span>
+            <span class="topo-parallel">← 串行</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- /loop Integration -->
+<div class="loop-integration">
+  <div class="title">/loop 自我迭代 — 无人监督持续执行</div>
+  <div class="loop-timeline">
+    <div class="loop-iter">
+      <span class="time">+0 min</span>
+      <span class="action">新会话启动，读取 docs/task-queue.md</span>
+      <span class="note">零上下文恢复状态</span>
+    </div>
+    <div class="loop-iter">
+      <span class="time">+1 min</span>
+      <span class="action">找到可执行任务，委派 agent 或主线程执行</span>
+      <span class="note">拓扑排序 + 并行</span>
+    </div>
+    <div class="loop-iter">
+      <span class="time">+3 min</span>
+      <span class="action">闭环验证通过，commit，更新队列</span>
+      <span class="note">标记 [x] + commit hash</span>
+    </div>
+    <div class="loop-iter">
+      <span class="time">+5 min</span>
+      <span class="action">队列中还有 [ ] 任务 → 等待下一次 /loop</span>
+      <span class="note">自然等待</span>
+    </div>
+    <div class="loop-iter" style="border-color: rgba(63,185,80,0.3);">
+      <span class="time" style="color: #3fb950;">... N 轮</span>
+      <span class="action">全部 [x] → /loop 自然停止</span>
+      <span class="note">完成</span>
+    </div>
+  </div>
+</div>
+
+<!-- Metrics -->
+<div class="metrics">
+  <div class="metric">
+    <div class="value">105</div>
+    <div class="label">Skills 初始加载 tokens</div>
+  </div>
+  <div class="metric">
+    <div class="value">16</div>
+    <div class="label">模板文件总数</div>
+  </div>
+  <div class="metric">
+    <div class="value">3</div>
+    <div class="label">闭环重试上限</div>
+  </div>
+  <div class="metric">
+    <div class="value">1</div>
+    <div class="label">命令启动自主模式</div>
+  </div>
+</div>
+
+</body>
+</html>

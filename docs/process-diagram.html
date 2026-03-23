@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Claude Code 架构演进探索过程</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    width: 1200px;
+    padding: 60px 80px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 50px;
+  }
+  .header h1 {
+    font-size: 32px;
+    color: #58a6ff;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .header .sub {
+    font-size: 16px;
+    color: #8b949e;
+  }
+  .header .date {
+    font-size: 14px;
+    color: #484f58;
+    margin-top: 4px;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 50px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, #58a6ff, #8957e5, #f78166);
+    border-radius: 2px;
+  }
+
+  .phase {
+    position: relative;
+    margin-bottom: 40px;
+  }
+  .phase-dot {
+    position: absolute;
+    left: -39px;
+    top: 18px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 3px solid #58a6ff;
+    background: #0d1117;
+    z-index: 1;
+  }
+  .phase:nth-child(2) .phase-dot { border-color: #58a6ff; }
+  .phase:nth-child(3) .phase-dot { border-color: #3fb950; }
+  .phase:nth-child(4) .phase-dot { border-color: #d2a8ff; }
+  .phase:nth-child(5) .phase-dot { border-color: #8957e5; }
+  .phase:nth-child(6) .phase-dot { border-color: #f78166; }
+  .phase:nth-child(7) .phase-dot { border-color: #ffa657; }
+  .phase:nth-child(8) .phase-dot { border-color: #ff7b72; }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .phase-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0d1117;
+    background: #58a6ff;
+    padding: 2px 10px;
+    border-radius: 12px;
+    letter-spacing: 0.5px;
+  }
+  .phase:nth-child(3) .phase-num { background: #3fb950; }
+  .phase:nth-child(4) .phase-num { background: #d2a8ff; color: #0d1117; }
+  .phase:nth-child(5) .phase-num { background: #8957e5; }
+  .phase:nth-child(6) .phase-num { background: #f78166; color: #0d1117; }
+  .phase:nth-child(7) .phase-num { background: #ffa657; color: #0d1117; }
+  .phase:nth-child(8) .phase-num { background: #ff7b72; color: #0d1117; }
+
+  .phase-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #e6edf3;
+  }
+
+  .phase-question {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-left: 3px solid #58a6ff;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    font-size: 15px;
+    color: #c9d1d9;
+  }
+  .phase-question strong {
+    color: #58a6ff;
+  }
+
+  .phase-body {
+    display: flex;
+    gap: 16px;
+  }
+  .phase-content {
+    flex: 1;
+  }
+
+  .discovery {
+    background: #161b22;
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #8b949e;
+  }
+  .discovery li {
+    margin-bottom: 4px;
+  }
+  .discovery li::marker {
+    color: #484f58;
+  }
+
+  .decision-box {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 14px 18px;
+    min-width: 280px;
+  }
+  .decision-box .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #484f58;
+    margin-bottom: 8px;
+  }
+  .decision-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .decision-row .tag {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .tag-accept {
+    background: rgba(63, 185, 80, 0.15);
+    color: #3fb950;
+    border: 1px solid rgba(63, 185, 80, 0.3);
+  }
+  .tag-reject {
+    background: rgba(255, 123, 114, 0.15);
+    color: #ff7b72;
+    border: 1px solid rgba(255, 123, 114, 0.3);
+  }
+  .decision-row .reason {
+    color: #8b949e;
+    font-size: 12px;
+  }
+
+  .arrow-down {
+    text-align: center;
+    color: #30363d;
+    font-size: 22px;
+    margin: 10px 0;
+    padding-left: 50px;
+  }
+
+  .conclusion {
+    background: linear-gradient(135deg, rgba(88, 166, 255, 0.1), rgba(137, 87, 229, 0.1));
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 10px;
+  }
+  .conclusion .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #58a6ff;
+    margin-bottom: 8px;
+  }
+  .conclusion p {
+    font-size: 14px;
+    color: #c9d1d9;
+    line-height: 1.7;
+  }
+  .conclusion code {
+    background: rgba(88, 166, 255, 0.15);
+    color: #79c0ff;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 13px;
+  }
+
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .compare-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .compare-card h4 {
+    font-size: 13px;
+    color: #8b949e;
+    margin-bottom: 6px;
+  }
+  .compare-card .val {
+    font-size: 14px;
+    color: #e6edf3;
+    font-weight: 600;
+  }
+  .compare-card .desc {
+    font-size: 12px;
+    color: #484f58;
+    margin-top: 4px;
+  }
+
+  .principle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .principle {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .principle .num {
+    font-size: 11px;
+    color: #58a6ff;
+    font-weight: 700;
+  }
+  .principle .title {
+    font-size: 14px;
+    color: #e6edf3;
+    font-weight: 600;
+    margin: 4px 0;
+  }
+  .principle .desc {
+    font-size: 12px;
+    color: #8b949e;
+    line-height: 1.5;
+  }
+
+  .flow-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: #c9d1d9;
+    margin: 4px 0;
+  }
+  .flow-box .arrow { color: #484f58; }
+  .flow-box .highlight { color: #58a6ff; font-weight: 600; }
+
+  .superset {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    margin-top: 10px;
+  }
+  .superset-col {
+    flex: 1;
+    background: #161b22;
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .superset-col h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .superset-col h4.reuse { color: #3fb950; }
+  .superset-col h4.new { color: #d2a8ff; }
+  .superset-col li {
+    font-size: 13px;
+    color: #8b949e;
+    margin-bottom: 4px;
+  }
+  .plus-sign {
+    color: #484f58;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Claude Code .claude/ 架构演进探索过程</h1>
+  <div class="sub">从项目专属到通用自主开发模板的完整设计旅程</div>
+  <div class="date">2026-03-16 · 3DPrinter_Qt6 → claude-project-template</div>
+</div>
+
+<div class="timeline">
+
+  <!-- Phase 1 -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">PHASE 1</span>
+      <span class="phase-title">评估当前架构的自迭代能力</span>
+    </div>
+    <div class="phase-question">
+      <strong>问题：</strong>当前三层架构（rules + agents + skills）是"完美"的吗？能否自我评估和持续改进？
+    </div>
+    <div class="phase-body">
+      <div class="phase-content">
+        <div class="discovery">
+          <ul>
+            <li>`.claude/` 是静态配置，<strong>没有自动反馈闭环</strong></li>
+            <li>可建立半自动评估：MEMORY.md 记录评估清单</li>
+            <li>可观测指标：Agent 自动委派命中率、reference 读取率、rules 违规次数</li>
+            <li>Skills 初始加载仅 105 tokens，Free space 97% — 上下文效率已验证</li>
+          </ul>
+        </div>
+      </div>
+      <div class="decision-box">
+        <div class="label">结论</div>
+        <div class="decision-row">
+          <span class="tag tag-accept">架构本身 OK</span>
+          <span class="reason">三层分离有效，缺少自我迭代机制</span>
+        </div>
+        <div class="decision-row">
+          <span class="tag tag-accept">半自动评估</span>
+          <span class="reason">MEMORY.md 评估日志，人工触发填写</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Phase 2 -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">PHASE 2</span>
+      <span class="phase-title">迁移方案选型：纯脚本 vs 模板 + Skill</span>
+    </div>
+    <div class="phase-question">
+      <strong>问题：</strong>如何将项目专属的 .claude/ 架构迁移到新项目？脚本硬编码还是 LLM 智能适配？
+    </div>
+    <div class="comparison">
+      <div class="compare-card">
+        <h4>方案 A：纯脚本 claude-init.js</h4>
+        <div class="val">检测 → 正则匹配 → 字符串拼接 → 写文件</div>
+        <div class="desc">✅ 确定性输出，只需 Node.js</div>
+        <div class="desc">❌ 模板嵌在 JS 字符串里，维护体验差</div>
+      </div>
+      <div class="compare-card" style="border-color: rgba(63,185,80,0.4);">
+        <h4 style="color: #3fb950;">方案 B：模板仓库 + Skill ✓</h4>
+        <div class="val" style="color: #3fb950;">模板 .md → Skill 读取 → LLM 适配 → 写文件</div>
+        <div class="desc">✅ 模板所见即所得，直接编辑 .md</div>
+        <div class="desc">✅ LLM 理解上下文，边缘情况灵活处理</div>
+      </div>
+    </div>
+    <div class="decision-box" style="margin-top: 10px;">
+      <div class="label">决策</div>
+      <div class="decision-row">
+        <span class="tag tag-reject">纯脚本</span>
+        <span class="reason">作为验证原型实现，但不是最终方案</span>
+      </div>
+      <div class="decision-row">
+        <span class="tag tag-accept">模板 + Skill</span>
+        <span class="reason">内容与逻辑分离，维护体验决定性优势</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Phase 3 -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">PHASE 3</span>
+      <span class="phase-title">与 /init 命令的关系设计</span>
+    </div>
+    <div class="phase-question">
+      <strong>问题：</strong>适配 Skill 和 Claude Code 内置的 /init 如何共存？
+    </div>
+    <div class="phase-content">
+      <div class="discovery">
+        <ul>
+          <li><code>/init</code> 只做一件事：分析项目 → 生成 <code>CLAUDE.md</code></li>
+          <li><code>/init</code> 不生成 rules / agents / skills</li>
+          <li>适配 Skill 的能力是 <code>/init</code> 的<strong>超集</strong></li>
+        </ul>
+      </div>
+      <div class="flow-box" style="margin-top: 10px;">
+        全新项目 <span class="arrow">→</span> <span class="highlight">/adapting-project-structure</span> <span class="arrow">→</span> 生成完整 CLAUDE.md + 适配全部文件
+      </div>
+      <div class="flow-box">
+        已有 /init <span class="arrow">→</span> <span class="highlight">读取已有 CLAUDE.md</span> <span class="arrow">→</span> 合并而非覆盖
+      </div>
+      <div class="flow-box">
+        已有自定义 <span class="arrow">→</span> <span class="highlight">不覆盖</span> <span class="arrow">→</span> 仅追加缺失段
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Phase 4 -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">PHASE 4</span>
+      <span class="phase-title">从"适配工具"升级为"自主开发流水线"</span>
+    </div>
+    <div class="phase-question">
+      <strong>转折点：</strong>不只是迁移 .claude/ 结构，而是建立完整的自主开发流程。
+    </div>
+    <div class="phase-content">
+      <div class="flow-box" style="background: rgba(88,166,255,0.08); border-color: rgba(88,166,255,0.2);">
+        用户需求 <span class="arrow">→</span> <span class="highlight">拆分任务</span> <span class="arrow">→</span> <span class="highlight">逐步推进</span> <span class="arrow">→</span> <span class="highlight">闭环验证</span> <span class="arrow">→</span> <span class="highlight">完成需求</span>
+      </div>
+      <div class="comparison" style="margin-top: 12px;">
+        <div class="compare-card">
+          <h4>需要新增的能力</h4>
+          <div class="val" style="font-size: 13px;">
+            1. 需求拆分（planning-requirements）<br>
+            2. 依赖感知执行（拓扑排序 + 并行）<br>
+            3. 自我迭代（/loop 驱动）
+          </div>
+        </div>
+        <div class="compare-card">
+          <h4>持久化设计</h4>
+          <div class="val" style="font-size: 13px;">
+            docs/task-queue.md = 文件而非内存<br>
+            ✓ /loop 跨会话恢复<br>
+            ✓ compaction 不丢进度<br>
+            ✓ 多人会话共享队列
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Phase 5 -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">PHASE 5</span>
+      <span class="phase-title">与 /batch 命令的能力边界分析</span>
+    </div>
+    <div class="phase-question">
+      <strong>问题：</strong>设计的执行引擎和 /batch 能否完美适配？
+    </div>
+    <div class="superset">
+      <div class="superset-col">
+        <h4 class="reuse">✓ 复用 /batch 的能力</h4>
+        <ul>
+          <li>并行 agent spawn</li>
+          <li>worktree 隔离</li>
+          <li>进度表跟踪</li>
+        </ul>
+      </div>
+      <div class="plus-sign">+</div>
+      <div class="superset-col">
+        <h4 class="new">+ 新增的能力</h4>
+        <ul>
+          <li>持久化 task-queue.md</li>
+          <li>拓扑排序依赖调度</li>
+          <li>闭环 verify → fix → retry</li>
+          <li>/loop 自我迭代</li>
+        </ul>
+      </div>
+    </div>
+    <div class="decision-box" style="margin-top: 10px;">
+      <div class="label">关键决策</div>
+      <div class="decision-row">
+        <span class="tag tag-reject">调用 /batch 命令</span>
+        <span class="reason">会触发 Plan Mode，中断自主流程</span>
+      </div>
+      <div class="decision-row">
+        <span class="tag tag-accept">复用底层机制</span>
+        <span class="reason">Agent tool + isolation + background，不调用命令</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Phase 6 -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">PHASE 6</span>
+      <span class="phase-title">模板内容设计："完整待裁剪"而非占位符</span>
+    </div>
+    <div class="phase-question">
+      <strong>问题：</strong>模板文件用什么格式？占位符 {{PM}} 还是完整内容？
+    </div>
+    <div class="comparison">
+      <div class="compare-card">
+        <h4>占位符方案 ❌</h4>
+        <div class="val" style="font-size: 13px; color: #8b949e;">
+          Install: <code>{{pm_install}}</code><br>
+          ## {{framework}} Conventions<br>
+          {{if_react}}...{{endif}}
+        </div>
+        <div class="desc">需要正则替换，边缘情况难处理</div>
+      </div>
+      <div class="compare-card" style="border-color: rgba(63,185,80,0.4);">
+        <h4 style="color: #3fb950;">完整待裁剪 ✓</h4>
+        <div class="val" style="font-size: 13px;">
+          ## React → <span style="color:#3fb950">保留</span><br>
+          ## Vue 3 → <span style="color:#ff7b72">删除</span><br>
+          ## Angular → <span style="color:#ff7b72">删除</span>
+        </div>
+        <div class="desc">LLM 理解"保留匹配的，删除其他的"</div>
+      </div>
+    </div>
+    <div class="conclusion">
+      <div class="label">洞察</div>
+      <p>LLM 的语义理解力 > 正则匹配。让 LLM 做裁剪决策，模板只负责提供完整的内容覆盖。</p>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Phase 7 -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">PHASE 7</span>
+      <span class="phase-title">闭环执行设计</span>
+    </div>
+    <div class="phase-content">
+      <div class="flow-box" style="background: rgba(255,118,114,0.08); border-color: rgba(255,118,114,0.2); width: 100%;">
+        READ <span class="arrow">→</span> IMPLEMENT <span class="arrow">→</span> VERIFY <span class="arrow">→</span> <span style="color:#ff7b72;">(FIX → VERIFY) × 3</span> <span class="arrow">→</span> <span style="color:#3fb950;">COMMIT</span>
+      </div>
+      <div class="discovery" style="margin-top: 12px;">
+        <ul>
+          <li>每个任务必须独立可验证（build + test）</li>
+          <li>最多 3 次 fix-and-retry，超过标记 <code>[!]</code> blocked</li>
+          <li>持久化到 <code>docs/task-queue.md</code>，/loop 跨会话恢复</li>
+          <li>任务状态：<code>[x]</code> completed → <code>[-]</code> in-progress → <code>[!]</code> blocked → <code>[ ]</code> pending</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-down">↓</div>
+
+  <!-- Methodology -->
+  <div class="phase">
+    <div class="phase-dot"></div>
+    <div class="phase-header">
+      <span class="phase-num">方法论</span>
+      <span class="phase-title">提炼的 5 条设计原则</span>
+    </div>
+    <div class="principle-grid">
+      <div class="principle">
+        <div class="num">01</div>
+        <div class="title">内容与逻辑分离</div>
+        <div class="desc">模板是纯 .md 内容，适配逻辑由 LLM 执行，不在内容中嵌入代码逻辑。</div>
+      </div>
+      <div class="principle">
+        <div class="num">02</div>
+        <div class="title">渐进式信息披露</div>
+        <div class="desc">rules 自动加载（核心约束），reference 按需加载（详细规范）。</div>
+      </div>
+      <div class="principle">
+        <div class="num">03</div>
+        <div class="title">持久化优于内存</div>
+        <div class="desc">任务队列是文件，不依赖会话上下文，天然支持跨会话和 /loop。</div>
+      </div>
+      <div class="principle">
+        <div class="num">04</div>
+        <div class="title">超集替代而非并存</div>
+        <div class="desc">当新能力完全覆盖旧能力时，吸收替代比并存更简洁。</div>
+      </div>
+      <div class="principle">
+        <div class="num">05</div>
+        <div class="title">复用机制而非调用命令</div>
+        <div class="desc">/batch 的 Plan Mode 会中断自主流程，但其底层机制可直接复用。</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

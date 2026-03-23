@@ -140,10 +140,30 @@ C++ 生态事实标准 JSON 库，现代 API，Header-only。
 
 ### 关键依赖版本策略
 
-- **Qt**：固定 Qt 6.x LTS 小版本，避免 Widgets、网络层和打包行为跨版本漂移
+- **Qt**：固定 **Qt 6.10.2**，由源码编译或预装分发提供，P1 CLI 仅链接 `QtCore`，P2 GUI 再引入 Widgets 栈，避免 Widgets、网络层和打包行为跨版本漂移
 - **CMake**：明确最低版本，并与 CI 使用同一版本范围
 - **vcpkg**：提交 `vcpkg.json` 和 baseline，锁定三平台依赖解析结果
 - **QScintilla / tree-sitter / libgit2 / QTermWidget**：在文档和构建配置中写明已验证版本，避免“本机可用、CI 失败”
+
+Qt 来源策略：**Qt 不通过 vcpkg 提供**。项目统一使用外部安装的 Qt 6.10.2（源码自编或官方安装包），通过 `CMAKE_PREFIX_PATH` / `Qt6_DIR` 接入 CMake，避免与 vcpkg 依赖图混用造成版本分叉。
+
+建议采用以下版本矩阵作为 ACT 的工程基线：
+
+| 工具 / 依赖 | 目标版本 | 说明 |
+| ----------- | -------- | ---- |
+| Qt | `6.10.2` | 外部提供；P1 仅 `QtCore`，P2+ 再增加 `QtWidgets` |
+| CMake | `>= 3.28` | 本地与 CI 统一；preset 和 toolchain 行为更稳定 |
+| Ninja | `>= 1.11` | 默认生成器 |
+| MSVC | `19.40+`（VS 2022 17.10+） | Windows 主力编译器 |
+| Clang | `>= 17` | 可选编译器 |
+| GCC | `>= 13` | Linux 可选编译器 |
+| vcpkg | baseline 锁定 | 管理非 Qt 依赖；Qt 由外部安装提供 |
+| GTest / GMock | 跟随 vcpkg baseline | 测试框架 |
+| spdlog | 跟随 vcpkg baseline | 日志框架 |
+| toml++ | 跟随 vcpkg baseline | 配置解析 |
+| cpp-httplib | 跟随 vcpkg baseline | HTTP / SSE |
+
+规则：若本机版本低于上述要求，不降低项目基线；直接提示安装或升级相应工具。
 
 ### 技术风险与备选方案
 

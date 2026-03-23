@@ -1,0 +1,22 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  modernize-use-default-member-init,
+  modernize-use-emplace,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  modernize-use-noexcept,
+  modernize-use-nullptr,
+  modernize-use-override,
+  performance-move-constructor-init,
+  performance-unnecessary-copy-initialization,
+  performance-unnecessary-value-param,
+  readability-delete-null-pointer,
+  readability-redundant-member-init,
+  readability-redundant-string-cstr,
+  readability-simplify-boolean-expr
+
+HeaderFilterRegex: '^(src|app|tests)/.*'
+WarningsAsErrors: ''

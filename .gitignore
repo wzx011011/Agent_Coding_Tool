@@ -1,0 +1,42 @@
+# Build
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+
+# vcpkg
+vcpkg_installed/
+vcpkg-artifacts.log
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.vcxproj.user
+*.sln.*
+CMakeLists.txt.user
+
+# Build outputs
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+*.dylib
+
+# Qt generated files
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# Generators
+.ninja_*
+compile_commands.json
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
