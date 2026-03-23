@@ -6,6 +6,7 @@ add_library(act_framework STATIC
     runtime_trace_store.cpp
     skill_catalog.cpp
     skill_loader.cpp
+    subagent_manager.cpp
 )
 
 target_include_directories(act_framework

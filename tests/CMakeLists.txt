@@ -26,6 +26,16 @@ add_executable(act_framework_tests
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
 gtest_discover_tests(act_framework_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
 
+# Subagent manager tests (separate target to avoid MSVC C1903)
+add_executable(act_subagent_tests
+    framework/SubagentManagerTest.cpp
+)
+target_link_libraries(act_subagent_tests PRIVATE act_framework GTest::gtest_main)
+set_source_files_properties(framework/SubagentManagerTest.cpp PROPERTIES
+    CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_subagent_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+
 # Skill loader tests (separate target — toml++ heavy headers cause MSVC C1903)
 add_executable(act_skill_loader_tests
     framework/SkillLoaderTest.cpp
