@@ -2,6 +2,8 @@ add_library(act_framework STATIC
     agent_loop.cpp
     cli_repl.cpp
     framework.cpp
+    skill_catalog.cpp
+    skill_loader.cpp
 )
 
 target_include_directories(act_framework

@@ -20,9 +20,22 @@ add_executable(act_framework_tests
     framework/SmokeTest.cpp
     framework/AgentLoopTest.cpp
     framework/CliReplTest.cpp
+    framework/SkillCatalogTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
 gtest_discover_tests(act_framework_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+
+# Skill loader tests (separate target — toml++ heavy headers cause MSVC C1903)
+add_executable(act_skill_loader_tests
+    framework/SkillLoaderTest.cpp
+)
+target_link_libraries(act_skill_loader_tests PRIVATE act_framework GTest::gtest_main)
+# Skip C++ module scanning for this file — toml++ headers overwhelm MSVC DDI
+set_source_files_properties(framework/SkillLoaderTest.cpp PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+    CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_skill_loader_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
 
 # Harness tests
 add_executable(act_harness_tests
