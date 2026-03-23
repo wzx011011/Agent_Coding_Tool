@@ -21,6 +21,7 @@ add_executable(act_framework_tests
     framework/AgentLoopTest.cpp
     framework/CliReplTest.cpp
     framework/SkillCatalogTest.cpp
+    framework/RuntimeTraceTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
 gtest_discover_tests(act_framework_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
@@ -46,6 +47,7 @@ add_executable(act_harness_tests
     harness/WriteToolsTest.cpp
     harness/ShellSecurityTest.cpp
     harness/ContextManagerTest.cpp
+    harness/GitToolsTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
 gtest_discover_tests(act_harness_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})

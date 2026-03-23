@@ -9,6 +9,8 @@ add_library(act_harness STATIC
     tools/grep_tool.cpp
     tools/glob_tool.cpp
     tools/shell_exec_tool.cpp
+    tools/git_status_tool.cpp
+    tools/git_diff_tool.cpp
 )
 
 target_include_directories(act_harness
