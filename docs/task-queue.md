@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 26/28 + 11/16 (T11 skipped; T16 deferred; N1,N2,N3,N6,N7,N10,N11,N12,N13,N14,N15 completed)
+- Completed: 26/28 + 15/16 (T11 skipped; T16 deferred; N1~N15 all completed)
 
 ## Planning Notes
 
@@ -66,8 +66,8 @@
 | 29  | N1  | 实现 GitHub Actions CI（Windows 编译 + 测试）           | infra       | -                  | [x]    | CI workflow 触发后 build + test 全绿   | `.github/workflows/ci.yml`，MSVC + vcpkg + Qt6，cache vcpkg packages                                                                                       | commit: 74b2cbc |
 | 30  | N2  | 实现 Markdown 终端输出                                   | frontend    | T10                | [x]    | build + test pass                      | MarkdownFormatter: 代码块边框、标题下划线、粗体大写、列表项目符、行内代码括号、水平线；集成到 CliRepl human 模式                         | commit: 73d58aa |
 | 31  | N3  | 实现 PatchTransaction v0（单文件修改预览/确认）          | integration | T6                 | [x]    | build + test pass                      | PatchTransaction: add/accept/reject 按 patch 管理，unified diff 预览，allDecided 检测                                                | commit: 781f844 |
-| 32  | N4  | 实现回归任务集 v0                                         | testing     | T10                | [ ]    | build + test pass                      | 自动化回归测试用例：读取文件、搜索、编辑、执行命令、权限拒绝；为 EvalRunner 提供输入                                                               |
-| 33  | N5  | 实现端到端 CLI 测试                                       | testing     | T10, LLM-T12       | [ ]    | build + test pass (无 key 时 GTEST_SKIP) | `aictl` 实际调用的集成测试（可用 mock LLM），覆盖完整 REPL 输入→工具调用→输出闭环                                                             |
+| 32  | N4  | 实现回归任务集 v0                                         | testing     | T10                | [x]    | build + test pass                      | 7 个回归测试用例（file_read/glob/grep/file_edit/permission），使用 QTemporaryDir 实际文件系统，为 EvalRunner 提供输入             | commit: aa45b2c |
+| 33  | N5  | 实现端到端 CLI 测试                                       | testing     | T10, LLM-T12       | [x]    | build + test pass (无 key 时 GTEST_SKIP) | 8 个 E2E 测试：单步工具调用、多步链式、batch 模式、JSON 模式、工具不存在恢复、上下文累积、/reset 清除           | commit: aa45b2c |
 
 ### Batch 4: P2 核心能力
 
@@ -75,8 +75,8 @@
 | --- | --- | ------------------------------------------------------- | ----------- | ------------------ | ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | 34  | N6  | 实现 ContextManager 三层压缩                             | backend     | T8                 | [x]    | build + test pass                      | autoCompact() 在 80% 阈值自动触发 micro-compact；manualCompact() 用摘要替换中间消息，保留 system + 近期消息                          | commit: 063d5ab |
 | 35  | N7  | 实现 DiffViewTool（修改预览）                             | backend     | T14                | [x]    | build + test pass                      | CLI diff 输出工具，支持 staged/unstaged/all 模式 + stat_only；unified diff 格式，change statistics                                            | commit: 74b2cbc |
-| 36  | N8  | 实现 PatchTransaction v1（多文件预览/部分失败）           | integration | N3, N7             | [ ]    | build + test pass                      | 多文件批量修改预览、Accept/Reject 逐文件确认、部分失败回滚处理                                                                                       |
-| 37  | N9  | 实现 EvalRunner v0                                        | testing     | N4                 | [ ]    | build + test pass                      | 执行回归任务集并记录通过率，输出结构化 JSON 报告（pass/fail/skip/timeout）                                                                           |
+| 36  | N8  | 实现 PatchTransaction v1（多文件预览/部分失败）           | integration | N3, N7             | [x]    | build + test pass                      | Decision enum (Pending/Accepted/Rejected)、acceptedPatches()、rejectedPaths()、batchSummary()、applyPartialFailure()    | commit: aa45b2c |
+| 37  | N9  | 实现 EvalRunner v0                                        | testing     | N4                 | [x]    | build + test pass                      | TestExecutor 回调、run() 带 timing、report() QJsonObject (total/passed/failed/results)、run() 返回 JSON string           | commit: aa45b2c |
 | 38  | N10 | 实现 ResumeTask（Checkpoint 恢复）                        | integration | T9                 | [x]    | build + test pass                      | ResumeManager: 按 taskId 存储/恢复 AgentLoop Checkpoint；JSON 序列化支持持久化；serialize/deserialize 完整 API                     | commit: 063d5ab |
 
 ### Batch 5: P3 基础
