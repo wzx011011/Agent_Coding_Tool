@@ -55,8 +55,35 @@ description: "Executing tasks from the task queue with closed-loop verification,
 - 验证标准和构建命令遵循 `.claude/rules/build-rules.md` 和 `.claude/rules/task-execution.md`
 - 更新 `docs/task-queue.md` 中的任务状态和 Notes
 - 展示进度表
+- **收集观察建议**：记录执行过程中发现的队列改进机会
 
-### 6. 下一轮 / 停止
+### 6. 输出队列建议（批量模式结束后）
+
+批量模式结束时，输出收集到的建议：
+
+```
+Task Execution Complete
+────────────────────────
+Completed: 3/7 | Round 2
+
+📋 Queue Suggestions (optional):
+  [NEW] N30: Validate command input schema (prereq for N19)
+  [SPLIT] N19 → N19a/N19b (scope too large)
+  [DEPENDS] N22 depends on N17 (missing in queue)
+
+Apply to task-queue.md? (y/n/edit)
+```
+
+建议类型和触发条件详见 `reference/queue-suggestions.md`。
+
+**交互**：
+- `y` — 应用所有建议
+- `n` — 忽略建议
+- `edit` — 手动编辑队列
+
+**/loop 模式**：自动选择 `n`（无人监督模式），建议保留在日志中供后续处理。
+
+### 7. 下一轮 / 停止
 
 - **批量模式**: 回到步骤 2，继续下一轮
 - **单任务模式**: 停止并报告
