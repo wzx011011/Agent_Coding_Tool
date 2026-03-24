@@ -31,11 +31,31 @@ PermissionManager::Decision PermissionManager::checkPermission(
         return Decision::Approved;
     }
 
-    // Not auto-approved — in synchronous mode, deny by default
-    // The async path would emit permissionRequested signal
-    spdlog::info("Permission pending ({}): {} — denying in sync mode",
+    // Not auto-approved — call user callback if set
+    if (m_userCallback)
+    {
+        act::core::PermissionRequest request;
+        request.level = level;
+        request.toolName = toolName;
+        request.description = description;
+        request.params = params;
+
+        spdlog::info("Permission requesting user confirmation ({}): {}",
+                     static_cast<int>(level), toolName.toStdString());
+
+        bool approved = m_userCallback(request);
+        return approved ? Decision::Approved : Decision::Denied;
+    }
+
+    // No callback set — deny by default
+    spdlog::info("Permission denied (no callback, level {}): {}",
                  static_cast<int>(level), toolName.toStdString());
     return Decision::Denied;
+}
+
+void PermissionManager::setPermissionCallback(UserPermissionCallback callback)
+{
+    m_userCallback = std::move(callback);
 }
 
 bool PermissionManager::isAutoApproved(

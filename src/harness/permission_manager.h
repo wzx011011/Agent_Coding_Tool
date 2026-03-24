@@ -19,7 +19,7 @@ public:
 
     /// Request permission for a tool execution.
     /// If auto-approve is enabled for the level, returns immediately.
-    /// Otherwise emits permissionRequested signal and waits.
+    /// Otherwise calls user callback if set, or denies by default.
     enum class Decision
     {
         Approved,
@@ -28,13 +28,21 @@ public:
     };
 
     using ApprovalCallback = std::function<void(Decision)>;
+    /// Synchronous user confirmation callback.
+    /// Returns true to approve, false to deny.
+    using UserPermissionCallback = std::function<bool(const act::core::PermissionRequest &)>;
 
-    /// Check and request permission synchronously (for auto-approve).
+    /// Check and request permission synchronously.
     [[nodiscard]] Decision checkPermission(
         act::core::PermissionLevel level,
         const QString &toolName,
         const QString &description,
         const QJsonObject &params = {});
+
+    /// Set user confirmation callback for synchronous permission requests.
+    /// Called when auto-approve is disabled for the permission level.
+    /// The callback is invoked synchronously in the calling thread.
+    void setPermissionCallback(UserPermissionCallback callback);
 
     /// Auto-approve settings
     [[nodiscard]] bool isAutoApproved(act::core::PermissionLevel level) const;
@@ -55,6 +63,7 @@ private:
     bool m_autoApproveNetwork = false;
     bool m_autoApproveDestructive = false;
     QStringList m_denyList;
+    UserPermissionCallback m_userCallback;
 };
 
 } // namespace act::harness
