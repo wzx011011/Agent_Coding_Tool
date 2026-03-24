@@ -20,6 +20,7 @@ add_executable(act_framework_tests
     framework/SmokeTest.cpp
     framework/AgentLoopTest.cpp
     framework/CliReplTest.cpp
+    framework/MarkdownFormatterTest.cpp
     framework/SkillCatalogTest.cpp
     framework/RuntimeTraceTest.cpp
 )
@@ -81,6 +82,7 @@ add_executable(act_services_tests
     services/ServiceInterfaceTest.cpp
     services/ConfigManagerTest.cpp
     services/AIEngineTest.cpp
+    services/FallbackChainTest.cpp
 )
 target_link_libraries(act_services_tests PRIVATE act_services GTest::gtest_main)
 gtest_discover_tests(act_services_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})

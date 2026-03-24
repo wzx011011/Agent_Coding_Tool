@@ -143,6 +143,21 @@ bool ConfigManager::load()
                 auto sv = proxyVal->value_or(std::string_view{});
                 m_proxy = QString::fromUtf8(sv.data(), static_cast<int>(sv.size()));
             }
+            auto fallbackVal = networkNode.as_table()->get("fallback_providers");
+            if (fallbackVal && fallbackVal->is_array())
+            {
+                auto *arr = fallbackVal->as_array();
+                for (std::size_t i = 0; i < arr->size(); ++i)
+                {
+                    auto &v = (*arr)[i];
+                    if (v.is_string())
+                    {
+                        auto sv = v.value_or(std::string_view{});
+                        m_fallbackProviders.append(
+                            QString::fromUtf8(sv.data(), static_cast<int>(sv.size())));
+                    }
+                }
+            }
         }
 
         // Read API keys
@@ -197,6 +212,13 @@ bool ConfigManager::save()
             network.insert("base_url", m_baseUrl.toStdString());
         if (!m_proxy.isEmpty())
             network.insert("proxy", m_proxy.toStdString());
+        if (!m_fallbackProviders.isEmpty())
+        {
+            toml::array fallbackArr;
+            for (const auto &p : m_fallbackProviders)
+                fallbackArr.push_back(p.toStdString());
+            network.insert("fallback_providers", std::move(fallbackArr));
+        }
         if (!network.empty())
             config.insert("network", std::move(network));
 

@@ -41,6 +41,10 @@ public:
 
     [[nodiscard]] static QString defaultBaseUrl(const QString &provider);
 
+    // Fallback providers
+    [[nodiscard]] QStringList fallbackProviders() const { return m_fallbackProviders; }
+    void setFallbackProviders(const QStringList &providers) { m_fallbackProviders = providers; }
+
 private:
     QString m_workspacePath;
     QString m_model = QString::fromUtf8(DEFAULT_MODEL);
@@ -48,6 +52,7 @@ private:
     QString m_baseUrl;
     QString m_proxy;
     QMap<QString, QString> m_apiKeys;
+    QStringList m_fallbackProviders;
 };
 
 } // namespace act::services

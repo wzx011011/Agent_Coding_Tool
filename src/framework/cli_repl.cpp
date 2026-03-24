@@ -6,6 +6,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include "framework/markdown_formatter.h"
+
 namespace act::framework
 {
 
@@ -164,7 +166,7 @@ QString CliRepl::formatHumanMessage(const act::core::LLMMessage &msg) const
         if (!msg.toolCall.id.isEmpty())
             return QStringLiteral("[Tool Call] %1(%2)")
                 .arg(msg.toolCall.name, msg.toolCall.id);
-        return msg.content;
+        return MarkdownFormatter::format(msg.content);
     case act::core::MessageRole::Tool:
         return QStringLiteral("[Tool Result] %1").arg(msg.content.left(500));
     default:

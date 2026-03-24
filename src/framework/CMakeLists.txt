@@ -2,6 +2,7 @@ add_library(act_framework STATIC
     agent_loop.cpp
     cli_repl.cpp
     framework.cpp
+    markdown_formatter.cpp
     runtime_event_logger.cpp
     runtime_trace_store.cpp
     skill_catalog.cpp
