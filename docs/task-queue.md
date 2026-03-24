@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 26/28 + 6/16 (T11 skipped; T16 deferred; N1,N2,N7,N11,N12,N15 completed)
+- Completed: 26/28 + 8/16 (T11 skipped; T16 deferred; N1,N2,N6,N7,N10,N11,N12,N15 completed)
 
 ## Planning Notes
 
@@ -73,11 +73,11 @@
 
 | #   | ID  | Title                                                   | Scope       | Depends            | Status | Verification                            | Notes                                                                                                                                                       |
 | --- | --- | ------------------------------------------------------- | ----------- | ------------------ | ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| 34  | N6  | 实现 ContextManager 三层压缩                             | backend     | T8                 | [ ]    | build + test pass                      | auto-compact 自动触发 + manual-compact 用户触发；当前仅有 microCompact，补齐完整三层（micro / auto / manual）                                         |
+| 34  | N6  | 实现 ContextManager 三层压缩                             | backend     | T8                 | [x]    | build + test pass                      | autoCompact() 在 80% 阈值自动触发 micro-compact；manualCompact() 用摘要替换中间消息，保留 system + 近期消息                          | commit: 063d5ab |
 | 35  | N7  | 实现 DiffViewTool（修改预览）                             | backend     | T14                | [x]    | build + test pass                      | CLI diff 输出工具，支持 staged/unstaged/all 模式 + stat_only；unified diff 格式，change statistics                                            | commit: 74b2cbc |
 | 36  | N8  | 实现 PatchTransaction v1（多文件预览/部分失败）           | integration | N3, N7             | [ ]    | build + test pass                      | 多文件批量修改预览、Accept/Reject 逐文件确认、部分失败回滚处理                                                                                       |
 | 37  | N9  | 实现 EvalRunner v0                                        | testing     | N4                 | [ ]    | build + test pass                      | 执行回归任务集并记录通过率，输出结构化 JSON 报告（pass/fail/skip/timeout）                                                                           |
-| 38  | N10 | 实现 ResumeTask（Checkpoint 恢复）                        | integration | T9                 | [ ]    | build + test pass                      | 从 Checkpoint 恢复中断任务，支持单任务恢复到最近确认点；利用现有 Checkpoint 骨架                                                                   |
+| 38  | N10 | 实现 ResumeTask（Checkpoint 恢复）                        | integration | T9                 | [x]    | build + test pass                      | ResumeManager: 按 taskId 存储/恢复 AgentLoop Checkpoint；JSON 序列化支持持久化；serialize/deserialize 完整 API                     | commit: 063d5ab |
 
 ### Batch 5: P3 基础
 
