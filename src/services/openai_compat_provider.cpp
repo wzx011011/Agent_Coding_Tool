@@ -23,6 +23,8 @@ void OpenAICompatProvider::setApiKey(const QString &key)
 void OpenAICompatProvider::setBaseUrl(const QString &url)
 {
     m_baseUrl = url;
+    if (m_baseUrl.endsWith(QLatin1Char('/')))
+        m_baseUrl.chop(1);
     m_network->setBaseUrl(m_baseUrl + QStringLiteral("/chat/completions"));
 }
 

@@ -40,3 +40,6 @@ compile_commands.json
 Thumbs.db
 .DS_Store
 Desktop.ini
+
+# ACT config (contains API keys)
+.act/

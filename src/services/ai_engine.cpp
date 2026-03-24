@@ -29,18 +29,15 @@ void AIEngine::initProvider()
     {
         auto p = std::make_unique<AnthropicProvider>();
         p->setApiKey(apiKey);
-        if (!baseUrl.endsWith(QStringLiteral("/v1/messages")))
-            p->setBaseUrl(baseUrl);
+        p->setBaseUrl(baseUrl);
         p->setModel(model);
         m_provider = std::move(p);
     }
     else
     {
-        // Default to OpenAI-compatible
         auto p = std::make_unique<OpenAICompatProvider>();
         p->setApiKey(apiKey);
-        if (!baseUrl.endsWith(QStringLiteral("/chat/completions")))
-            p->setBaseUrl(baseUrl);
+        p->setBaseUrl(baseUrl);
         p->setModel(model);
         m_provider = std::move(p);
     }
@@ -50,7 +47,6 @@ void AIEngine::initProvider()
 
     if (!proxy.isEmpty())
     {
-        // Parse proxy: host:port format
         int lastColon = proxy.lastIndexOf(QLatin1Char(':'));
         if (lastColon >= 0)
         {
@@ -58,15 +54,13 @@ void AIEngine::initProvider()
             int port = proxy.mid(lastColon + 1).toInt();
             if (port > 0)
             {
-                // HttpNetwork doesn't have public proxy setter from AIEngine level,
-                // but the provider manages its own network
                 spdlog::info("AIEngine: proxy configured at {}:{}", host.toStdString(), port);
             }
         }
     }
 
-    spdlog::info("AIEngine: initialized with provider={}, model={}",
-                 providerName.toStdString(), model.toStdString());
+    spdlog::info("AIEngine: initialized with provider={}, model={}, base_url={}",
+                 providerName.toStdString(), model.toStdString(), baseUrl.toStdString());
 }
 
 void AIEngine::chat(

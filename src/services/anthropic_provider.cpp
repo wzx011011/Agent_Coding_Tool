@@ -23,6 +23,11 @@ void AnthropicProvider::setApiKey(const QString &key)
 void AnthropicProvider::setBaseUrl(const QString &url)
 {
     m_baseUrl = url;
+    // If URL already has a path component (e.g., GLM's /api/anthropic),
+    // append the default Anthropic path suffix /v1/messages.
+    // If it already ends with /v1/messages, use as-is.
+    if (m_baseUrl.endsWith(QLatin1Char('/')))
+        m_baseUrl.chop(1);
     m_network->setBaseUrl(m_baseUrl + QStringLiteral("/v1/messages"));
 }
 

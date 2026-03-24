@@ -199,6 +199,10 @@ bool HttpNetwork::sseRequest(
             onEvent(event);
     }
 
+    if (onComplete)
+        onComplete(result->status, QByteArray(result->body.data(),
+                                                    static_cast<int>(result->body.size())));
+
     return true;
 }
 
