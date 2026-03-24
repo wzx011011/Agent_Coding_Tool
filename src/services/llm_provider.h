@@ -42,6 +42,9 @@ public:
 
     /// Set tool definitions for tool_use support.
     virtual void setToolDefinitions(const QList<QJsonObject> &tools) = 0;
+
+    /// Set HTTP proxy for network requests.
+    virtual void setProxy(const QString &host, int port) = 0;
 };
 
 } // namespace act::services

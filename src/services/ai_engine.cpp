@@ -54,6 +54,7 @@ void AIEngine::initProvider()
             int port = proxy.mid(lastColon + 1).toInt();
             if (port > 0)
             {
+                m_provider->setProxy(host, port);
                 spdlog::info("AIEngine: proxy configured at {}:{}", host.toStdString(), port);
             }
         }

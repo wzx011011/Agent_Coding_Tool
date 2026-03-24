@@ -296,4 +296,10 @@ void AnthropicProvider::cancel()
     spdlog::info("AnthropicProvider: request cancelled");
 }
 
+void AnthropicProvider::setProxy(const QString &host, int port)
+{
+    if (m_network)
+        m_network->setProxy(host, port);
+}
+
 } // namespace act::services

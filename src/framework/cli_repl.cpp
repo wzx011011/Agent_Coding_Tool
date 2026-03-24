@@ -98,8 +98,24 @@ act::core::TaskState CliRepl::processInput(const QString &input)
         }
         else
         {
-            emitOutput(formatHumanMessage(msg));
+            // In Human mode, assistant text was already streamed token-by-token.
+            // Only emit non-text content (tool calls, errors).
+            if (msg.role == act::core::MessageRole::Assistant &&
+                !msg.toolCall.id.isEmpty())
+            {
+                emitOutput(formatHumanMessage(msg));
+            }
+            else if (msg.role != act::core::MessageRole::Assistant)
+            {
+                emitOutput(formatHumanMessage(msg));
+            }
         }
+    }
+
+    // Ensure a newline after streaming text
+    if (m_outputMode == OutputMode::Human)
+    {
+        emitOutput(QString());
     }
 
     // Emit final state

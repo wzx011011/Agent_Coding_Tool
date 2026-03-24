@@ -45,6 +45,7 @@ public:
 
     void cancel() override;
     void setToolDefinitions(const QList<QJsonObject> &tools) override;
+    void setProxy(const QString &host, int port) override;
 
 private:
     QString m_apiKey;

@@ -268,4 +268,10 @@ void OpenAICompatProvider::cancel()
     spdlog::info("OpenAICompatProvider: request cancelled");
 }
 
+void OpenAICompatProvider::setProxy(const QString &host, int port)
+{
+    if (m_network)
+        m_network->setProxy(host, port);
+}
+
 } // namespace act::services

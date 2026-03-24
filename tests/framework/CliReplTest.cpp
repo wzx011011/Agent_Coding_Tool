@@ -145,7 +145,11 @@ TEST_F(CliReplTest, HumanModeOutputsAssistantResponse)
     repl->setOutputMode(CliRepl::OutputMode::Human);
     engine->responseQueue.append(finalResponse(QStringLiteral("Hello!")));
     repl->processInput(QStringLiteral("Hi"));
-    EXPECT_TRUE(capturedLines.contains(QStringLiteral("Hello!")));
+    // In Human mode, assistant text is streamed via AIEngine::streamTokenReceived
+    // (connected in main.cpp), not via outputLine. CliRepl emits an empty string
+    // after the agent loop completes to ensure a trailing newline after streaming.
+    EXPECT_TRUE(capturedLines.contains(QStringLiteral("> Hi")));
+    EXPECT_TRUE(capturedLines.contains(QString()));
 }
 
 TEST_F(CliReplTest, EmptyInputReturnsIdle)

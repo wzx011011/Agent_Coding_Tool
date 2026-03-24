@@ -200,6 +200,7 @@ QString GrepTool::grepFile(const QString &filePath,
     }
 
     QTextStream stream(&file);
+    stream.setEncoding(QStringConverter::Utf8);
     QString results;
     int lineNumber = 0;
 
