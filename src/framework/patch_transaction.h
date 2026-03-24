@@ -13,7 +13,8 @@ struct PatchEntry
     QString filePath;      // Relative path within workspace
     QString originalContent; // Content before modification
     QString newContent;     // Content after modification
-    bool accepted = false;  // Whether user accepted this change
+    enum class Decision { Pending, Accepted, Rejected };
+    Decision decision = Decision::Pending;
 };
 
 /// Manages a batch of file modifications as a transaction.
@@ -72,6 +73,21 @@ public:
 
     /// Check if all patches have been decided.
     [[nodiscard]] bool allDecided() const;
+
+    // --- v1: Multi-file batch operations ---
+
+    /// Get all accepted file paths and their new content.
+    [[nodiscard]] QMap<QString, QString> acceptedPatches() const;
+
+    /// Get all rejected file paths.
+    [[nodiscard]] QStringList rejectedPaths() const;
+
+    /// Generate a batch summary string.
+    [[nodiscard]] QString batchSummary() const;
+
+    /// Apply partial failure: accept only succeeded patches,
+    /// reject those that had errors.
+    void applyPartialFailure(const QStringList &failedPaths);
 
 private:
     /// Generate unified diff between two strings.

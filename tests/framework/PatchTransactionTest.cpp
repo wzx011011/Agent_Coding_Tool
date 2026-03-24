@@ -87,6 +87,7 @@ TEST_F(PatchTransactionTest, RejectAll)
 {
     tx.addPatch(QStringLiteral("a.txt"), QStringLiteral(""), QStringLiteral("1"));
     tx.rejectAll();
+    EXPECT_EQ(tx.rejectedCount(), 1);
     EXPECT_EQ(tx.newContentFor(QStringLiteral("a.txt")), QStringLiteral(""));
 }
 
@@ -124,4 +125,76 @@ TEST_F(PatchTransactionTest, EntryReturnsCorrectPatch)
 TEST_F(PatchTransactionTest, EntryReturnsNullForMissing)
 {
     EXPECT_EQ(tx.entry(QStringLiteral("missing")), nullptr);
+}
+
+// --- v1: Multi-file batch tests ---
+
+TEST_F(PatchTransactionTest, AcceptedPatchesReturnsMap)
+{
+    tx.addPatch(QStringLiteral("a.txt"), QStringLiteral(""), QStringLiteral("1"));
+    tx.addPatch(QStringLiteral("b.txt"), QStringLiteral(""), QStringLiteral("2"));
+    tx.addPatch(QStringLiteral("c.txt"), QStringLiteral(""), QStringLiteral("3"));
+
+    tx.accept(QStringLiteral("a.txt"));
+    tx.reject(QStringLiteral("b.txt"));
+
+    auto accepted = tx.acceptedPatches();
+    EXPECT_EQ(accepted.size(), 1);
+    EXPECT_TRUE(accepted.contains(QStringLiteral("a.txt")));
+    EXPECT_EQ(accepted.value(QStringLiteral("a.txt")), QStringLiteral("1"));
+}
+
+TEST_F(PatchTransactionTest, RejectedPathsReturnsList)
+{
+    tx.addPatch(QStringLiteral("a.txt"), QStringLiteral(""), QStringLiteral("1"));
+    tx.addPatch(QStringLiteral("b.txt"), QStringLiteral(""), QStringLiteral("2"));
+
+    tx.reject(QStringLiteral("b.txt"));
+
+    auto rejected = tx.rejectedPaths();
+    EXPECT_EQ(rejected.size(), 1);
+    EXPECT_EQ(rejected.first(), QStringLiteral("b.txt"));
+}
+
+TEST_F(PatchTransactionTest, BatchSummary)
+{
+    tx.addPatch(QStringLiteral("a.txt"), QStringLiteral(""), QStringLiteral("1"));
+    tx.addPatch(QStringLiteral("b.txt"), QStringLiteral(""), QStringLiteral("2"));
+
+    QString summary = tx.batchSummary();
+    EXPECT_TRUE(summary.contains(QStringLiteral("2 files")));
+    EXPECT_TRUE(summary.contains(QStringLiteral("0 accepted")));
+    EXPECT_TRUE(summary.contains(QStringLiteral("0 rejected")));
+    EXPECT_TRUE(summary.contains(QStringLiteral("2 pending")));
+}
+
+TEST_F(PatchTransactionTest, ApplyPartialFailure)
+{
+    tx.addPatch(QStringLiteral("a.txt"), QStringLiteral(""), QStringLiteral("1"));
+    tx.addPatch(QStringLiteral("b.txt"), QStringLiteral(""), QStringLiteral("2"));
+
+    tx.applyPartialFailure({QStringLiteral("b.txt")});
+
+    EXPECT_EQ(tx.acceptedCount(), 0);
+    EXPECT_EQ(tx.rejectedCount(), 1);  // Only b.txt is rejected
+    EXPECT_EQ(tx.pendingCount(), 1);   // a.txt remains pending
+}
+
+TEST_F(PatchTransactionTest, PendingCountAfterAccept)
+{
+    tx.addPatch(QStringLiteral("a.txt"), QStringLiteral(""), QStringLiteral("1"));
+    tx.addPatch(QStringLiteral("b.txt"), QStringLiteral(""), QStringLiteral("2"));
+
+    EXPECT_EQ(tx.pendingCount(), 2);
+    tx.accept(QStringLiteral("a.txt"));
+    EXPECT_EQ(tx.pendingCount(), 1);
+}
+
+TEST_F(PatchTransactionTest, AllDecidedWithPending)
+{
+    tx.addPatch(QStringLiteral("a.txt"), QStringLiteral(""), QStringLiteral("1"));
+    EXPECT_FALSE(tx.allDecided());
+
+    tx.accept(QStringLiteral("a.txt"));
+    EXPECT_TRUE(tx.allDecided());
 }

@@ -21,6 +21,7 @@ add_executable(act_framework_tests
     framework/AgentLoopTest.cpp
     framework/AgentSchedulerTest.cpp
     framework/CliReplTest.cpp
+    framework/EvalRunnerTest.cpp
     framework/ExecutionLaneTest.cpp
     framework/MarkdownFormatterTest.cpp
     framework/PatchTransactionTest.cpp
@@ -133,6 +134,8 @@ gtest_discover_tests(act_http_network_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOU
 # Integration tests
 add_executable(act_integration_tests
     integration/SmokeTest.cpp
+    integration/RegressionTest.cpp
+    integration/EndToEndCliTest.cpp
 )
 target_link_libraries(act_integration_tests PRIVATE act_framework GTest::gtest_main)
 gtest_discover_tests(act_integration_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})

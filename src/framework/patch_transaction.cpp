@@ -16,7 +16,7 @@ void PatchTransaction::addPatch(const QString &filePath,
     entry.filePath = filePath;
     entry.originalContent = originalContent;
     entry.newContent = newContent;
-    entry.accepted = false;
+    entry.decision = PatchEntry::Decision::Pending;
 
     m_pathIndex[filePath] = m_patches.size();
     m_patches.append(entry);
@@ -31,7 +31,7 @@ bool PatchTransaction::accept(const QString &filePath)
     if (it == m_pathIndex.end())
         return false;
 
-    m_patches[it.value()].accepted = true;
+    m_patches[it.value()].decision = PatchEntry::Decision::Accepted;
     spdlog::info("PatchTransaction: accepted '{}'",
                  filePath.toStdString());
     return true;
@@ -43,8 +43,7 @@ bool PatchTransaction::reject(const QString &filePath)
     if (it == m_pathIndex.end())
         return false;
 
-    m_patches[it.value()].accepted = false;
-    // Mark as rejected by removing the patch
+    m_patches[it.value()].decision = PatchEntry::Decision::Rejected;
     spdlog::info("PatchTransaction: rejected '{}'",
                  filePath.toStdString());
     return true;
@@ -53,13 +52,13 @@ bool PatchTransaction::reject(const QString &filePath)
 void PatchTransaction::acceptAll()
 {
     for (auto &patch : m_patches)
-        patch.accepted = true;
+        patch.decision = PatchEntry::Decision::Accepted;
 }
 
 void PatchTransaction::rejectAll()
 {
     for (auto &patch : m_patches)
-        patch.accepted = false;
+        patch.decision = PatchEntry::Decision::Rejected;
 }
 
 QString PatchTransaction::diffForFile(const QString &filePath) const
@@ -100,7 +99,7 @@ int PatchTransaction::acceptedCount() const
     int count = 0;
     for (const auto &patch : m_patches)
     {
-        if (patch.accepted)
+        if (patch.decision == PatchEntry::Decision::Accepted)
             ++count;
     }
     return count;
@@ -111,7 +110,7 @@ int PatchTransaction::rejectedCount() const
     int count = 0;
     for (const auto &patch : m_patches)
     {
-        if (!patch.accepted && !patch.newContent.isNull())
+        if (patch.decision == PatchEntry::Decision::Rejected)
             ++count;
     }
     return count;
@@ -122,7 +121,7 @@ int PatchTransaction::pendingCount() const
     int count = 0;
     for (const auto &patch : m_patches)
     {
-        if (patch.newContent.isNull())
+        if (patch.decision == PatchEntry::Decision::Pending)
             ++count;
     }
     return count;
@@ -139,7 +138,7 @@ QString PatchTransaction::newContentFor(const QString &filePath) const
     if (it == m_pathIndex.end())
         return {};
 
-    if (m_patches[it.value()].accepted)
+    if (m_patches[it.value()].decision == PatchEntry::Decision::Accepted)
         return m_patches[it.value()].newContent;
     return {};
 }
@@ -156,10 +155,64 @@ bool PatchTransaction::allDecided() const
 {
     for (const auto &patch : m_patches)
     {
-        if (patch.newContent.isNull())
-            return false; // Still undecided
+        if (patch.decision == PatchEntry::Decision::Pending)
+            return false;
     }
     return true;
+}
+
+// --- v1: Multi-file batch operations ---
+
+QMap<QString, QString> PatchTransaction::acceptedPatches() const
+{
+    QMap<QString, QString> result;
+    for (const auto &patch : m_patches)
+    {
+        if (patch.decision == PatchEntry::Decision::Accepted)
+            result[patch.filePath] = patch.newContent;
+    }
+    return result;
+}
+
+QStringList PatchTransaction::rejectedPaths() const
+{
+    QStringList result;
+    for (const auto &patch : m_patches)
+    {
+        if (patch.decision == PatchEntry::Decision::Rejected)
+            result.append(patch.filePath);
+    }
+    return result;
+}
+
+QString PatchTransaction::batchSummary() const
+{
+    int accepted = acceptedCount();
+    int rejected = rejectedCount();
+    int pending = pendingCount();
+
+    return QStringLiteral("PatchTransaction: %1 files — "
+                         "%2 accepted, %3 rejected, %4 pending")
+        .arg(m_patches.size())
+        .arg(accepted)
+        .arg(rejected)
+        .arg(pending);
+}
+
+void PatchTransaction::applyPartialFailure(
+    const QStringList &failedPaths)
+{
+    for (const auto &path : failedPaths)
+    {
+        auto it = m_pathIndex.find(path);
+        if (it != m_pathIndex.end())
+        {
+            m_patches[it.value()].decision =
+                PatchEntry::Decision::Rejected;
+            spdlog::warn("PatchTransaction: partial failure for '{}'",
+                         path.toStdString());
+        }
+    }
 }
 
 QString PatchTransaction::unifiedDiff(const QString &filePath,
@@ -174,7 +227,6 @@ QString PatchTransaction::unifiedDiff(const QString &filePath,
 
     QString result = QStringLiteral("--- a/%1\n+++ b/%1\n").arg(filePath);
 
-    // Simple line-by-line diff (unified format)
     int oldIdx = 0;
     int newIdx = 0;
 
@@ -196,7 +248,6 @@ QString PatchTransaction::unifiedDiff(const QString &filePath,
         --newEnd;
     }
 
-    // Header line with line numbers
     int contextLines = 1;
     int oldStart = qMax(1, oldIdx - contextLines + 1);
     int newStart = qMax(1, newIdx - contextLines + 1);
@@ -211,28 +262,24 @@ QString PatchTransaction::unifiedDiff(const QString &filePath,
                    .arg(newStart)
                    .arg(qMax(0, newCount));
 
-    // Context before change
     for (int i = oldStart - 1; i < oldIdx; ++i)
     {
         if (i >= 0 && i < oldLines.size())
             result += QStringLiteral(" ") + oldLines[i] + QStringLiteral("\n");
     }
 
-    // Removed lines
     for (int i = oldIdx; i <= oldEnd; ++i)
     {
         if (i < oldLines.size())
             result += QStringLiteral("-") + oldLines[i] + QStringLiteral("\n");
     }
 
-    // Added lines
     for (int i = newIdx; i <= newEnd; ++i)
     {
         if (i < newLines.size())
             result += QStringLiteral("+") + newLines[i] + QStringLiteral("\n");
     }
 
-    // Context after change
     for (int i = oldEnd + 1;
          i <= qMin(oldLines.size() - 1, oldEnd + contextLines); ++i)
     {
