@@ -17,12 +17,19 @@ QJsonObject OpenAICompatConverter::toRequest(
     request[QStringLiteral("temperature")] = temperature;
     request[QStringLiteral("stream")] = true;
 
-    // Add tools as OpenAI function definitions
+    // Add tools as OpenAI function definitions - convert to OpenAI format
     if (!toolDefs.isEmpty())
     {
         QJsonArray tools;
         for (const auto &def : toolDefs)
-            tools.append(def);
+        {
+            QString name = def[QStringLiteral("name")].toString();
+            QString description = def[QStringLiteral("description")].toString();
+            QJsonObject schema = def[QStringLiteral("schema")].toObject();
+
+            // Use toolToDefinition to convert to OpenAI format
+            tools.append(toolToDefinition(name, description, schema));
+        }
         request[QStringLiteral("tools")] = tools;
     }
 

@@ -1,8 +1,10 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcess>
 #include <QTextStream>
 
 #ifdef _WIN32
@@ -20,8 +22,131 @@
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
+#include "harness/tools/diff_view_tool.h"
+#include "harness/tools/file_edit_tool.h"
+#include "harness/tools/file_read_tool.h"
+#include "harness/tools/file_write_tool.h"
+#include "harness/tools/git_commit_tool.h"
+#include "harness/tools/git_diff_tool.h"
+#include "harness/tools/git_status_tool.h"
+#include "harness/tools/glob_tool.h"
+#include "harness/tools/grep_tool.h"
+#include "harness/tools/repo_map_tool.h"
+#include "harness/tools/shell_exec_tool.h"
+#include "infrastructure/interfaces.h"
 #include "services/ai_engine.h"
 #include "services/config_manager.h"
+
+// --- Production IFileSystem implementation ---
+class LocalFileSystem : public act::infrastructure::IFileSystem
+{
+public:
+    explicit LocalFileSystem(QString workspaceRoot = QDir::currentPath())
+        : m_workspaceRoot(QDir::cleanPath(std::move(workspaceRoot)))
+    {
+    }
+
+    [[nodiscard]] bool readFile(const QString &path, QString &content) const override
+    {
+        QString fullPath = normalizePath(path);
+        QFile file(fullPath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            return false;
+        content = QString::fromUtf8(file.readAll());
+        return true;
+    }
+
+    bool writeFile(const QString &path, const QString &content) override
+    {
+        QString fullPath = normalizePath(path);
+        QFile file(fullPath);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+            return false;
+        file.write(content.toUtf8());
+        return true;
+    }
+
+    [[nodiscard]] QStringList listFiles(const QString &dir,
+                                        const QString &pattern) const override
+    {
+        QString fullPath = normalizePath(dir);
+        QDir d(fullPath);
+        return d.entryList({pattern}, QDir::Files);
+    }
+
+    [[nodiscard]] QString normalizePath(const QString &path) const override
+    {
+        if (QDir::isRelativePath(path))
+            return QDir::cleanPath(m_workspaceRoot + QLatin1Char('/') + path);
+        return QDir::cleanPath(path);
+    }
+
+    [[nodiscard]] bool exists(const QString &path) const override
+    {
+        return QFile::exists(path) || QDir(path).exists();
+    }
+
+    bool removeFile(const QString &path) override
+    {
+        return QFile::remove(normalizePath(path));
+    }
+
+private:
+    QString m_workspaceRoot;
+};
+
+// --- Production IProcess implementation ---
+class LocalProcess : public act::infrastructure::IProcess
+{
+public:
+    void execute(const QString &command,
+                 const QStringList &args,
+                 std::function<void(int, QString)> callback,
+                 int timeoutMs = 30000) override
+    {
+        QProcess process;
+        process.start(command, args);
+        bool finished = process.waitForFinished(timeoutMs);
+        QString output = QString::fromUtf8(process.readAllStandardOutput());
+        QString error = QString::fromUtf8(process.readAllStandardError());
+        int exitCode = finished ? process.exitCode() : -1;
+        if (!finished)
+        {
+            process.kill();
+            output += QStringLiteral("\n[Process timed out after %1ms]").arg(timeoutMs);
+        }
+        if (!error.isEmpty())
+            output += QStringLiteral("\n[stderr] ") + error;
+        callback(exitCode, output);
+    }
+
+    void cancel() override
+    {
+        // No-op for synchronous implementation
+    }
+};
+
+// --- Helper: read a line from console with proper encoding ---
+static QString readConsoleLine(QTextStream &in)
+{
+#ifdef _WIN32
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    if (hStdin != INVALID_HANDLE_VALUE && GetFileType(hStdin) == FILE_TYPE_CHAR)
+    {
+        wchar_t buffer[4096];
+        DWORD charsRead = 0;
+        if (ReadConsoleW(hStdin, buffer, 4095, &charsRead, nullptr) && charsRead > 0)
+        {
+            // Remove trailing CR/LF
+            while (charsRead > 0 && (buffer[charsRead - 1] == L'\r' || buffer[charsRead - 1] == L'\n'))
+                --charsRead;
+            return QString::fromWCharArray(buffer, charsRead);
+        }
+        return QString(); // EOF
+    }
+#endif
+    return in.readLine();
+}
 
 // --- First-run interactive setup ---
 static bool runFirstTimeSetup(act::services::ConfigManager &config,
@@ -44,7 +169,7 @@ static bool runFirstTimeSetup(act::services::ConfigManager &config,
         << " (default: " << act::services::ConfigManager::DEFAULT_PROVIDER << "):"
         << Qt::endl;
     out << "  > " << Qt::flush;
-    QString providerInput = in.readLine().trimmed();
+    QString providerInput = readConsoleLine(in).trimmed();
     if (providerInput.isEmpty())
         providerInput = QString::fromUtf8(act::services::ConfigManager::DEFAULT_PROVIDER);
     config.setProvider(providerInput);
@@ -55,7 +180,7 @@ static bool runFirstTimeSetup(act::services::ConfigManager &config,
                         .arg(providerInput))
         << Qt::endl;
     out << "  > " << Qt::flush;
-    QString apiKey = in.readLine().trimmed();
+    QString apiKey = readConsoleLine(in).trimmed();
     if (apiKey.isEmpty())
     {
         out << Qt::endl;
@@ -72,7 +197,7 @@ static bool runFirstTimeSetup(act::services::ConfigManager &config,
         << " (default: " << act::services::ConfigManager::DEFAULT_MODEL << "):"
         << Qt::endl;
     out << "  > " << Qt::flush;
-    QString modelInput = in.readLine().trimmed();
+    QString modelInput = readConsoleLine(in).trimmed();
     if (!modelInput.isEmpty())
         config.setModel(modelInput);
     else
@@ -85,7 +210,7 @@ static bool runFirstTimeSetup(act::services::ConfigManager &config,
         << " (default: " << defaultUrl << ", press Enter to skip):"
         << Qt::endl;
     out << "  > " << Qt::flush;
-    QString urlInput = in.readLine().trimmed();
+    QString urlInput = readConsoleLine(in).trimmed();
     if (!urlInput.isEmpty())
         config.setBaseUrl(urlInput);
 
@@ -109,15 +234,10 @@ int main(int argc, char *argv[])
 {
 #ifdef _WIN32
     // --- Windows UTF-8 bootstrap ---
-    // Set both input and output code pages to UTF-8 so CJK / emoji
-    // characters render correctly in every terminal (cmd, PowerShell,
-    // Windows Terminal, ConEmu, Git Bash, etc.).
+    // Set console output to UTF-8 for correct display of CJK/emoji.
+    // Do NOT set input code page - we use ReadConsoleW directly for
+    // reliable UTF-16 input, which bypasses the code page translation.
     SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-    // Reopen stdin with UTF-8 mode so the CRT converts wide console
-    // input to UTF-8 for QTextStream.  Pipe input is already UTF-8.
-    if (_isatty(_fileno(stdin)))
-        freopen(nullptr, "r, ccs=UTF-8", stdin);
 #endif
 
     // Reinitialize spdlog default logger with UTF-8 console sink.
@@ -207,9 +327,60 @@ int main(int argc, char *argv[])
     auto permissions = std::make_unique<act::harness::PermissionManager>();
     auto context = std::make_unique<act::harness::ContextManager>();
 
+    // --- Create infrastructure implementations ---
+    auto fileSystem = std::make_unique<LocalFileSystem>(QDir::currentPath());
+    auto process = std::make_unique<LocalProcess>();
+
+    // --- Register tools ---
+    registry->registerTool(std::make_unique<act::harness::FileReadTool>(*fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::FileWriteTool>(*fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::FileEditTool>(*fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::GrepTool>(*fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::GlobTool>(*fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::ShellExecTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::GitStatusTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::GitDiffTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::GitCommitTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::DiffViewTool>(*process, *fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::RepoMapTool>(*fileSystem, *process, QDir::currentPath()));
+
     permissions->setAutoApproved(act::core::PermissionLevel::Read, true);
     permissions->setAutoApproved(act::core::PermissionLevel::Write, true);
     // Exec remains opt-in -- shell commands require user confirmation
+
+    // --- Permission confirmation callback ---
+    // Set up interactive permission confirmation for non-auto-approved levels
+    auto permissionCallback = [&out, &in](const act::core::PermissionRequest &request) -> bool {
+        namespace TS = act::framework::TerminalStyle;
+
+        // Display permission request
+        out << Qt::endl;
+        out << TS::fgYellow(QStringLiteral("  Permission Request: %1")
+            .arg(request.toolName)) << Qt::endl;
+        out << TS::dim(QStringLiteral("  Level: %1 | Description: %2")
+            .arg(static_cast<int>(request.level)).arg(request.description)) << Qt::endl;
+        out << Qt::endl;
+        out << QStringLiteral("  Allow? [y/N/always]: ") << Qt::flush;
+
+        // Read user response using the same helper as main REPL
+        QString response = readConsoleLine(in).trimmed().toLower();
+
+        if (response == QLatin1String("always"))
+        {
+            // TODO: Store "always" preference for this tool/level
+            return true;
+        }
+        else if (response == QLatin1String("y") || response == QLatin1String("yes"))
+        {
+            return true;
+        }
+        else
+        {
+            out << TS::fgRed(QStringLiteral("  Permission denied.")) << Qt::endl;
+            return false;
+        }
+    };
+    permissions->setPermissionCallback(permissionCallback);
 
     {
         QList<QJsonObject> toolDefs;
@@ -218,11 +389,12 @@ int main(int argc, char *argv[])
             auto *tool = registry->getTool(toolName);
             if (tool)
             {
-                toolDefs.append(QJsonObject{
-                    {QStringLiteral("name"), tool->name()},
-                    {QStringLiteral("description"), tool->description()},
-                    {QStringLiteral("schema"), tool->schema()}
-                });
+                // Store raw tool info - providers will convert to their format
+                QJsonObject toolDef;
+                toolDef[QStringLiteral("name")] = tool->name();
+                toolDef[QStringLiteral("description")] = tool->description();
+                toolDef[QStringLiteral("schema")] = tool->schema();
+                toolDefs.append(toolDef);
             }
         }
         engine->setToolDefinitions(toolDefs);
@@ -275,7 +447,7 @@ int main(int argc, char *argv[])
     while (true)
     {
         out.flush();
-        QString line = in.readLine();
+        QString line = readConsoleLine(in);
         if (line.isNull())
             break;
 

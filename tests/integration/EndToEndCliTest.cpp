@@ -137,6 +137,39 @@ public:
 };
 
 // ============================================================
+// Mock shell exec tool (requires Exec permission)
+// ============================================================
+
+class ShellExecTool : public ITool
+{
+public:
+    QString lastCommand;
+    QString simulatedOutput = QStringLiteral("Command executed successfully");
+
+    [[nodiscard]] QString name() const override
+    {
+        return QStringLiteral("shell_exec");
+    }
+    [[nodiscard]] QString description() const override
+    {
+        return QStringLiteral("Execute a shell command");
+    }
+    [[nodiscard]] QJsonObject schema() const override { return QJsonObject{}; }
+
+    ToolResult execute(const QJsonObject &params) override
+    {
+        lastCommand = params.value(QStringLiteral("command")).toString();
+        return ToolResult::ok(simulatedOutput);
+    }
+
+    [[nodiscard]] PermissionLevel permissionLevel() const override
+    {
+        return PermissionLevel::Exec;
+    }
+    [[nodiscard]] bool isThreadSafe() const override { return true; }
+};
+
+// ============================================================
 // Test Fixture
 // ============================================================
 
@@ -152,6 +185,7 @@ protected:
 
         readTool = new ReadFileTool();
         grepTool = new GrepTool();
+        execTool = new ShellExecTool();
 
         readTool->files = {
             {QStringLiteral("main.cpp"),
@@ -161,9 +195,11 @@ protected:
         };
 
         grepTool->files = readTool->files;
+        execTool->simulatedOutput = QStringLiteral("Command executed successfully");
 
         registry->registerTool(std::unique_ptr<ITool>(readTool));
         registry->registerTool(std::unique_ptr<ITool>(grepTool));
+        registry->registerTool(std::unique_ptr<ITool>(execTool));
 
         // Auto-approve read-level tools
         permissions->setAutoApproved(PermissionLevel::Read, true);
@@ -224,6 +260,7 @@ protected:
     // Raw pointers for setup (ownership transferred to registry)
     ReadFileTool *readTool = nullptr;
     GrepTool *grepTool = nullptr;
+    ShellExecTool *execTool = nullptr;
 };
 
 // ============================================================
@@ -453,4 +490,91 @@ TEST_F(EndToEndCliTest, ResetClearsContext)
     };
     auto state = repl->processInput(QStringLiteral("new question"));
     EXPECT_EQ(state, TaskState::Completed);
+}
+
+// ============================================================
+// E2E-9: Permission confirmation — user approves
+// ============================================================
+
+TEST_F(EndToEndCliTest, PermissionConfirmationApproved)
+{
+    // Set up shell exec tool (requires permission)
+    auto *execTool = new ShellExecTool();
+    registry->registerTool(std::unique_ptr<ITool>(execTool));
+
+    // Set up permission callback that auto-approves
+    permissions->setPermissionCallback([](const PermissionRequest &request) {
+        // Simulate user typing "y"
+        return request.toolName == QLatin1String("shell_exec");
+    });
+
+    QJsonObject params;
+    params[QStringLiteral("command")] = QStringLiteral("echo hello");
+
+    engine->responseSequence = {
+        toolUseResponse(
+            QStringLiteral("shell_exec"), QStringLiteral("c1"), params),
+        textResponse(QStringLiteral("Command executed successfully.")),
+    };
+
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("run echo hello"));
+
+    EXPECT_EQ(state, TaskState::Completed);
+    EXPECT_EQ(execTool->lastCommand, QStringLiteral("echo hello"));
+}
+
+TEST_F(EndToEndCliTest, PermissionConfirmationDenied)
+{
+    // Set up shell exec tool (requires permission)
+    auto *execTool = new ShellExecTool();
+    registry->registerTool(std::unique_ptr<ITool>(execTool));
+
+    // Set up permission callback that denies
+    permissions->setPermissionCallback([](const PermissionRequest &) {
+        return false; // Deny all
+    });
+
+    QJsonObject params;
+    params[QStringLiteral("command")] = QStringLiteral("rm -rf /");
+
+    engine->responseSequence = {
+        toolUseResponse(
+            QStringLiteral("shell_exec"), QStringLiteral("c1"), params),
+        textResponse(QStringLiteral("I cannot execute that command.")),
+    };
+
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("delete everything"));
+
+    // Agent should still complete (with denied tool result)
+    EXPECT_EQ(state, TaskState::Completed);
+    // Tool should not have been executed
+    EXPECT_TRUE(execTool->lastCommand.isEmpty());
+}
+
+TEST_F(EndToEndCliTest, PermissionAutoApprovedForRead)
+{
+    // Read-level tools should be auto-approved without callback
+    bool callbackCalled = false;
+    permissions->setPermissionCallback([&callbackCalled](const PermissionRequest &) {
+        callbackCalled = true;
+        return true;
+    });
+
+    QJsonObject params;
+    params[QStringLiteral("path")] = QStringLiteral("main.cpp");
+
+    engine->responseSequence = {
+        toolUseResponse(
+            QStringLiteral("file_read"), QStringLiteral("c1"), params),
+        textResponse(QStringLiteral("Here's main.cpp.")),
+    };
+
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("read main.cpp"));
+
+    EXPECT_EQ(state, TaskState::Completed);
+    // Callback should NOT have been called (auto-approved)
+    EXPECT_FALSE(callbackCalled);
 }
