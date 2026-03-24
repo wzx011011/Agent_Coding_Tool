@@ -60,3 +60,24 @@ add_subdirectory(app/cli)
 # Tests
 enable_testing()
 add_subdirectory(tests)
+
+# --- Install (aictl + runtime DLLs) ---
+include(GNUInstallDirs)
+
+install(TARGETS aictl RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# Vcpkg runtime DLLs
+set(_VCPKG_INSTALLED_DIR "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows")
+install(FILES
+    ${_VCPKG_INSTALLED_DIR}/bin/tomlplusplus-3.dll
+    ${_VCPKG_INSTALLED_DIR}/bin/spdlog.dll
+    ${_VCPKG_INSTALLED_DIR}/bin/fmt.dll
+    ${_VCPKG_INSTALLED_DIR}/bin/libcrypto-3-x64.dll
+    ${_VCPKG_INSTALLED_DIR}/bin/libssl-3-x64.dll
+    ${_VCPKG_INSTALLED_DIR}/bin/brotlicommon.dll
+    ${_VCPKG_INSTALLED_DIR}/bin/brotlidec.dll
+    ${_VCPKG_INSTALLED_DIR}/bin/brotlienc.dll
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Qt6 runtime DLLs are handled by windeployqt6 in _build.bat deploy step.

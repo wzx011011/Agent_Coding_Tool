@@ -3,30 +3,40 @@ REM ============================================================
 REM  ACT Build Script — Windows MSVC + Qt 6.10.2 + vcpkg
 REM
 REM  Usage:
-REM    _build.bat              Configure + Build + Test (default)
-REM    _build.bat --no-test    Configure + Build only
+REM    _build.bat              Configure + Build + Test + Deploy (default)
+REM    _build.bat --no-test    Configure + Build + Deploy (skip tests)
 REM    _build.bat --test-only  Run tests only (assumes already built)
 REM    _build.bat --configure  Configure only
 REM    _build.bat --build      Build only (skip configure)
+REM    _build.bat --deploy     Deploy only (install to build/dist, assumes already built)
 REM    _build.bat --timeout N  Set per-test timeout in seconds (default 10)
 REM ============================================================
 
 set "DO_CONFIGURE=1"
 set "DO_BUILD=1"
 set "DO_TEST=1"
+set "DO_DEPLOY=1"
 set "TEST_TIMEOUT=10"
 
 if "%~1"=="--no-test" set "DO_TEST=0"
 if "%~1"=="--test-only" (
     set "DO_CONFIGURE=0"
     set "DO_BUILD=0"
+    set "DO_DEPLOY=0"
 )
 if "%~1"=="--configure" (
     set "DO_BUILD=0"
     set "DO_TEST=0"
+    set "DO_DEPLOY=0"
 )
 if "%~1"=="--build" (
     set "DO_CONFIGURE=0"
+    set "DO_TEST=0"
+    set "DO_DEPLOY=0"
+)
+if "%~1"=="--deploy" (
+    set "DO_CONFIGURE=0"
+    set "DO_BUILD=0"
     set "DO_TEST=0"
 )
 if "%~1"=="--timeout" set "TEST_TIMEOUT=%~2"
@@ -70,4 +80,23 @@ REM --- Test ---
 if "%DO_TEST%"=="1" (
     echo === TEST (timeout=%TEST_TIMEOUT%s) ===
     ctest --test-dir build --output-on-failure --timeout %TEST_TIMEOUT%
+)
+
+REM --- Deploy ---
+if "%DO_DEPLOY%"=="1" (
+    echo === DEPLOY ===
+    cmake --install build --prefix build/dist --config RelWithDebInfo
+    if %ERRORLEVEL% neq 0 (
+        echo DEPLOY FAILED
+        exit /b %ERRORLEVEL%
+    )
+    echo === Deployed to build/dist/bin/ ===
+
+    echo === WINDEPLOYQT6 ===
+    windeployqt6 build\dist\bin\aictl.exe --no-translations --no-opengl-sw --no-system-d3d-compiler
+    if %ERRORLEVEL% neq 0 (
+        echo WINDEPLOYQT6 FAILED
+        exit /b %ERRORLEVEL%
+    )
+    echo === Qt6 runtime deployed ===
 )
