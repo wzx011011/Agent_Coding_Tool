@@ -21,6 +21,7 @@ add_executable(act_framework_tests
     framework/AgentLoopTest.cpp
     framework/CliReplTest.cpp
     framework/MarkdownFormatterTest.cpp
+    framework/ResumeManagerTest.cpp
     framework/SkillCatalogTest.cpp
     framework/RuntimeTraceTest.cpp
 )

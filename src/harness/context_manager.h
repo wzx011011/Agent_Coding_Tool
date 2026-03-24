@@ -62,6 +62,20 @@ public:
         const QList<act::core::LLMMessage> &messages,
         int targetTokens);
 
+    /// Perform auto-compact: triggered automatically when tokens exceed
+    /// threshold. Replaces oldest messages with a summary placeholder.
+    /// Returns the compacted message list (empty if no compaction needed).
+    QList<act::core::LLMMessage> autoCompact(
+        const QList<act::core::LLMMessage> &messages);
+
+    /// Perform manual compact: user-triggered aggressive compaction.
+    /// Keeps system message, recent messages, and replaces everything
+    /// else with a summary placeholder.
+    /// Returns the compacted message list.
+    QList<act::core::LLMMessage> manualCompact(
+        const QList<act::core::LLMMessage> &messages,
+        int keepRecentCount = 4);
+
     /// Returns a summary of the compacted/removed messages for traceability.
     [[nodiscard]] QString lastCompactSummary() const
     {

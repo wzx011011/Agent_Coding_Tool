@@ -134,3 +134,106 @@ TEST_F(ContextManagerTest, EstimateTokensWithToolCall)
     int tokens = cm.estimateTokens(messages);
     EXPECT_GT(tokens, 10);
 }
+
+// --- N6: Three-layer compact tests ---
+
+TEST_F(ContextManagerTest, AutoCompactDoesNothingWhenUnderThreshold)
+{
+    cm.setMaxContextTokens(200000);
+
+    QList<LLMMessage> messages;
+    LLMMessage msg;
+    msg.content = QStringLiteral("Short message");
+    messages.append(msg);
+
+    auto result = cm.autoCompact(messages);
+    EXPECT_TRUE(result.isEmpty());
+}
+
+TEST_F(ContextManagerTest, AutoCompactTriggersWhenOverThreshold)
+{
+    cm.setMaxContextTokens(1000); // Low threshold for testing
+    // autoCompactThreshold = 80% = 800
+
+    QList<LLMMessage> messages;
+    LLMMessage sys;
+    sys.role = MessageRole::System;
+    sys.content = QStringLiteral("System prompt");
+    messages.append(sys);
+
+    // Add enough messages to exceed threshold
+    for (int i = 0; i < 50; ++i)
+    {
+        LLMMessage msg;
+        msg.role = (i % 2 == 0) ? MessageRole::User : MessageRole::Assistant;
+        msg.content = QStringLiteral("Message %1 with some content to accumulate tokens").arg(i);
+        messages.append(msg);
+    }
+
+    auto result = cm.autoCompact(messages);
+    EXPECT_FALSE(result.isEmpty());
+    EXPECT_FALSE(cm.lastCompactSummary().isEmpty());
+    // Result should be shorter than input
+    EXPECT_LT(result.size(), messages.size());
+}
+
+TEST_F(ContextManagerTest, ManualCompactReplacesMiddleMessages)
+{
+    QList<LLMMessage> messages;
+    LLMMessage sys;
+    sys.role = MessageRole::System;
+    sys.content = QStringLiteral("System");
+    messages.append(sys);
+
+    for (int i = 0; i < 10; ++i)
+    {
+        LLMMessage msg;
+        msg.role = MessageRole::User;
+        msg.content = QStringLiteral("Message %1").arg(i);
+        messages.append(msg);
+    }
+
+    // Keep 2 most recent, compact the rest (excluding system)
+    auto result = cm.manualCompact(messages, 2);
+
+    // Expected: system + summary + 2 recent = 4
+    EXPECT_EQ(result.size(), 4);
+    EXPECT_EQ(result[0].role, MessageRole::System);
+    EXPECT_TRUE(result[1].content.contains(QStringLiteral("compacted")));
+    // The 2 most recent should be preserved
+    EXPECT_EQ(result[2].content, QStringLiteral("Message 8"));
+    EXPECT_EQ(result[3].content, QStringLiteral("Message 9"));
+    EXPECT_FALSE(cm.lastCompactSummary().isEmpty());
+}
+
+TEST_F(ContextManagerTest, ManualCompactPreservesSystemMessage)
+{
+    QList<LLMMessage> messages;
+    LLMMessage sys;
+    sys.role = MessageRole::System;
+    sys.content = QStringLiteral("Important system instructions");
+    messages.append(sys);
+
+    LLMMessage msg;
+    msg.content = QStringLiteral("User message");
+    messages.append(msg);
+
+    auto result = cm.manualCompact(messages, 0);
+    // System message always preserved, and with keepRecentCount=0 the
+    // compactable range is messages.size()-1-0 = 1, which is the user msg
+    // Actually with keepRecent=0 and only 1 non-system msg, compactable=1
+    // Result: system + summary
+    EXPECT_GE(result.size(), 1);
+    EXPECT_EQ(result[0].role, MessageRole::System);
+}
+
+TEST_F(ContextManagerTest, ManualCompactReturnsAsIsWhenTooFewMessages)
+{
+    QList<LLMMessage> messages;
+    LLMMessage msg;
+    msg.content = QStringLiteral("Only one message");
+    messages.append(msg);
+
+    auto result = cm.manualCompact(messages);
+    EXPECT_EQ(result.size(), 1);
+}

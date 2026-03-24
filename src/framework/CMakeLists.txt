@@ -3,6 +3,7 @@ add_library(act_framework STATIC
     cli_repl.cpp
     framework.cpp
     markdown_formatter.cpp
+    resume_manager.cpp
     runtime_event_logger.cpp
     runtime_trace_store.cpp
     skill_catalog.cpp

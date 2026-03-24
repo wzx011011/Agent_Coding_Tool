@@ -96,4 +96,78 @@ QList<act::core::LLMMessage> ContextManager::microCompact(
     return result;
 }
 
+QList<act::core::LLMMessage> ContextManager::autoCompact(
+    const QList<act::core::LLMMessage> &messages)
+{
+    if (messages.isEmpty())
+        return {};
+
+    int estimated = estimateTokens(messages);
+    if (!shouldAutoCompact(estimated))
+        return {};
+
+    spdlog::info("Auto-compact triggered: {} tokens (threshold: {})",
+                 estimated, autoCompactThreshold());
+
+    // Target: free up to 50% of context to avoid frequent re-compaction
+    int targetTokens = static_cast<int>(m_maxContextTokens * 0.5);
+    return microCompact(messages, targetTokens);
+}
+
+QList<act::core::LLMMessage> ContextManager::manualCompact(
+    const QList<act::core::LLMMessage> &messages,
+    int keepRecentCount)
+{
+    if (messages.size() <= 2)
+        return messages; // Nothing to compact
+
+    QList<act::core::LLMMessage> result;
+
+    // Always keep system message
+    int start = 0;
+    if (messages.first().role == act::core::MessageRole::System)
+    {
+        result.append(messages.first());
+        start = 1;
+    }
+
+    // Count messages being compacted for the summary
+    int compactableCount = messages.size() - start - keepRecentCount;
+    if (compactableCount <= 0)
+    {
+        m_lastCompactSummary = QStringLiteral(
+            "Manual compact: no messages to compact (only %1 messages)")
+            .arg(messages.size());
+        return messages;
+    }
+
+    // Create a summary placeholder message
+    int tokensRemoved = 0;
+    for (int i = start; i < start + compactableCount; ++i)
+        tokensRemoved += estimateTokens({messages[i]});
+
+    act::core::LLMMessage summary;
+    summary.role = act::core::MessageRole::System;
+    summary.content = QStringLiteral(
+        "[Context compacted: %1 older messages removed (~%2 tokens). "
+        "Recent conversation context is preserved below.]")
+        .arg(compactableCount)
+        .arg(tokensRemoved);
+    result.append(summary);
+
+    // Append the most recent messages
+    for (int i = start + compactableCount; i < messages.size(); ++i)
+        result.append(messages[i]);
+
+    m_lastCompactSummary = QStringLiteral(
+        "Manual compact: replaced %1 messages with summary "
+        "(~%2 tokens freed), kept %3 recent messages")
+        .arg(compactableCount)
+        .arg(tokensRemoved)
+        .arg(keepRecentCount);
+
+    spdlog::info("{}", m_lastCompactSummary.toStdString());
+    return result;
+}
+
 } // namespace act::harness
