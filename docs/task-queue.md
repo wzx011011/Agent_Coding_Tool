@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 26/28 + 0/16 (T11 skipped: TypeScript/Node.js; T16 deferred: P2+ GUI, requires QtWidgets; LLM-T1~T12 all completed; Batch 3~5 pending)
+- Completed: 26/28 + 6/16 (T11 skipped; T16 deferred; N1,N2,N7,N11,N12,N15 completed)
 
 ## Planning Notes
 
@@ -63,8 +63,8 @@
 
 | #   | ID  | Title                                                   | Scope       | Depends            | Status | Verification                            | Notes                                                                                                                                                       |
 | --- | --- | ------------------------------------------------------- | ----------- | ------------------ | ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| 29  | N1  | 实现 GitHub Actions CI（Windows 编译 + 测试）           | infra       | -                  | [ ]    | CI workflow 触发后 build + test 全绿   | `.github/workflows/ci.yml`，MSVC + vcpkg + Qt6，cache vcpkg packages                                                                                       |
-| 30  | N2  | 实现 Markdown 终端输出                                   | frontend    | T10                | [ ]    | build + test pass                      | CLI 输出支持 Markdown 格式化（代码块、列表、标题、粗体等），提升人类可读 REPL 的渲染质量                                                              |
+| 29  | N1  | 实现 GitHub Actions CI（Windows 编译 + 测试）           | infra       | -                  | [x]    | CI workflow 触发后 build + test 全绿   | `.github/workflows/ci.yml`，MSVC + vcpkg + Qt6，cache vcpkg packages                                                                                       | commit: 74b2cbc |
+| 30  | N2  | 实现 Markdown 终端输出                                   | frontend    | T10                | [x]    | build + test pass                      | MarkdownFormatter: 代码块边框、标题下划线、粗体大写、列表项目符、行内代码括号、水平线；集成到 CliRepl human 模式                         | commit: 73d58aa |
 | 31  | N3  | 实现 PatchTransaction v0（单文件修改预览/确认）          | integration | T6                 | [ ]    | build + test pass                      | 文件修改前生成 diff 预览，用户确认后提交；为 v1 多文件批量修改打基础                                                                                   |
 | 32  | N4  | 实现回归任务集 v0                                         | testing     | T10                | [ ]    | build + test pass                      | 自动化回归测试用例：读取文件、搜索、编辑、执行命令、权限拒绝；为 EvalRunner 提供输入                                                               |
 | 33  | N5  | 实现端到端 CLI 测试                                       | testing     | T10, LLM-T12       | [ ]    | build + test pass (无 key 时 GTEST_SKIP) | `aictl` 实际调用的集成测试（可用 mock LLM），覆盖完整 REPL 输入→工具调用→输出闭环                                                             |
@@ -74,7 +74,7 @@
 | #   | ID  | Title                                                   | Scope       | Depends            | Status | Verification                            | Notes                                                                                                                                                       |
 | --- | --- | ------------------------------------------------------- | ----------- | ------------------ | ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | 34  | N6  | 实现 ContextManager 三层压缩                             | backend     | T8                 | [ ]    | build + test pass                      | auto-compact 自动触发 + manual-compact 用户触发；当前仅有 microCompact，补齐完整三层（micro / auto / manual）                                         |
-| 35  | N7  | 实现 DiffViewTool（修改预览）                             | backend     | T14                | [ ]    | build + test pass                      | CLI diff 输出工具，为 PatchTransaction 提供可视化；unified diff 格式，支持文件内行号定位                                                               |
+| 35  | N7  | 实现 DiffViewTool（修改预览）                             | backend     | T14                | [x]    | build + test pass                      | CLI diff 输出工具，支持 staged/unstaged/all 模式 + stat_only；unified diff 格式，change statistics                                            | commit: 74b2cbc |
 | 36  | N8  | 实现 PatchTransaction v1（多文件预览/部分失败）           | integration | N3, N7             | [ ]    | build + test pass                      | 多文件批量修改预览、Accept/Reject 逐文件确认、部分失败回滚处理                                                                                       |
 | 37  | N9  | 实现 EvalRunner v0                                        | testing     | N4                 | [ ]    | build + test pass                      | 执行回归任务集并记录通过率，输出结构化 JSON 报告（pass/fail/skip/timeout）                                                                           |
 | 38  | N10 | 实现 ResumeTask（Checkpoint 恢复）                        | integration | T9                 | [ ]    | build + test pass                      | 从 Checkpoint 恢复中断任务，支持单任务恢复到最近确认点；利用现有 Checkpoint 骨架                                                                   |
@@ -83,11 +83,11 @@
 
 | #   | ID  | Title                                                   | Scope       | Depends            | Status | Verification                            | Notes                                                                                                                                                       |
 | --- | --- | ------------------------------------------------------- | ----------- | ------------------ | ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| 39  | N11 | 实现 GitCommitTool                                        | backend     | T14                | [ ]    | build + test pass                      | 调用 `git commit`，返回 commit hash；支持 conventional commit 格式校验                                                                               |
-| 40  | N12 | 实现 Fallback 链（主模型→备用模型）                       | backend     | LLM-T9             | [ ]    | build + test pass                      | 主 provider 失败（401/429/timeout）后自动切换备用 provider，支持配置 fallback provider 列表                                                          |
+| 39  | N11 | 实现 GitCommitTool                                        | backend     | T14                | [x]    | build + test pass                      | 调用 `git add` + `git commit -m`，返回 commit hash；conventional commit 格式校验（warning only）                                                    | commit: 74b2cbc |
+| 40  | N12 | 实现 Fallback 链（主模型→备用模型）                       | backend     | LLM-T9             | [x]    | build + test pass                      | AIEngine::tryStreamWithProvider 递归重试；ConfigManager 支持 [network].fallback_providers TOML 数组；fallbackTriggered 信号              | commit: 73d58aa |
 | 41  | N13 | 实现 AgentScheduler v0（串行流水线）                      | integration | T15                | [ ]    | build + test pass                      | 串行执行多个 Task Graph，支持依赖阻塞与按序调度；为并行调度（P4）打基础                                                                             |
 | 42  | N14 | 实现 ExecutionLane / WorktreeManager v1                   | integration | T15                | [ ]    | build + test pass                      | 任务与执行目录解耦，git worktree 隔离；基于现有 worktree lane 抽象实现                                                                                 |
-| 43  | N15 | 实现 RepoMapTool（基于文件树）                            | backend     | T5                 | [ ]    | build + test pass                      | 中型仓库文件结构索引，为 Agent 提供项目地图；P3 完整版可升级为 tree-sitter 解析                                                                     |
+| 43  | N15 | 实现 RepoMapTool（基于文件树）                            | backend     | T5                 | [x]    | build + test pass                      | 基于 IFileSystem.listFiles 递归构建文件树，显示项目结构、文件/目录计数、git branch；线程安全                                                      | commit: 74b2cbc |
 
 ## Dependency Waves
 
