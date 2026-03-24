@@ -11,6 +11,9 @@ add_library(act_harness STATIC
     tools/shell_exec_tool.cpp
     tools/git_status_tool.cpp
     tools/git_diff_tool.cpp
+    tools/git_commit_tool.cpp
+    tools/diff_view_tool.cpp
+    tools/repo_map_tool.cpp
 )
 
 target_include_directories(act_harness

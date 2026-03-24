@@ -68,6 +68,9 @@ add_executable(act_harness_tests
     harness/ShellSecurityTest.cpp
     harness/ContextManagerTest.cpp
     harness/GitToolsTest.cpp
+    harness/GitCommitToolTest.cpp
+    harness/DiffViewToolTest.cpp
+    harness/RepoMapToolTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
 gtest_discover_tests(act_harness_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
