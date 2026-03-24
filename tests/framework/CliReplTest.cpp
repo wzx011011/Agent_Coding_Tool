@@ -46,6 +46,8 @@ public:
 
     void cancel() override {}
 
+    void setToolDefinitions(const QList<QJsonObject> & /*tools*/) override {}
+
     [[nodiscard]] int estimateTokens(
         const QList<LLMMessage> &messages) const override
     {

@@ -10,18 +10,18 @@
 
 #include "core/types.h"
 #include "infrastructure/http_network.h"
-#include "services/anthropic_converter.h"
 #include "services/llm_provider.h"
+#include "services/openai_compat_converter.h"
 
 namespace act::services
 {
 
-/// Anthropic Messages API provider with real HTTP/SSE implementation.
-class AnthropicProvider : public LLMProvider
+/// OpenAI-compatible API provider (GLM, DeepSeek, etc.).
+class OpenAICompatProvider : public LLMProvider
 {
 public:
-    AnthropicProvider();
-    ~AnthropicProvider() override = default;
+    OpenAICompatProvider();
+    ~OpenAICompatProvider() override = default;
 
     // LLMProvider
     void setApiKey(const QString &key) override;
@@ -48,7 +48,7 @@ public:
 
 private:
     QString m_apiKey;
-    QString m_baseUrl = QStringLiteral("https://api.anthropic.com");
+    QString m_baseUrl = QStringLiteral("https://open.bigmodel.cn/api/v1");
     QString m_model;
     bool m_cancelled = false;
     std::unique_ptr<infrastructure::HttpNetwork> m_network;

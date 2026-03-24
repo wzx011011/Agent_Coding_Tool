@@ -42,7 +42,8 @@ struct LLMMessage
     MessageRole role = MessageRole::User;
     QString content;
     QString toolCallId;  // only when role == Tool
-    ToolCall toolCall;   // only when role == Assistant and has tool call
+    ToolCall toolCall;   // only when role == Assistant and has tool call (backward compat)
+    QList<ToolCall> toolCalls; // all tool calls (role == Assistant, supports multiple)
 };
 
 struct PermissionRequest

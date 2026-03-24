@@ -35,6 +35,7 @@ public:
     virtual void cancel() = 0;
     [[nodiscard]] virtual int estimateTokens(
         const QList<act::core::LLMMessage> &messages) const = 0;
+    virtual void setToolDefinitions(const QList<QJsonObject> &tools) = 0;
 };
 
 class IProjectManager

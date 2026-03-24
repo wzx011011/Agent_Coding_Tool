@@ -82,13 +82,44 @@ add_executable(act_services_tests
 target_link_libraries(act_services_tests PRIVATE act_services GTest::gtest_main)
 gtest_discover_tests(act_services_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
 
+# Anthropic converter tests (separate target to avoid MSVC C1903)
+add_executable(act_anthropic_converter_tests
+    services/AnthropicConverterTest.cpp
+)
+target_link_libraries(act_anthropic_converter_tests PRIVATE act_services GTest::gtest_main)
+set_source_files_properties(services/AnthropicConverterTest.cpp PROPERTIES
+    CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_anthropic_converter_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+
+# OpenAI compat converter tests (separate target to avoid MSVC C1903)
+add_executable(act_openai_compat_converter_tests
+    services/OpenAICompatConverterTest.cpp
+)
+target_link_libraries(act_openai_compat_converter_tests PRIVATE act_services GTest::gtest_main)
+set_source_files_properties(services/OpenAICompatConverterTest.cpp PROPERTIES
+    CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_openai_compat_converter_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+
 # Infrastructure tests
 add_executable(act_infrastructure_tests
     infrastructure/SmokeTest.cpp
     infrastructure/InterfaceTest.cpp
+    infrastructure/SseParserTest.cpp
 )
 target_link_libraries(act_infrastructure_tests PRIVATE act_infrastructure GTest::gtest_main)
 gtest_discover_tests(act_infrastructure_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+
+# HttpNetwork tests
+add_executable(act_http_network_tests
+    infrastructure/HttpNetworkTest.cpp
+)
+target_link_libraries(act_http_network_tests PRIVATE act_infrastructure GTest::gtest_main)
+set_source_files_properties(infrastructure/HttpNetworkTest.cpp PROPERTIES
+    CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_http_network_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
 
 # Integration tests
 add_executable(act_integration_tests
@@ -96,3 +127,14 @@ add_executable(act_integration_tests
 )
 target_link_libraries(act_integration_tests PRIVATE act_framework GTest::gtest_main)
 gtest_discover_tests(act_integration_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+
+# Live provider integration tests (needs real API keys)
+add_executable(act_live_provider_tests
+    integration/LiveProviderTest.cpp
+)
+target_link_libraries(act_live_provider_tests PRIVATE act_services GTest::gtest_main)
+set_source_files_properties(integration/LiveProviderTest.cpp PROPERTIES
+    CXX_SCAN_FOR_MODULES OFF
+)
+# Longer timeout for real network calls
+gtest_discover_tests(act_live_provider_tests PROPERTIES TIMEOUT 30)

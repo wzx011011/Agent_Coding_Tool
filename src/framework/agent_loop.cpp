@@ -61,8 +61,17 @@ void AgentLoop::onPermissionApproved()
     if (m_state != act::core::TaskState::WaitingApproval || !m_pendingToolCall)
         return;
 
-    dispatchToolCall(*m_pendingToolCall);
+    // Execute the approved tool call
+    emitEvent(act::core::RuntimeEvent::toolCall(
+        m_pendingToolCall->name, m_pendingToolCall->params));
+    auto result = m_tools.execute(m_pendingToolCall->name, m_pendingToolCall->params);
+    appendToolResult(*m_pendingToolCall, result);
     m_pendingToolCall = std::nullopt;
+
+    // Continue with next pending tool call or proceed to next loop
+    ++m_pendingToolCallIndex;
+    transitionTo(act::core::TaskState::ToolRunning);
+    dispatchNextPendingToolCall();
 }
 
 void AgentLoop::cancel()
@@ -137,57 +146,21 @@ void AgentLoop::onAIResponse(const act::core::LLMMessage &msg)
     m_messages.append(msg);
     ++m_turnCount;
 
-    // Check if the response contains a tool call
-    if (!msg.toolCall.id.isEmpty() && !msg.toolCall.name.isEmpty())
+    // Check if the response contains tool calls (support multiple)
+    QList<act::core::ToolCall> allToolCalls;
+    if (!msg.toolCalls.isEmpty())
     {
-        // Need permission before executing
+        allToolCalls = msg.toolCalls;
+    }
+    else if (!msg.toolCall.id.isEmpty() && !msg.toolCall.name.isEmpty())
+    {
+        allToolCalls.append(msg.toolCall);
+    }
+
+    if (!allToolCalls.isEmpty())
+    {
         transitionTo(act::core::TaskState::ToolRunning);
-
-        auto *tool = m_tools.getTool(msg.toolCall.name);
-        if (!tool)
-        {
-            // Tool not found — return error to AI and continue
-            act::core::ToolResult errResult = act::core::ToolResult::err(
-                act::core::errors::TOOL_NOT_FOUND,
-                QStringLiteral("Tool '%1' is not registered")
-                    .arg(msg.toolCall.name));
-            appendToolResult(msg.toolCall, errResult);
-            transitionTo(act::core::TaskState::Running);
-            runLoop();
-            return;
-        }
-
-        // Check permission (synchronous for auto-approve; otherwise defer)
-        auto decision = m_permissions.checkPermission(
-            tool->permissionLevel(),
-            msg.toolCall.name,
-            QStringLiteral("Tool call from AI"),
-            msg.toolCall.params);
-
-        if (decision == harness::PermissionManager::Decision::Denied)
-        {
-            act::core::ToolResult deniedResult = act::core::ToolResult::err(
-                act::core::errors::PERMISSION_DENIED,
-                QStringLiteral("Permission denied for tool '%1'")
-                    .arg(msg.toolCall.name));
-            appendToolResult(msg.toolCall, deniedResult);
-            transitionTo(act::core::TaskState::Running);
-            runLoop();
-        }
-        else if (decision == harness::PermissionManager::Decision::Approved)
-        {
-            dispatchToolCall(msg.toolCall);
-        }
-        else
-        {
-            // Cancelled or needs manual approval — store pending call
-            m_pendingToolCall = msg.toolCall;
-            transitionTo(act::core::TaskState::WaitingApproval);
-            emitEvent(act::core::RuntimeEvent::permissionRequest(
-                QStringLiteral("pending"),
-                msg.toolCall.name,
-                tool->permissionLevel()));
-        }
+        dispatchToolCalls(allToolCalls);
     }
     // If no tool call, the AI gave a final response.
     // onAIComplete() will transition to Completed.
@@ -252,6 +225,81 @@ void AgentLoop::dispatchToolCall(const act::core::ToolCall &call)
     // Continue the loop after tool execution
     transitionTo(act::core::TaskState::Running);
     runLoop();
+}
+
+void AgentLoop::dispatchToolCalls(const QList<act::core::ToolCall> &calls)
+{
+    m_pendingToolCalls = calls;
+    m_pendingToolCallIndex = 0;
+    m_pendingToolResults.clear();
+    dispatchNextPendingToolCall();
+}
+
+void AgentLoop::dispatchNextPendingToolCall()
+{
+    if (m_cancelled)
+        return;
+
+    if (m_pendingToolCallIndex >= m_pendingToolCalls.size())
+    {
+        // All tool calls dispatched — continue the loop
+        m_pendingToolCalls.clear();
+        m_pendingToolCallIndex = 0;
+        transitionTo(act::core::TaskState::Running);
+        runLoop();
+        return;
+    }
+
+    const auto &call = m_pendingToolCalls[m_pendingToolCallIndex];
+    transitionTo(act::core::TaskState::ToolRunning);
+
+    auto *tool = m_tools.getTool(call.name);
+    if (!tool)
+    {
+        // Tool not found — append error and move to next
+        act::core::ToolResult errResult = act::core::ToolResult::err(
+            act::core::errors::TOOL_NOT_FOUND,
+            QStringLiteral("Tool '%1' is not registered").arg(call.name));
+        appendToolResult(call, errResult);
+        ++m_pendingToolCallIndex;
+        dispatchNextPendingToolCall();
+        return;
+    }
+
+    // Check permission
+    auto decision = m_permissions.checkPermission(
+        tool->permissionLevel(),
+        call.name,
+        QStringLiteral("Tool call from AI"),
+        call.params);
+
+    if (decision == harness::PermissionManager::Decision::Denied)
+    {
+        act::core::ToolResult deniedResult = act::core::ToolResult::err(
+            act::core::errors::PERMISSION_DENIED,
+            QStringLiteral("Permission denied for tool '%1'").arg(call.name));
+        appendToolResult(call, deniedResult);
+        ++m_pendingToolCallIndex;
+        dispatchNextPendingToolCall();
+    }
+    else if (decision == harness::PermissionManager::Decision::Approved)
+    {
+        emitEvent(act::core::RuntimeEvent::toolCall(call.name, call.params));
+        auto result = m_tools.execute(call.name, call.params);
+        appendToolResult(call, result);
+        ++m_pendingToolCallIndex;
+        dispatchNextPendingToolCall();
+    }
+    else
+    {
+        // Needs manual approval — store pending call
+        m_pendingToolCall = call;
+        transitionTo(act::core::TaskState::WaitingApproval);
+        emitEvent(act::core::RuntimeEvent::permissionRequest(
+            QStringLiteral("pending"),
+            call.name,
+            tool->permissionLevel()));
+    }
 }
 
 void AgentLoop::appendToolResult(const act::core::ToolCall &call,

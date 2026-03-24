@@ -102,6 +102,12 @@ private:
     /// Dispatch a tool call after permission is granted.
     void dispatchToolCall(const act::core::ToolCall &call);
 
+    /// Dispatch multiple tool calls sequentially.
+    void dispatchToolCalls(const QList<act::core::ToolCall> &calls);
+
+    /// Continue dispatching the next pending tool call.
+    void dispatchNextPendingToolCall();
+
     /// Append a tool result message and continue the loop.
     void appendToolResult(const act::core::ToolCall &call,
                           const act::core::ToolResult &result);
@@ -121,8 +127,11 @@ private:
     bool m_cancelled = false;
     bool m_running = false;
 
-    /// Pending tool call during permission check.
+    /// Pending tool calls during permission check (multiple tool_call support).
     std::optional<act::core::ToolCall> m_pendingToolCall;
+    QList<act::core::ToolCall> m_pendingToolCalls;
+    int m_pendingToolCallIndex = 0;
+    QList<act::core::ToolResult> m_pendingToolResults;
 
     EventCallback m_eventCallback;
     FinishCallback m_finishCallback;

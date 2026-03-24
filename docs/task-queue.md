@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 14/16 (T11 skipped: TypeScript/Node.js; T16 deferred: P2+ GUI, requires QtWidgets)
+- Completed: 26/28 (T11 skipped: TypeScript/Node.js; T16 deferred: P2+ GUI, requires QtWidgets; LLM-T1~T12 all completed)
 
 ## Planning Notes
 
@@ -39,6 +39,23 @@
 | 14  | T14 | 实现 PatchTransaction、Git 只读工具与 RuntimeTraceStore | integration | T6, T7, T9, T10    | [x]    | build + tests pass                      | 落地 `GitStatusTool`、`GitDiffTool`、`PatchTransaction v0/v1`、`RuntimeEventLogger`、`RuntimeTraceStore v1`                                                 | commit: pending |
 | 15  | T15 | 实现 Task Graph、Resume / Replay 与 Execution Lane      | backend     | T9, T13, T14       | [x]    | build + tests pass                      | 引入 `TaskStateStore`、依赖图、artifact 引用、background lane、worktree lane 抽象                                                                           |
 | 16  | T16 | 接入 Native GUI Beta 与 P1-P3 回归评测                  | integration | T11, T14, T15      | [ ]    | build + test + targeted regression pass | 接入 Qt GUI 壳、任务状态与事件流面板、DiffWidget、EvalRunner v0/v1、关键回归任务集                                                                          |
+
+### Batch 2: 真实 LLM API 接入（多 Provider 支持）
+
+| #   | ID     | Title                                                   | Scope       | Depends                                  | Status | Verification                            | Notes                                                                                                                                                       |
+| --- | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- | ------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| 17  | LLM-T1 | 链接 cpp-httplib 到基础设施层                            | infra       | -                                        | [x]    | build 通过                               | `find_package(httplib CONFIG REQUIRED)`，链接到 `act_infrastructure`                                                                                           |                |
+| 18  | LLM-T2 | 实现 SSE 协议解析器                                     | infra       | LLM-T1                                   | [x]    | build + SseParserTest pass              | `feed(chunk)` 返回 `SseEvent` 列表，支持标准 SSE 和 Anthropic SSE 两种格式                                                                                    |                |
+| 19  | LLM-T3 | 实现 HttpNetwork（cpp-httplib 封装）                    | infra       | LLM-T1                                   | [x]    | build + HttpNetworkTest pass            | HTTP POST + SSE 流式读取，代理、自定义 Headers、超时配置                                                                                                     |                |
+| 20  | LLM-T4 | 扩展 LLMMessage 支持多 tool_call                         | backend     | -                                        | [x]    | build + 现有 test 全部通过               | `LLMMessage` 增加 `QList<ToolCall> toolCalls`，`toolCall` 向后兼容                                                                                             |                |
+| 21  | LLM-T5 | 扩展 ConfigManager 添加 Provider 和网络配置              | backend     | -                                        | [x]    | build + ConfigManagerTest pass          | `provider`、`[network]` TOML 段（base_url、proxy），按 provider 聚合默认 base_url                                                                               |                |
+| 22  | LLM-T6 | 抽取 LLMProvider 抽象基类                                | backend     | LLM-T4                                   | [x]    | build 通过                               | `chat()` / `stream()` / `cancel()` / `setToolDefinitions()` 统一接口                                                                                         |                |
+| 23  | LLM-T7 | 实现 Anthropic 消息格式转换器                            | backend     | LLM-T2, LLM-T4                           | [x]    | build + AnthropicConverterTest pass     | `toRequest()` / `parseSseEvents()` / `toolToDefinition()`，`x-api-key` 认证                                                                                   |                |
+| 24  | LLM-T8 | 实现 OpenAI 兼容消息格式转换器                           | backend     | LLM-T2, LLM-T4                           | [x]    | build + OpenAICompatConverterTest pass  | `toRequest()` / `parseSseEvents()` / `toolToDefinition()`，`Authorization: Bearer` 认证，GLM 适配                                                            |                |
+| 25  | LLM-T9 | 替换 AnthropicProvider stub + 新建 OpenAICompatProvider   | backend     | LLM-T3, T5, T6, T7, T8                   | [x]    | build + test pass                       | 真实 HTTP/SSE 实现，AIEngine 根据 provider 选择对应实现，错误映射（401/429/timeout）                                                                            |                |
+| 26  | LLM-T10| 实现流式输出 + 多 tool_call 分发                         | integration | LLM-T9                                   | [x]    | build + test pass                       | `streamTokenReceived` 信号，`IAIEngine::setToolDefinitions()`，AgentLoop 顺序分发所有 tool call                                                              |                |
+| 27  | LLM-T11| 串联配置 → 网络 → Provider 全链路                       | integration | LLM-T5, LLM-T9                            | [x]    | build + test pass                       | AIEngine 从 ConfigManager 读取 provider/base_url/proxy/apiKey，main.cpp 注入 ToolRegistry 工具定义                                                           |                |
+| 28  | LLM-T12| 端到端集成测试                                          | testing     | LLM-T10, LLM-T11                          | [x]    | build + skip (无 key) / pass (有 key)   | `ACT_ANTHROPIC_API_KEY` / `ACT_ZHIPU_API_KEY` 环境变量控制，无 key 时 GTEST_SKIP()                                                                            |                |
 
 ## Dependency Waves
 

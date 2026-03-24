@@ -2,8 +2,11 @@
 
 #include <QObject>
 
-#include "services/anthropic_provider.h"
+#include <memory>
+
+#include "core/runtime_event.h"
 #include "services/config_manager.h"
+#include "services/llm_provider.h"
 
 namespace act::services
 {
@@ -24,9 +27,22 @@ public:
     [[nodiscard]] int estimateTokens(
         const QList<act::core::LLMMessage> &messages) const override;
 
+    /// Set tool definitions from ToolRegistry.
+    void setToolDefinitions(const QList<QJsonObject> &tools);
+
+    /// Get current provider name.
+    [[nodiscard]] QString providerName() const;
+
+signals:
+    /// Emitted when a streaming token is received.
+    void streamTokenReceived(const QString &token);
+
 private:
+    void initProvider();
+
     ConfigManager &m_config;
-    AnthropicProvider m_anthropic;
+    std::unique_ptr<LLMProvider> m_provider;
+    QList<QJsonObject> m_toolDefs;
 };
 
 } // namespace act::services

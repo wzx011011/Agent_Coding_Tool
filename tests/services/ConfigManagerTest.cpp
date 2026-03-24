@@ -90,3 +90,69 @@ TEST_F(ConfigManagerTest, SaveCreatesConfigDirectory)
                    .absoluteFilePath(QStringLiteral(".act/config.toml")));
     EXPECT_TRUE(file.exists());
 }
+
+// --- Provider & Network Config ---
+
+TEST_F(ConfigManagerTest, DefaultProviderIsAnthropic)
+{
+    EXPECT_EQ(config()->provider(), ConfigManager::DEFAULT_PROVIDER);
+}
+
+TEST_F(ConfigManagerTest, CanSetProvider)
+{
+    config()->setProvider(QStringLiteral("openai_compat"));
+    EXPECT_EQ(config()->provider(), QStringLiteral("openai_compat"));
+}
+
+TEST_F(ConfigManagerTest, ProviderIsCaseInsensitive)
+{
+    config()->setProvider(QStringLiteral("OpenAI_Compat"));
+    EXPECT_EQ(config()->provider(), QStringLiteral("openai_compat"));
+}
+
+TEST_F(ConfigManagerTest, DefaultBaseUrlForAnthropic)
+{
+    EXPECT_EQ(config()->baseUrl(), QString(ConfigManager::ANTHROPIC_BASE_URL));
+}
+
+TEST_F(ConfigManagerTest, DefaultBaseUrlForOpenAICompat)
+{
+    config()->setProvider(QStringLiteral("openai_compat"));
+    EXPECT_EQ(config()->baseUrl(), QString(ConfigManager::OPENAI_COMPAT_BASE_URL));
+}
+
+TEST_F(ConfigManagerTest, CanSetCustomBaseUrl)
+{
+    config()->setBaseUrl(QStringLiteral("https://custom.api.com/v1"));
+    EXPECT_EQ(config()->baseUrl(), QStringLiteral("https://custom.api.com/v1"));
+}
+
+TEST_F(ConfigManagerTest, CanSetProxy)
+{
+    config()->setProxy(QStringLiteral("http://127.0.0.1:7890"));
+    EXPECT_EQ(config()->proxy(), QStringLiteral("http://127.0.0.1:7890"));
+}
+
+TEST_F(ConfigManagerTest, DefaultProxyIsEmpty)
+{
+    EXPECT_TRUE(config()->proxy().isEmpty());
+}
+
+TEST_F(ConfigManagerTest, ProviderAndNetworkRoundtrip)
+{
+    config()->setModel(QStringLiteral("glm-4"));
+    config()->setProvider(QStringLiteral("openai_compat"));
+    config()->setBaseUrl(QStringLiteral("https://custom.api.com"));
+    config()->setProxy(QStringLiteral("http://proxy:8080"));
+    config()->setApiKey(QStringLiteral("openai_compat"), QStringLiteral("key-123"));
+
+    ASSERT_TRUE(config()->save());
+
+    ConfigManager loaded(tempDir()->path());
+    ASSERT_TRUE(loaded.load());
+
+    EXPECT_EQ(loaded.provider(), QStringLiteral("openai_compat"));
+    EXPECT_EQ(loaded.baseUrl(), QStringLiteral("https://custom.api.com"));
+    EXPECT_EQ(loaded.proxy(), QStringLiteral("http://proxy:8080"));
+    EXPECT_EQ(loaded.apiKey(QStringLiteral("openai_compat")), QStringLiteral("key-123"));
+}

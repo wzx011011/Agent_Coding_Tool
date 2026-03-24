@@ -53,6 +53,24 @@ int main(int argc, char *argv[])
     auto permissions = std::make_unique<act::harness::PermissionManager>();
     auto context = std::make_unique<act::harness::ContextManager>();
 
+    // Inject tool definitions into AIEngine
+    {
+        QList<QJsonObject> toolDefs;
+        for (const auto &toolName : registry->listTools())
+        {
+            auto *tool = registry->getTool(toolName);
+            if (tool)
+            {
+                toolDefs.append(QJsonObject{
+                    {QStringLiteral("name"), tool->name()},
+                    {QStringLiteral("description"), tool->description()},
+                    {QStringLiteral("schema"), tool->schema()}
+                });
+            }
+        }
+        engine->setToolDefinitions(toolDefs);
+    }
+
     // --- Create CLI REPL ---
     act::framework::CliRepl repl(*engine, *registry, *permissions, *context);
 
