@@ -23,6 +23,61 @@ CliRepl::CliRepl(services::IAIEngine &engine,
     , m_permissions(permissions)
     , m_context(context)
 {
+    // Register built-in commands
+    m_commands.registerCommand(
+        QStringLiteral("help"),
+        QStringLiteral("Show available commands"),
+        [this](const QStringList & /*args*/) -> bool {
+            QString help = TerminalStyle::systemMessage(
+                QStringLiteral("Available commands:"));
+            emitOutput(help);
+            for (const auto &cmd : m_commands.listCommands())
+            {
+                emitOutput(QStringLiteral("  /%1 - %2")
+                    .arg(cmd.name, cmd.description));
+            }
+            return true;
+        });
+
+    m_commands.registerCommand(
+        QStringLiteral("exit"),
+        QStringLiteral("Exit the REPL"),
+        [this](const QStringList & /*args*/) -> bool {
+            m_exitRequested = true;
+            emit exitRequested();
+            return true;
+        });
+
+    m_commands.registerCommand(
+        QStringLiteral("quit"),
+        QStringLiteral("Exit the REPL (alias for /exit)"),
+        [this](const QStringList & /*args*/) -> bool {
+            m_exitRequested = true;
+            emit exitRequested();
+            return true;
+        });
+
+    m_commands.registerCommand(
+        QStringLiteral("reset"),
+        QStringLiteral("Reset conversation context"),
+        [this](const QStringList & /*args*/) -> bool {
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("Conversation reset.")));
+            return true;
+        });
+
+    m_commands.registerCommand(
+        QStringLiteral("status"),
+        QStringLiteral("Show agent loop status"),
+        [this](const QStringList & /*args*/) -> bool {
+            AgentLoop loop(m_engine, m_tools, m_permissions, m_context, this);
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("State: %1, Messages: %2, Turns: %3")
+                    .arg(static_cast<int>(loop.state()))
+                    .arg(loop.messages().size())
+                    .arg(loop.turnCount())));
+            return true;
+        });
 }
 
 act::core::TaskState CliRepl::processInput(const QString &input)
@@ -32,28 +87,27 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     if (trimmed.isEmpty())
         return act::core::TaskState::Idle;
 
-    // Handle special commands
-    if (trimmed == QLatin1String("/exit") || trimmed == QLatin1String("/quit"))
+    // Check if this is a slash command
+    if (trimmed.startsWith(QLatin1Char('/')))
     {
-        emit exitRequested();
-        return act::core::TaskState::Idle;
-    }
+        // Parse command name and arguments
+        QString cmdPart = trimmed.mid(1);  // Remove leading '/'
+        QStringList parts = cmdPart.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+        if (parts.isEmpty())
+            return act::core::TaskState::Idle;
 
-    if (trimmed == QLatin1String("/reset"))
-    {
-        emitOutput(TerminalStyle::systemMessage(
-            QStringLiteral("Conversation reset.")));
-        return act::core::TaskState::Idle;
-    }
+        QString cmdName = parts.takeFirst();
+        QStringList args = parts;
 
-    if (trimmed == QLatin1String("/status"))
-    {
-        AgentLoop loop(m_engine, m_tools, m_permissions, m_context, this);
-        emitOutput(TerminalStyle::systemMessage(
-            QStringLiteral("State: %1, Messages: %2, Turns: %3")
-                .arg(static_cast<int>(loop.state()))
-                .arg(loop.messages().size())
-                .arg(loop.turnCount())));
+        // Try to execute via CommandRegistry
+        if (m_commands.execute(cmdName, args))
+            return act::core::TaskState::Idle;
+
+        // Unknown command - show error and continue
+        emitOutput(TerminalStyle::errorMessage(
+            QStringLiteral("UNKNOWN_COMMAND"),
+            QStringLiteral("Unknown command: /%1. Type /help for available commands.")
+                .arg(cmdName)));
         return act::core::TaskState::Idle;
     }
 
@@ -159,13 +213,9 @@ void CliRepl::processBatch(const QStringList &inputs)
 {
     for (const auto &input : inputs)
     {
-        auto state = processInput(input);
-        if (state == act::core::TaskState::Idle)
-        {
-            if (input.trimmed() == QLatin1String("/exit") ||
-                input.trimmed() == QLatin1String("/quit"))
-                return;
-        }
+        processInput(input);
+        if (m_exitRequested)
+            return;
     }
 }
 

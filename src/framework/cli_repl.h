@@ -5,6 +5,7 @@
 #include <QString>
 
 #include "framework/agent_loop.h"
+#include "framework/command_registry.h"
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
@@ -31,6 +32,10 @@ public:
                        harness::ContextManager &context,
                        QObject *parent = nullptr);
 
+    /// Get the command registry for registering custom commands.
+    [[nodiscard]] CommandRegistry &commandRegistry() { return m_commands; }
+    [[nodiscard]] const CommandRegistry &commandRegistry() const { return m_commands; }
+
     /// Set the output mode (human-readable or JSON lines).
     void setOutputMode(OutputMode mode) { m_outputMode = mode; }
 
@@ -40,6 +45,12 @@ public:
 
     /// Process a batch of inputs (e.g. from file or args).
     void processBatch(const QStringList &inputs);
+
+    /// Check if exit was requested via /exit or /quit command.
+    [[nodiscard]] bool isExitRequested() const { return m_exitRequested; }
+
+    /// Reset the exit requested flag (for reusing the REPL).
+    void clearExitRequested() { m_exitRequested = false; }
 
     /// Current output mode.
     [[nodiscard]] OutputMode outputMode() const { return m_outputMode; }
@@ -67,6 +78,8 @@ private:
     harness::ContextManager &m_context;
 
     OutputMode m_outputMode = OutputMode::Human;
+    CommandRegistry m_commands;
+    bool m_exitRequested = false;
 };
 
 } // namespace act::framework

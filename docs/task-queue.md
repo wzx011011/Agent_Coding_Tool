@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 41/43 + 15/16 (T11 skipped; T16 deferred; N1~N15 all completed)
+- Completed: 41/43 + 16/30 (T11 skipped; T16 deferred; N1~N16 completed)
 
 ## Planning Notes
 
@@ -93,7 +93,7 @@
 
 | #  | ID  | Title                                          | Scope       | Depends | Status | Verification                                      | Notes                                                        |
 |----|-----|------------------------------------------------|-------------|---------|--------|---------------------------------------------------|--------------------------------------------------------------|
-| 44 | N16 | 实现 CommandRegistry 与 /help 命令              | frontend    | T10     | [ ]    | build + CliReplTest.HelpCommand pass             | 新建 src/framework/command_registry.h/cpp：struct CommandInfo { QString name, description; std::function\<bool(const QStringList&)\> handler; }; registerCommand(name, desc, handler), unregisterCommand(name), execute(input) → bool, listCommands() → QList\<CommandInfo\>; 修改 src/framework/cli_repl.cpp 将硬编码命令分发替换为 CommandRegistry; 注册 /help、/reset、/quit 等已有命令 |
+| 44 | N16 | 实现 CommandRegistry 与 /help 命令              | frontend    | T10     | [x]    | build + CliReplTest.HelpCommand pass             | 新建 src/framework/command_registry.h/cpp：struct CommandInfo { QString name, description; std::function\<bool(const QStringList&)\> handler; }; registerCommand(name, desc, handler), unregisterCommand(name), execute(input) → bool, listCommands() → QList\<CommandInfo\>; 修改 src/framework/cli_repl.cpp 将硬编码命令分发替换为 CommandRegistry; 注册 /help、/reset、/quit 等已有命令 | commit: e6bfc9c |
 | 45 | N17 | 实现交互式权限确认后端                           | backend     | T6      | [ ]    | build + PermissionPromptTest pass                 | 修改 src/harness/permission_manager.h/cpp：新增 std::function\<bool(const PermissionRequest&)\> m_userCallback; setPermissionCallback(callback) 供外部注入确认逻辑; 请求 PermissionLevel 不可自动批准时调用 m_userCallback; 回调返回 true=允许 false=拒绝; 回调在 AgentLoop 线程同步调用; 单元测试用 mock callback 验证不依赖真实 stdin |
 | 46 | N18 | 实现交互式权限确认 REPL 集成                     | frontend    | N16,N17 | [ ]    | build + E2E test pass                             | REPL 循环检测 WaitingApproval，y/N/always 三种应答           |
 | 47 | N19 | 实现 /compact /model /config /clear /resume 命令 | frontend    | N16     | [ ]    | build + test pass                                 | 基于 CommandRegistry 注册，各调用已有 API                    |

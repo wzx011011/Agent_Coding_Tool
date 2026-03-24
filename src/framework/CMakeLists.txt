@@ -2,6 +2,7 @@ add_library(act_framework STATIC
     agent_loop.cpp
     agent_scheduler.cpp
     cli_repl.cpp
+    command_registry.cpp
     eval_runner.cpp
     execution_lane.cpp
     framework.cpp

@@ -291,3 +291,170 @@ TEST_F(CliReplTest, BatchModeStopsOnExit)
     }
     EXPECT_FALSE(foundNever);
 }
+
+// ============================================================
+// Command Registry Tests
+// ============================================================
+
+TEST_F(CliReplTest, HelpCommandListsCommands)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/help"));
+    EXPECT_EQ(state, TaskState::Idle);
+
+    // Should show header and at least the built-in commands
+    bool foundHeader = false;
+    bool foundExit = false;
+    bool foundReset = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("Available commands")))
+            foundHeader = true;
+        if (line.contains(QStringLiteral("/exit")))
+            foundExit = true;
+        if (line.contains(QStringLiteral("/reset")))
+            foundReset = true;
+    }
+    EXPECT_TRUE(foundHeader);
+    EXPECT_TRUE(foundExit);
+    EXPECT_TRUE(foundReset);
+}
+
+TEST_F(CliReplTest, UnknownCommandShowsError)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/unknowncommand"));
+    EXPECT_EQ(state, TaskState::Idle);
+
+    bool foundError = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("Unknown command")))
+            foundError = true;
+    }
+    EXPECT_TRUE(foundError);
+}
+
+TEST_F(CliReplTest, ExitRequestedFlag)
+{
+    EXPECT_FALSE(repl->isExitRequested());
+    repl->processInput(QStringLiteral("/exit"));
+    EXPECT_TRUE(repl->isExitRequested());
+}
+
+TEST_F(CliReplTest, ExitRequestedFlagReset)
+{
+    repl->processInput(QStringLiteral("/exit"));
+    EXPECT_TRUE(repl->isExitRequested());
+    repl->clearExitRequested();
+    EXPECT_FALSE(repl->isExitRequested());
+}
+
+TEST_F(CliReplTest, CommandRegistryRegisterCommand)
+{
+    auto &registry = repl->commandRegistry();
+    int initialCount = registry.commandCount();
+
+    bool registered = registry.registerCommand(
+        QStringLiteral("testcmd"),
+        QStringLiteral("Test command"),
+        [](const QStringList &) -> bool { return true; });
+
+    EXPECT_TRUE(registered);
+    EXPECT_EQ(registry.commandCount(), initialCount + 1);
+    EXPECT_TRUE(registry.hasCommand(QStringLiteral("testcmd")));
+}
+
+TEST_F(CliReplTest, CommandRegistryDuplicateFails)
+{
+    auto &registry = repl->commandRegistry();
+
+    bool first = registry.registerCommand(
+        QStringLiteral("dupcmd"),
+        QStringLiteral("First"),
+        [](const QStringList &) -> bool { return true; });
+    EXPECT_TRUE(first);
+
+    bool second = registry.registerCommand(
+        QStringLiteral("dupcmd"),
+        QStringLiteral("Second"),
+        [](const QStringList &) -> bool { return true; });
+    EXPECT_FALSE(second);
+}
+
+TEST_F(CliReplTest, CommandRegistryUnregisterCommand)
+{
+    auto &registry = repl->commandRegistry();
+
+    registry.registerCommand(
+        QStringLiteral("tempcmd"),
+        QStringLiteral("Temp"),
+        [](const QStringList &) -> bool { return true; });
+    EXPECT_TRUE(registry.hasCommand(QStringLiteral("tempcmd")));
+
+    bool removed = registry.unregisterCommand(QStringLiteral("tempcmd"));
+    EXPECT_TRUE(removed);
+    EXPECT_FALSE(registry.hasCommand(QStringLiteral("tempcmd")));
+}
+
+TEST_F(CliReplTest, CommandRegistryExecute)
+{
+    auto &registry = repl->commandRegistry();
+    bool executed = false;
+
+    registry.registerCommand(
+        QStringLiteral("execcmd"),
+        QStringLiteral("Exec test"),
+        [&executed](const QStringList &args) -> bool {
+            executed = true;
+            return args.isEmpty() || args.contains(QStringLiteral("ok"));
+        });
+
+    EXPECT_TRUE(registry.execute(QStringLiteral("execcmd"), {}));
+    EXPECT_TRUE(executed);
+
+    executed = false;
+    EXPECT_TRUE(registry.execute(QStringLiteral("execcmd"), {QStringLiteral("ok")}));
+    EXPECT_TRUE(executed);
+}
+
+TEST_F(CliReplTest, CommandRegistryExecuteNonexistent)
+{
+    auto &registry = repl->commandRegistry();
+    EXPECT_FALSE(registry.execute(QStringLiteral("nonexistent"), {}));
+}
+
+TEST_F(CliReplTest, CommandRegistryListCommands)
+{
+    auto &registry = repl->commandRegistry();
+    auto commands = registry.listCommands();
+
+    // Should have at least the built-in commands
+    EXPECT_GE(commands.size(), 4);
+
+    // Verify each command has required fields
+    for (const auto &cmd : commands)
+    {
+        EXPECT_FALSE(cmd.name.isEmpty());
+        EXPECT_FALSE(cmd.description.isEmpty());
+        EXPECT_TRUE(cmd.handler);
+    }
+}
+
+TEST_F(CliReplTest, CustomCommandViaProcessInput)
+{
+    auto &registry = repl->commandRegistry();
+    bool customExecuted = false;
+
+    registry.registerCommand(
+        QStringLiteral("custom"),
+        QStringLiteral("Custom test command"),
+        [&customExecuted](const QStringList &) -> bool {
+            customExecuted = true;
+            return true;
+        });
+
+    auto state = repl->processInput(QStringLiteral("/custom"));
+    EXPECT_EQ(state, TaskState::Idle);
+    EXPECT_TRUE(customExecuted);
+}
