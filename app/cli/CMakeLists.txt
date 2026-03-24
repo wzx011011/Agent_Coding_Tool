@@ -17,24 +17,17 @@ target_link_libraries(aictl
 
 target_compile_features(aictl PRIVATE cxx_std_20)
 
-# --- VS debugger: use Windows Terminal for F5 ---
+# --- VS debugger settings ---
 if(CMAKE_GENERATOR MATCHES "Visual Studio")
-    # wt.exe is a Windows Store app alias, not in system PATH
-    find_program(WT_EXE wt.exe
-        HINTS "$ENV{LOCALAPPDATA}/Microsoft/WindowsApps"
+    set_target_properties(aictl PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        VS_DEBUGGER_ENVIRONMENT
+            "PATH=${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin\;E:\\Qt6.10\\bin\;%PATH%"
     )
-    if(WT_EXE)
-        set_target_properties(aictl PROPERTIES
-            VS_DEBUGGER_COMMAND "${WT_EXE}"
-            VS_DEBUGGER_COMMAND_ARGUMENTS "-p \"PowerShell\" $<TARGET_FILE:aictl>"
-            VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-            VS_DEBUGGER_ENVIRONMENT
-                "PATH=${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin\;E:\\Qt6.10\\bin\;%PATH%\;CHCP=65001"
-        )
-    endif()
 endif()
 
 # Deploy Qt DLLs next to the executable after build
+# Note: Qt 6.10 only has Release DLLs, so always use --release
 find_program(WINDEPLOYQT6 windeployqt6 HINTS "${Qt6_DIR}/../../../bin")
 if(WINDEPLOYQT6)
     add_custom_command(TARGET aictl POST_BUILD

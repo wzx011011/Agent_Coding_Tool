@@ -1,8 +1,8 @@
 {
   "version": 6,
   "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 28,
+    "major": 4,
+    "minor": 1,
     "patch": 0
   },
   "configurePresets": [
@@ -46,9 +46,15 @@
     },
     {
       "name": "vs2026",
-      "displayName": "Visual Studio 2026",
+      "displayName": "Visual Studio 2026 (RelWithDebInfo)",
       "configurePreset": "vs2026",
       "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "vs2026-debug",
+      "displayName": "Visual Studio 2026 (Debug)",
+      "configurePreset": "vs2026",
+      "configuration": "Debug"
     }
   ],
   "testPresets": [
@@ -64,8 +70,21 @@
     },
     {
       "name": "vs2026",
-      "displayName": "Visual Studio 2026",
+      "displayName": "Visual Studio 2026 (RelWithDebInfo)",
       "configurePreset": "vs2026",
+      "configuration": "RelWithDebInfo",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "timeout": 10
+      }
+    },
+    {
+      "name": "vs2026-debug",
+      "displayName": "Visual Studio 2026 (Debug)",
+      "configurePreset": "vs2026",
+      "configuration": "Debug",
       "output": {
         "outputOnFailure": true
       },

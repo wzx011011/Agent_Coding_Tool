@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
         if (line.isNull())
             break;
 
-        repl.processInput(line);
+        (void)repl.processInput(line);
     }
 
     return 0;
