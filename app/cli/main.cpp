@@ -1,6 +1,8 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTextStream>
 
 #ifdef _WIN32
@@ -21,16 +23,99 @@
 #include "services/ai_engine.h"
 #include "services/config_manager.h"
 
+// --- First-run interactive setup ---
+static bool runFirstTimeSetup(act::services::ConfigManager &config,
+                              QTextStream &out,
+                              QTextStream &in)
+{
+    namespace TS = act::framework::TerminalStyle;
+
+    out << Qt::endl;
+    out << TS::boldCyan(QStringLiteral("  Welcome to ACT CLI v%1!")
+                            .arg(QCoreApplication::applicationVersion()))
+        << Qt::endl;
+    out << Qt::endl;
+    out << TS::dim(QStringLiteral("  First-time setup -- let's configure your API connection."))
+        << Qt::endl;
+    out << Qt::endl;
+
+    // Provider
+    out << TS::bold(QStringLiteral("  Select provider [anthropic/openai_compat]"))
+        << " (default: " << act::services::ConfigManager::DEFAULT_PROVIDER << "):"
+        << Qt::endl;
+    out << "  > " << Qt::flush;
+    QString providerInput = in.readLine().trimmed();
+    if (providerInput.isEmpty())
+        providerInput = QString::fromUtf8(act::services::ConfigManager::DEFAULT_PROVIDER);
+    config.setProvider(providerInput);
+
+    // API Key
+    out << Qt::endl;
+    out << TS::bold(QStringLiteral("  Enter %1 API key (or press Enter to exit):")
+                        .arg(providerInput))
+        << Qt::endl;
+    out << "  > " << Qt::flush;
+    QString apiKey = in.readLine().trimmed();
+    if (apiKey.isEmpty())
+    {
+        out << Qt::endl;
+        out << TS::fgYellow(QStringLiteral(
+            "  No API key provided. Run again when you have your key ready."))
+            << Qt::endl;
+        return false;
+    }
+    config.setApiKey(providerInput, apiKey);
+
+    // Model
+    out << Qt::endl;
+    out << TS::bold(QStringLiteral("  Model"))
+        << " (default: " << act::services::ConfigManager::DEFAULT_MODEL << "):"
+        << Qt::endl;
+    out << "  > " << Qt::flush;
+    QString modelInput = in.readLine().trimmed();
+    if (!modelInput.isEmpty())
+        config.setModel(modelInput);
+    else
+        config.setModel(QString::fromUtf8(act::services::ConfigManager::DEFAULT_MODEL));
+
+    // Base URL
+    QString defaultUrl = act::services::ConfigManager::defaultBaseUrl(providerInput);
+    out << Qt::endl;
+    out << TS::bold(QStringLiteral("  Custom base URL"))
+        << " (default: " << defaultUrl << ", press Enter to skip):"
+        << Qt::endl;
+    out << "  > " << Qt::flush;
+    QString urlInput = in.readLine().trimmed();
+    if (!urlInput.isEmpty())
+        config.setBaseUrl(urlInput);
+
+    // Save
+    if (!config.save())
+    {
+        out << Qt::endl;
+        out << TS::fgRed(QStringLiteral("  Failed to save config.")) << Qt::endl;
+        return false;
+    }
+
+    out << Qt::endl;
+    out << TS::fgGreen(QStringLiteral("  Config saved to %1")
+                         .arg(config.configFilePath()))
+        << Qt::endl;
+    out << Qt::endl;
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
 #ifdef _WIN32
     // --- Windows UTF-8 bootstrap ---
-    // Console output: tell the console to render UTF-8 bytes.
-    if (_isatty(_fileno(stdout)))
-        SetConsoleOutputCP(CP_UTF8);
-    // Console input: reopen stdin so the CRT converts from the console
-    // input codepage to UTF-8.  Pipe input is expected to be UTF-8 already
-    // (Git Bash, PowerShell 7+, Windows Terminal).
+    // Set both input and output code pages to UTF-8 so CJK / emoji
+    // characters render correctly in every terminal (cmd, PowerShell,
+    // Windows Terminal, ConEmu, Git Bash, etc.).
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    // Reopen stdin with UTF-8 mode so the CRT converts wide console
+    // input to UTF-8 for QTextStream.  Pipe input is already UTF-8.
     if (_isatty(_fileno(stdin)))
         freopen(nullptr, "r, ccs=UTF-8", stdin);
 #endif
@@ -84,22 +169,37 @@ int main(int argc, char *argv[])
     if (noColor)
         act::framework::TerminalStyle::setColorEnabled(false);
 
-    // --- Create service instances ---
-    auto config = std::make_unique<act::services::ConfigManager>(
-        QDir::currentPath());
+    QTextStream out(stdout);
+    QTextStream in(stdin);
+    out.setEncoding(QStringConverter::Utf8);
+    in.setEncoding(QStringConverter::Utf8);
+
+    // --- Create config and load ---
+    auto config = std::make_unique<act::services::ConfigManager>();
 
     if (!config->load())
     {
-        spdlog::error("Failed to load config from {}. Create .act/config.toml with your credentials.",
-                      config->configFilePath().toStdString());
+        out << act::framework::TerminalStyle::fgRed(
+            QStringLiteral("Failed to load config from %1.")
+                .arg(config->configFilePath()))
+            << Qt::endl;
         return 1;
     }
 
-    if (config->apiKey(config->provider()).isEmpty())
+    // --- First-run setup if not configured ---
+    if (!config->isConfigured())
     {
-        spdlog::error("No API key configured for provider '{}'. Set [api_keys.{}] in .act/config.toml.",
-                      config->provider().toStdString(), config->provider().toStdString());
-        return 1;
+        if (!runFirstTimeSetup(*config, out, in))
+            return 1;
+
+        // Reload to pick up saved config
+        if (!config->load() || !config->isConfigured())
+        {
+            out << act::framework::TerminalStyle::fgRed(
+                QStringLiteral("Configuration incomplete. Exiting."))
+                << Qt::endl;
+            return 1;
+        }
     }
 
     auto engine = std::make_unique<act::services::AIEngine>(*config);
@@ -109,7 +209,7 @@ int main(int argc, char *argv[])
 
     permissions->setAutoApproved(act::core::PermissionLevel::Read, true);
     permissions->setAutoApproved(act::core::PermissionLevel::Write, true);
-    // Exec remains opt-in — shell commands require user confirmation
+    // Exec remains opt-in -- shell commands require user confirmation
 
     {
         QList<QJsonObject> toolDefs;
@@ -130,11 +230,6 @@ int main(int argc, char *argv[])
 
     // --- Create CLI REPL ---
     act::framework::CliRepl repl(*engine, *registry, *permissions, *context);
-
-    QTextStream out(stdout);
-    QTextStream in(stdin);
-    out.setEncoding(QStringConverter::Utf8);
-    in.setEncoding(QStringConverter::Utf8);
 
     if (jsonMode)
         repl.setOutputMode(act::framework::CliRepl::OutputMode::Json);
@@ -164,10 +259,11 @@ int main(int argc, char *argv[])
     // --- Interactive REPL: colored banner ---
     namespace TS = act::framework::TerminalStyle;
 
-    out << TS::boldCyan(QStringLiteral("  ___  ___  ___  _  _  ___ ")) << Qt::endl;
-    out << TS::boldCyan(QStringLiteral(" |   \\/ __||_  || || |/ __|")) << Qt::endl;
-    out << TS::boldCyan(QStringLiteral(" | |) |\\__ \\ / /| __ |\\__ \\")) << Qt::endl;
-    out << TS::boldCyan(QStringLiteral(" |___/ |___//_/ |_||_||___/")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral("    _    ____ _____ ")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral("   / \\  / ___|_   _|")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral("  / _ \\| |     | |  ")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral(" / ___ \\ |___  | |  ")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral("/_/   \\_\\____| |_|  ")) << Qt::endl;
     out << Qt::endl;
 
     out << TS::dim(QStringLiteral(
