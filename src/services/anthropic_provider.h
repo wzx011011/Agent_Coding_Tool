@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include <atomic>
 #include <functional>
 
 #include "core/types.h"
@@ -49,9 +50,9 @@ public:
 
 private:
     QString m_apiKey;
-    QString m_baseUrl = QStringLiteral("https://api.anthropic.com");
+    QString m_baseUrl = QStringLiteral("https://api.anthropic.com/v1/messages");
     QString m_model;
-    bool m_cancelled = false;
+    std::atomic<bool> m_cancelled{false};
     std::unique_ptr<infrastructure::HttpNetwork> m_network;
     QList<QJsonObject> m_toolDefs;
 };

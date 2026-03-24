@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include <atomic>
 #include <functional>
 
 #include "core/types.h"
@@ -49,9 +50,9 @@ public:
 
 private:
     QString m_apiKey;
-    QString m_baseUrl = QStringLiteral("https://open.bigmodel.cn/api/v1");
+    QString m_baseUrl = QStringLiteral("https://open.bigmodel.cn/api/v1/chat/completions");
     QString m_model;
-    bool m_cancelled = false;
+    std::atomic<bool> m_cancelled{false};
     std::unique_ptr<infrastructure::HttpNetwork> m_network;
     QList<QJsonObject> m_toolDefs;
 };

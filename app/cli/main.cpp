@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 
     permissions->setAutoApproved(act::core::PermissionLevel::Read, true);
     permissions->setAutoApproved(act::core::PermissionLevel::Write, true);
-    permissions->setAutoApproved(act::core::PermissionLevel::Exec, true);
+    // Exec remains opt-in — shell commands require user confirmation
 
     {
         QList<QJsonObject> toolDefs;

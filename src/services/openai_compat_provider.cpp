@@ -12,7 +12,7 @@ namespace act::services
 OpenAICompatProvider::OpenAICompatProvider()
     : m_network(std::make_unique<infrastructure::HttpNetwork>())
 {
-    m_network->setBaseUrl(m_baseUrl + QStringLiteral("/chat/completions"));
+    m_network->setBaseUrl(m_baseUrl);
 }
 
 void OpenAICompatProvider::setApiKey(const QString &key)
@@ -25,7 +25,12 @@ void OpenAICompatProvider::setBaseUrl(const QString &url)
     m_baseUrl = url;
     if (m_baseUrl.endsWith(QLatin1Char('/')))
         m_baseUrl.chop(1);
-    m_network->setBaseUrl(m_baseUrl + QStringLiteral("/chat/completions"));
+
+    static const QLatin1String kPathSuffix("/chat/completions");
+    if (!m_baseUrl.endsWith(kPathSuffix))
+        m_baseUrl += kPathSuffix;
+
+    m_network->setBaseUrl(m_baseUrl);
 }
 
 void OpenAICompatProvider::setModel(const QString &model)

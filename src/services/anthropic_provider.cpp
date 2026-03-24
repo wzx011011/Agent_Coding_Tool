@@ -12,7 +12,7 @@ namespace act::services
 AnthropicProvider::AnthropicProvider()
     : m_network(std::make_unique<infrastructure::HttpNetwork>())
 {
-    m_network->setBaseUrl(m_baseUrl + QStringLiteral("/v1/messages"));
+    m_network->setBaseUrl(m_baseUrl);
 }
 
 void AnthropicProvider::setApiKey(const QString &key)
@@ -23,12 +23,15 @@ void AnthropicProvider::setApiKey(const QString &key)
 void AnthropicProvider::setBaseUrl(const QString &url)
 {
     m_baseUrl = url;
-    // If URL already has a path component (e.g., GLM's /api/anthropic),
-    // append the default Anthropic path suffix /v1/messages.
-    // If it already ends with /v1/messages, use as-is.
     if (m_baseUrl.endsWith(QLatin1Char('/')))
         m_baseUrl.chop(1);
-    m_network->setBaseUrl(m_baseUrl + QStringLiteral("/v1/messages"));
+
+    // Avoid doubling the path if the user already includes it.
+    static const QLatin1String kPathSuffix("/v1/messages");
+    if (!m_baseUrl.endsWith(kPathSuffix))
+        m_baseUrl += kPathSuffix;
+
+    m_network->setBaseUrl(m_baseUrl);
 }
 
 void AnthropicProvider::setModel(const QString &model)
