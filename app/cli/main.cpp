@@ -14,6 +14,7 @@
 
 #include "core/runtime_version.h"
 #include "framework/cli_repl.h"
+#include "framework/terminal_style.h"
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
@@ -46,6 +47,9 @@ int main(int argc, char *argv[])
     app.setApplicationName(QStringLiteral("aictl"));
     app.setApplicationVersion(act::core::runtimeVersion());
 
+    // --- Initialize terminal style (VT, TTY detection) ---
+    act::framework::TerminalStyle::initialize();
+
     QCommandLineParser parser;
     parser.setApplicationDescription(
         QStringLiteral("ACT CLI - AI Coding Tool runtime"));
@@ -62,6 +66,11 @@ int main(int argc, char *argv[])
         QStringLiteral("Batch mode: process arguments as inputs and exit."));
     parser.addOption(batchOption);
 
+    QCommandLineOption noColorOption(
+        QStringList{QStringLiteral("no-color")},
+        QStringLiteral("Disable colored output."));
+    parser.addOption(noColorOption);
+
     parser.addPositionalArgument(
         QStringLiteral("inputs"),
         QStringLiteral("Task description or input lines (batch mode)."));
@@ -70,6 +79,10 @@ int main(int argc, char *argv[])
     const QStringList inputs = parser.positionalArguments();
     const bool jsonMode = parser.isSet(jsonOption);
     const bool batchMode = parser.isSet(batchOption) || !inputs.isEmpty();
+    const bool noColor = parser.isSet(noColorOption);
+
+    if (noColor)
+        act::framework::TerminalStyle::setColorEnabled(false);
 
     // --- Create service instances ---
     auto config = std::make_unique<act::services::ConfigManager>(
@@ -148,9 +161,19 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // --- Interactive REPL ---
-    out << "ACT CLI v" << app.applicationVersion() << Qt::endl;
-    out << "Type your request below. /exit to quit, /reset to clear." << Qt::endl;
+    // --- Interactive REPL: colored banner ---
+    namespace TS = act::framework::TerminalStyle;
+
+    out << TS::boldCyan(QStringLiteral("  ___  ___  ___  _  _  ___ ")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral(" |   \\/ __||_  || || |/ __|")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral(" | |) |\\__ \\ / /| __ |\\__ \\")) << Qt::endl;
+    out << TS::boldCyan(QStringLiteral(" |___/ |___//_/ |_||_||___/")) << Qt::endl;
+    out << Qt::endl;
+
+    out << TS::dim(QStringLiteral(
+        "  ACT CLI v%1  |  Type your request below  |  /exit to quit, /reset to clear"))
+        .arg(app.applicationVersion())
+        << Qt::endl;
     out << Qt::endl;
 
     while (true)

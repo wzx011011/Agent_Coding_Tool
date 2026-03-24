@@ -14,6 +14,24 @@ RuntimeEvent RuntimeEvent::toolCall(const QString &toolName,
     return {EventType::ToolCallStarted, {{"tool", toolName}, {"params", params}}};
 }
 
+RuntimeEvent RuntimeEvent::toolCallCompleted(
+    const QString &toolName,
+    bool success,
+    const QString &output,
+    const QString &errorCode,
+    const QString &errorMsg)
+{
+    QJsonObject data;
+    data["tool"] = toolName;
+    data["success"] = success;
+    data["output"] = output;
+    if (!errorCode.isEmpty())
+        data["error_code"] = errorCode;
+    if (!errorMsg.isEmpty())
+        data["error_message"] = errorMsg;
+    return {EventType::ToolCallCompleted, data};
+}
+
 RuntimeEvent RuntimeEvent::permissionRequest(const QString &id,
                                              const QString &toolName,
                                              PermissionLevel level)

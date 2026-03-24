@@ -30,6 +30,9 @@ void RuntimeEventLogger::log(const act::core::RuntimeEvent &event)
     case act::core::EventType::ToolCallStarted:
         entry[QStringLiteral("type")] = QStringLiteral("tool_call_started");
         break;
+    case act::core::EventType::ToolCallCompleted:
+        entry[QStringLiteral("type")] = QStringLiteral("tool_call_completed");
+        break;
     case act::core::EventType::PermissionRequested:
         entry[QStringLiteral("type")] = QStringLiteral("permission_requested");
         break;

@@ -56,6 +56,7 @@ signals:
 
 private:
     QString formatHumanMessage(const act::core::LLMMessage &msg) const;
+    QString formatHumanEvent(const act::core::RuntimeEvent &event) const;
     QString formatJsonMessage(const act::core::LLMMessage &msg) const;
     QString formatJsonEvent(const act::core::RuntimeEvent &event) const;
     void emitOutput(const QString &line);

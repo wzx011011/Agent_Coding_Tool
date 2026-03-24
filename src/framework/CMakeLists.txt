@@ -14,6 +14,7 @@ add_library(act_framework STATIC
     skill_loader.cpp
     subagent_manager.cpp
     task_graph.cpp
+    terminal_style.cpp
 )
 
 target_include_directories(act_framework

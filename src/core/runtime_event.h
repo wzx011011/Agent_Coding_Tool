@@ -12,6 +12,7 @@ enum class EventType
 {
     StreamToken,
     ToolCallStarted,
+    ToolCallCompleted,
     PermissionRequested,
     PermissionResolved,
     TaskStateChanged,
@@ -27,6 +28,12 @@ struct RuntimeEvent
     [[nodiscard]] static RuntimeEvent streamToken(const QString &token);
     [[nodiscard]] static RuntimeEvent toolCall(const QString &toolName,
                                                const QJsonObject &params);
+    [[nodiscard]] static RuntimeEvent toolCallCompleted(
+        const QString &toolName,
+        bool success,
+        const QString &output,
+        const QString &errorCode = {},
+        const QString &errorMsg = {});
     [[nodiscard]] static RuntimeEvent permissionRequest(const QString &id,
                                                        const QString &toolName,
                                                        PermissionLevel level);

@@ -312,6 +312,10 @@ void AgentLoop::appendToolResult(const act::core::ToolCall &call,
         ? result.output
         : QStringLiteral("Error [%1]: %2").arg(result.errorCode, result.error);
     m_messages.append(toolMsg);
+
+    emitEvent(act::core::RuntimeEvent::toolCallCompleted(
+        call.name, result.success, result.output.left(200),
+        result.errorCode, result.error));
 }
 
 void AgentLoop::maybeCompactContext()

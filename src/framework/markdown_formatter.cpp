@@ -2,10 +2,12 @@
 
 #include <QRegularExpression>
 
+#include "framework/terminal_style.h"
+
 namespace act::framework
 {
 
-QString MarkdownFormatter::format(const QString &markdown)
+QString MarkdownFormatter::format(const QString &markdown, bool colorEnabled)
 {
     if (markdown.isEmpty())
         return {};
@@ -13,17 +15,18 @@ QString MarkdownFormatter::format(const QString &markdown)
     QString result = markdown;
 
     // Order matters: code blocks first (they should not be modified)
-    result = formatCodeBlocks(result);
-    result = formatInlineCode(result);
-    result = formatHeadings(result);
-    result = formatBold(result);
+    result = formatCodeBlocks(result, colorEnabled);
+    result = formatInlineCode(result, colorEnabled);
+    result = formatHeadings(result, colorEnabled);
+    result = formatBold(result, colorEnabled);
     result = formatLists(result);
-    result = formatHorizontalRules(result);
+    result = formatHorizontalRules(result, colorEnabled);
 
     return result;
 }
 
-QString MarkdownFormatter::formatCodeBlocks(const QString &text)
+QString MarkdownFormatter::formatCodeBlocks(const QString &text,
+                                             bool colorEnabled)
 {
     // Replace fenced code blocks with indented, bordered output
     static const QRegularExpression re(
@@ -50,7 +53,10 @@ QString MarkdownFormatter::formatCodeBlocks(const QString &text)
 
         if (!lang.isEmpty())
         {
-            QString label = QStringLiteral("  │ ") + lang + QStringLiteral(":");
+            QString langDisplay = colorEnabled
+                ? TerminalStyle::fgCyan(lang)
+                : lang;
+            QString label = QStringLiteral("  │ ") + langDisplay + QStringLiteral(":");
             result += label.leftJustified(44) + QStringLiteral("│\n");
             result += QStringLiteral("  ├") + border + QStringLiteral("┤\n");
         }
@@ -74,9 +80,9 @@ QString MarkdownFormatter::formatCodeBlocks(const QString &text)
     return result;
 }
 
-QString MarkdownFormatter::formatInlineCode(const QString &text)
+QString MarkdownFormatter::formatInlineCode(const QString &text,
+                                                 bool colorEnabled)
 {
-    // Replace `code` with  code  (surround with spaces for visibility)
     static const QRegularExpression re(
         QStringLiteral("`([^`]+)`"));
 
@@ -88,7 +94,12 @@ QString MarkdownFormatter::formatInlineCode(const QString &text)
     {
         auto match = it.next();
         result += text.mid(lastEnd, match.capturedStart() - lastEnd);
-        result += QStringLiteral(" [") + match.captured(1) + QStringLiteral("] ");
+
+        QString code = match.captured(1);
+        if (colorEnabled)
+            code = TerminalStyle::fgCyan(code);
+        result += QStringLiteral(" [") + code + QStringLiteral("] ");
+
         lastEnd = match.capturedEnd();
     }
 
@@ -98,7 +109,8 @@ QString MarkdownFormatter::formatInlineCode(const QString &text)
     return result;
 }
 
-QString MarkdownFormatter::formatHeadings(const QString &text)
+QString MarkdownFormatter::formatHeadings(const QString &text,
+                                              bool colorEnabled)
 {
     QString result;
     const auto lines = text.split('\n');
@@ -117,6 +129,9 @@ QString MarkdownFormatter::formatHeadings(const QString &text)
             int level = match.captured(1).length();
             QString title = match.captured(2);
 
+            if (colorEnabled)
+                title = TerminalStyle::bold(title);
+
             QString underline;
             if (level <= 2)
                 underline = QStringLiteral("═").repeated(
@@ -124,6 +139,9 @@ QString MarkdownFormatter::formatHeadings(const QString &text)
             else
                 underline = QStringLiteral("─").repeated(
                     qMin(title.length(), 60));
+
+            if (colorEnabled)
+                underline = TerminalStyle::dim(underline);
 
             if (level == 1)
             {
@@ -147,9 +165,9 @@ QString MarkdownFormatter::formatHeadings(const QString &text)
     return result;
 }
 
-QString MarkdownFormatter::formatBold(const QString &text)
+QString MarkdownFormatter::formatBold(const QString &text,
+                                          bool colorEnabled)
 {
-    // Replace **bold** with UPPERCASE for emphasis (no ANSI)
     static const QRegularExpression re(
         QStringLiteral("\\*\\*([^*]+)\\*\\*"));
 
@@ -161,7 +179,12 @@ QString MarkdownFormatter::formatBold(const QString &text)
     {
         auto match = it.next();
         result += text.mid(lastEnd, match.capturedStart() - lastEnd);
-        result += match.captured(1).toUpper();
+
+        QString content = match.captured(1);
+        result += colorEnabled
+            ? TerminalStyle::bold(content)
+            : content.toUpper();
+
         lastEnd = match.capturedEnd();
     }
 
@@ -204,17 +227,19 @@ QString MarkdownFormatter::formatLists(const QString &text)
     return result;
 }
 
-QString MarkdownFormatter::formatHorizontalRules(const QString &text)
+QString MarkdownFormatter::formatHorizontalRules(const QString &text,
+                                                       bool colorEnabled)
 {
-    // Replace ---, ***, ___ with a visible separator
     static const QRegularExpression re(
         QStringLiteral("^\\s*[-*_]{3,}\\s*$"),
         QRegularExpression::MultilineOption);
 
+    QString separator = QString::fromUtf8("─").repeated(40);
+    if (colorEnabled)
+        separator = TerminalStyle::dim(separator);
+
     QString result = text;
-    QString replacement = QStringLiteral("\n  ") +
-                          QString::fromUtf8("─").repeated(40) +
-                          QStringLiteral("\n");
+    QString replacement = QStringLiteral("\n  ") + separator + QStringLiteral("\n");
     result.replace(re, replacement);
     return result;
 }

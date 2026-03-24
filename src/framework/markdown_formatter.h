@@ -12,26 +12,33 @@ class MarkdownFormatter
 {
 public:
     /// Format a Markdown string for terminal display.
-    [[nodiscard]] static QString format(const QString &markdown);
+    /// When colorEnabled is false (default), output matches the original plain text.
+    [[nodiscard]] static QString format(const QString &markdown,
+                                         bool colorEnabled = false);
 
 private:
     /// Format fenced code blocks (```...```)
-    [[nodiscard]] static QString formatCodeBlocks(const QString &text);
+    [[nodiscard]] static QString formatCodeBlocks(const QString &text,
+                                                   bool colorEnabled);
 
     /// Format inline code (`...`)
-    [[nodiscard]] static QString formatInlineCode(const QString &text);
+    [[nodiscard]] static QString formatInlineCode(const QString &text,
+                                                   bool colorEnabled);
 
     /// Format headings (# ## ### etc.)
-    [[nodiscard]] static QString formatHeadings(const QString &text);
+    [[nodiscard]] static QString formatHeadings(const QString &text,
+                                                bool colorEnabled);
 
     /// Format bold (**...**)
-    [[nodiscard]] static QString formatBold(const QString &text);
+    [[nodiscard]] static QString formatBold(const QString &text,
+                                             bool colorEnabled);
 
     /// Format unordered lists (- or * items)
     [[nodiscard]] static QString formatLists(const QString &text);
 
     /// Add horizontal rule formatting
-    [[nodiscard]] static QString formatHorizontalRules(const QString &text);
+    [[nodiscard]] static QString formatHorizontalRules(const QString &text,
+                                                       bool colorEnabled);
 };
 
 } // namespace act::framework

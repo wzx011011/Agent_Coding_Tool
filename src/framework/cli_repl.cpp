@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include "framework/markdown_formatter.h"
+#include "framework/terminal_style.h"
 
 namespace act::framework
 {
@@ -40,18 +41,19 @@ act::core::TaskState CliRepl::processInput(const QString &input)
 
     if (trimmed == QLatin1String("/reset"))
     {
-        emitOutput(QStringLiteral("[System] Conversation reset."));
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Conversation reset.")));
         return act::core::TaskState::Idle;
     }
 
     if (trimmed == QLatin1String("/status"))
     {
-        // Create a temporary loop just to check state
         AgentLoop loop(m_engine, m_tools, m_permissions, m_context, this);
-        emitOutput(QStringLiteral("[System] State: %1, Messages: %2, Turns: %3")
-                       .arg(static_cast<int>(loop.state()))
-                       .arg(loop.messages().size())
-                       .arg(loop.turnCount()));
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("State: %1, Messages: %2, Turns: %3")
+                .arg(static_cast<int>(loop.state()))
+                .arg(loop.messages().size())
+                .arg(loop.turnCount())));
         return act::core::TaskState::Idle;
     }
 
@@ -59,11 +61,18 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     AgentLoop loop(m_engine, m_tools, m_permissions, m_context, this);
     loop.setMaxTurns(50);
 
-    // Wire up event callback
+    // Wire up event callback — handle events in both Human and JSON modes
     loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
         if (m_outputMode == OutputMode::Json)
         {
             emit jsonEvent(formatJsonEvent(event));
+        }
+        else
+        {
+            // In Human mode, format and display key events
+            QString human = formatHumanEvent(event);
+            if (!human.isEmpty())
+                emitOutput(human);
         }
     });
 
@@ -81,13 +90,13 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     }
     else
     {
-        emitOutput(QStringLiteral("> %1").arg(trimmed));
+        emitOutput(TerminalStyle::userPrompt(trimmed));
     }
 
-    // Submit and wait for completion (AgentLoop runs synchronously with mock engine)
+    // Submit and wait for completion
     loop.submitUserMessage(trimmed);
 
-    // Output the conversation messages
+    // Output the conversation messages (skip duplicates from events)
     const auto &messages = loop.messages();
     for (const auto &msg : messages)
     {
@@ -100,17 +109,21 @@ act::core::TaskState CliRepl::processInput(const QString &input)
         }
         else
         {
-            // In Human mode, assistant text was already streamed token-by-token.
-            // Only emit non-text content (tool calls, errors).
-            if (msg.role == act::core::MessageRole::Assistant &&
-                !msg.toolCall.id.isEmpty())
+            // In Human mode:
+            // - Assistant text was already streamed token-by-token (skip)
+            // - Tool calls are already shown via ToolCallStarted/Completed events (skip)
+            // - Only show System messages that weren't already handled
+            if (msg.role == act::core::MessageRole::Assistant)
             {
-                emitOutput(formatHumanMessage(msg));
+                // Skip — text streamed, tool calls shown via events
+                continue;
             }
-            else if (msg.role != act::core::MessageRole::Assistant)
+            if (msg.role == act::core::MessageRole::Tool)
             {
-                emitOutput(formatHumanMessage(msg));
+                // Skip — shown via ToolCallCompleted event
+                continue;
             }
+            emitOutput(formatHumanMessage(msg));
         }
     }
 
@@ -135,7 +148,8 @@ act::core::TaskState CliRepl::processInput(const QString &input)
         case act::core::TaskState::Cancelled: stateStr = QStringLiteral("cancelled"); break;
         default: stateStr = QStringLiteral("unknown"); break;
         }
-        emitOutput(QStringLiteral("[System] Agent %1.").arg(stateStr));
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Agent %1.").arg(stateStr)));
     }
 
     return loop.state();
@@ -148,11 +162,82 @@ void CliRepl::processBatch(const QStringList &inputs)
         auto state = processInput(input);
         if (state == act::core::TaskState::Idle)
         {
-            // Check if exit was requested
             if (input.trimmed() == QLatin1String("/exit") ||
                 input.trimmed() == QLatin1String("/quit"))
                 return;
         }
+    }
+}
+
+QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event) const
+{
+    using ET = act::core::EventType;
+
+    switch (event.type)
+    {
+    case ET::ToolCallStarted:
+    {
+        QString name = event.data.value(QStringLiteral("tool")).toString();
+        QJsonObject params = event.data.value(QStringLiteral("params")).toObject();
+
+        // Extract a human-readable preview from params
+        QString argsPreview;
+        if (params.contains(QStringLiteral("path")))
+            argsPreview = QStringLiteral(" ") + params.value(QStringLiteral("path")).toString();
+        else if (params.contains(QStringLiteral("pattern")))
+            argsPreview = QStringLiteral(" ") + params.value(QStringLiteral("pattern")).toString();
+        else if (params.contains(QStringLiteral("command")))
+            argsPreview = QStringLiteral(" ") + params.value(QStringLiteral("command")).toString();
+
+        return TerminalStyle::toolCallStarted(name, argsPreview);
+    }
+
+    case ET::ToolCallCompleted:
+    {
+        QString name = event.data.value(QStringLiteral("tool")).toString();
+        bool success = event.data.value(QStringLiteral("success")).toBool();
+        QString output = event.data.value(QStringLiteral("output")).toString();
+
+        QString summary;
+        if (success)
+        {
+            // Show line count as summary
+            int lineCount = output.count('\n') + (output.isEmpty() ? 0 : 1);
+            summary = QStringLiteral("(%1 lines)").arg(lineCount);
+        }
+        else
+        {
+            QString code = event.data.value(QStringLiteral("error_code")).toString();
+            summary = QStringLiteral("[%1]").arg(code);
+        }
+        return TerminalStyle::toolCallCompleted(name, summary, success);
+    }
+
+    case ET::ErrorOccurred:
+    {
+        QString code = event.data.value(QStringLiteral("code")).toString();
+        QString msg = event.data.value(QStringLiteral("message")).toString();
+        return TerminalStyle::errorMessage(code, msg);
+    }
+
+    case ET::PermissionRequested:
+    {
+        QString tool = event.data.value(QStringLiteral("tool")).toString();
+        int level = event.data.value(QStringLiteral("level")).toInt();
+        QString levelStr;
+        switch (static_cast<act::core::PermissionLevel>(level))
+        {
+        case act::core::PermissionLevel::Read: levelStr = QStringLiteral("Read"); break;
+        case act::core::PermissionLevel::Write: levelStr = QStringLiteral("Write"); break;
+        case act::core::PermissionLevel::Exec: levelStr = QStringLiteral("Exec"); break;
+        case act::core::PermissionLevel::Network: levelStr = QStringLiteral("Network"); break;
+        case act::core::PermissionLevel::Destructive: levelStr = QStringLiteral("Destructive"); break;
+        }
+        return TerminalStyle::permissionRequest(tool, levelStr);
+    }
+
+    default:
+        return {};
     }
 }
 
@@ -161,14 +246,16 @@ QString CliRepl::formatHumanMessage(const act::core::LLMMessage &msg) const
     switch (msg.role)
     {
     case act::core::MessageRole::System:
-        return QStringLiteral("[System] %1").arg(msg.content);
+        return TerminalStyle::systemMessage(msg.content);
     case act::core::MessageRole::Assistant:
         if (!msg.toolCall.id.isEmpty())
-            return QStringLiteral("[Tool Call] %1(%2)")
-                .arg(msg.toolCall.name, msg.toolCall.id);
-        return MarkdownFormatter::format(msg.content);
+            return TerminalStyle::toolCallStarted(
+                msg.toolCall.name, QStringLiteral(""));
+        return MarkdownFormatter::format(
+            msg.content, TerminalStyle::colorEnabled());
     case act::core::MessageRole::Tool:
-        return QStringLiteral("[Tool Result] %1").arg(msg.content.left(500));
+        return TerminalStyle::toolCallCompleted(
+            msg.toolCall.id, msg.content.left(100), true);
     default:
         return msg.content;
     }
