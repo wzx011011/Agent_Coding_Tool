@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 26/28 + 15/16 (T11 skipped; T16 deferred; N1~N15 all completed)
+- Completed: 41/43 + 15/16 (T11 skipped; T16 deferred; N1~N15 all completed)
 
 ## Planning Notes
 
@@ -89,6 +89,30 @@
 | 42  | N14 | 实现 ExecutionLane / WorktreeManager v1                   | integration | T15                | [x]    | build + test pass                      | ExecutionLaneManager: 命名 lane + workspace 目录映射，assignTask，v2 预留 git worktree                                        | commit: 781f844 |
 | 43  | N15 | 实现 RepoMapTool（基于文件树）                            | backend     | T5                 | [x]    | build + test pass                      | 基于 IFileSystem.listFiles 递归构建文件树，显示项目结构、文件/目录计数、git branch；线程安全                                                      | commit: 74b2cbc |
 
+### Batch 6: P1 CLI UX 差距补齐
+
+| #  | ID  | Title                                          | Scope       | Depends | Status | Verification                                      | Notes                                                        |
+|----|-----|------------------------------------------------|-------------|---------|--------|---------------------------------------------------|--------------------------------------------------------------|
+| 44 | N16 | 实现 CommandRegistry 与 /help 命令              | frontend    | T10     | [ ]    | build + CliReplTest.HelpCommand pass             | command_registry.h/cpp; /help 列出所有已注册命令              |
+| 45 | N17 | 实现交互式权限确认后端                           | backend     | T6      | [ ]    | build + PermissionPromptTest pass                 | PermissionManager 增加同步 stdin 回调，[y/N] 确认           |
+| 46 | N18 | 实现交互式权限确认 REPL 集成                     | frontend    | N16,N17 | [ ]    | build + E2E test pass                             | REPL 循环检测 WaitingApproval，y/N/always 三种应答           |
+| 47 | N19 | 实现 /compact /model /config /clear /resume 命令 | frontend    | N16     | [ ]    | build + test pass                                 | 基于 CommandRegistry 注册，各调用已有 API                    |
+| 48 | N20 | 实现多行输入支持                                 | frontend    | T10     | [ ]    | build + CliReplTest.MultilineInput pass           | 行尾 \ 续行，... 提示符；非TTY保持单行                      |
+| 49 | N21 | 实现 --model 启动参数                            | frontend    | LLM-T11 | [ ]    | build + test pass                                 | CLI arg 优先级高于 config file                              |
+| 50 | N22 | 实现 /permissions 权限管理命令                   | frontend    | N17,N19 | [ ]    | build + test pass                                 | 显示5级权限状态；auto on/off；deny/allow tool                |
+
+### Batch 7: P2 Agent 能力激活与工具扩展
+
+| #  | ID  | Title                                        | Scope       | Depends | Status | Verification                                    | Notes                                                        |
+|----|-----|----------------------------------------------|-------------|---------|--------|-------------------------------------------------|--------------------------------------------------------------|
+| 51 | N23 | 实现 HttpNetwork GET 方法                     | infra       | LLM-T3  | [ ]    | build + HttpNetworkTest pass                    | 为 WebFetchTool 提供基础设施                               |
+| 52 | N24 | 实现 WebFetchTool                             | backend     | N23     | [ ]    | build + test pass                               | HTTP GET 网页，PermissionLevel::Network，截断50KB            |
+| 53 | N25 | 实现 TodoWriteTool（内存任务列表）            | backend     | T5      | [ ]    | build + test pass                               | add/remove/complete/list/clear；PermissionLevel::Read        |
+| 54 | N26 | 实现 SubagentTool（run_subagent）             | integration | T13     | [ ]    | build + test pass                               | 封装 SubagentManager 为 ITool；PermissionLevel::Exec        |
+| 55 | N27 | 实现 SkillTool（load_skill）                  | integration | T12     | [ ]    | build + test pass                               | 封装 SkillCatalog 为 ITool；PermissionLevel::Read           |
+| 56 | N28 | 实现 RuntimeTrace 完善与 Model Request 日志    | backend     | T14     | [ ]    | build + test pass                               | 补充 Model Request、Permission Audit 事件类型               |
+| 57 | N29 | 端到端集成测试 v2（新命令与工具）              | testing     | N17,N24 | [ ]    | build + test pass (无key GTEST_SKIP)            | 权限确认、WebFetch、Subagent、/compact、/model、多行输入    |
+
 ## Dependency Waves
 
 ### Batch 1 & 2 (T1~T16, LLM-T1~T12)
@@ -129,6 +153,25 @@
 | B5-1 | N11, N12, N15 (依赖已有 T14/LLM-T9/T5)   |
 | B5-2 | N13, N14 (依赖已有 T15)                  |
 
+### Batch 6: P1 CLI UX 差距补齐
+
+| Wave | Tasks         | 说明                                    |
+|------|---------------|-----------------------------------------|
+| B6-1 | N16, N20, N21 | N16 是命令基础；N20/N21 独立           |
+| B6-2 | N17           | 权限确认后端，独立                      |
+| B6-3 | N18, N19      | N18 接入 N17；N19 使用 N16 registry     |
+| B6-4 | N22           | 依赖 N17 + N19                         |
+
+### Batch 7: P2 Agent 能力激活与工具扩展
+
+| Wave | Tasks              | 说明                                  |
+|------|--------------------|---------------------------------------|
+| B7-1 | N23, N25           | 基础设施 + 独立工具                    |
+| B7-2 | N24, N26, N27, N28 | 各自独立                              |
+| B7-3 | N29                | 集成测试，依赖前面功能                 |
+
+**跨 batch 并行：** B6-1、B6-2、B7-1 可同时执行。
+
 ## Round Estimate
 
 ### Batch 1 & 2 (已完成)
@@ -160,6 +203,23 @@
 - 预估执行轮次：8 轮（Batch 3~5 可流水线重叠）
 - 风险最高阶段：N8（PatchTransaction v1 多文件逻辑）、N13（AgentScheduler 依赖图调度）
 
+### Batch 6: P1 CLI UX 差距补齐
+
+- 任务数：7
+- 预估执行轮次：4 轮
+- 并行潜力：B6-1 中 N16、N20、N21 可并行；B6-3 中 N18、N19 可并行
+
+### Batch 7: P2 Agent 能力激活与工具扩展
+
+- 任务数：7
+- 预估执行轮次：3 轮
+- 并行潜力：B7-1 中 N23、N25 可并行；B7-2 中 N24、N26、N27、N28 可并行
+
+### Batch 6-7 总计
+
+- 新增任务数：14
+- 预估执行轮次：7 轮（Batch 6-7 可流水线重叠，且与 B6-1/B6-2/B7-1 可跨 batch 并行）
+
 ## Approval Checklist
 
 - [ ] 任务队列已对齐当前 runtime-first 设计，而不是旧版原生 GUI 优先路线
@@ -178,3 +238,7 @@
 - RepoMapTool 完整版：基于 tree-sitter 的语义级代码索引（当前 N15 仅文件树级别）
 - AgentScheduler 并行调度：当前 N13 仅串行流水线
 - ExecutionLane 完整隔离：当前 N14 为 worktree v1 基础版
+- WebSearchTool（需第三方搜索 API，不同信任模型）
+- MCP Client（P4 scope）
+- API Key 安全存储（Windows Credential Manager）
+- FileLockManager（P4 并发控制）
