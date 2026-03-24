@@ -18,6 +18,24 @@
         "CMAKE_CXX_STANDARD_REQUIRED": "ON",
         "CMAKE_PREFIX_PATH": "E:/Qt6.10"
       }
+    },
+    {
+      "name": "vs2026",
+      "displayName": "Visual Studio 2026",
+      "description": "Configure ACT with Visual Studio 18 2026 generator for IDE debugging.",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build-vs2026",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_PREFIX_PATH": "E:/Qt6.10"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-msvc-x64"
+        }
+      }
     }
   ],
   "buildPresets": [
@@ -25,12 +43,29 @@
       "name": "default",
       "configurePreset": "default",
       "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "vs2026",
+      "displayName": "Visual Studio 2026",
+      "configurePreset": "vs2026",
+      "configuration": "RelWithDebInfo"
     }
   ],
   "testPresets": [
     {
       "name": "default",
       "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "timeout": 10
+      }
+    },
+    {
+      "name": "vs2026",
+      "displayName": "Visual Studio 2026",
+      "configurePreset": "vs2026",
       "output": {
         "outputOnFailure": true
       },

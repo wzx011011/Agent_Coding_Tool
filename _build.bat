@@ -64,6 +64,13 @@ if "%DO_CONFIGURE%"=="1" (
         echo CONFIGURE FAILED
         exit /b %ERRORLEVEL%
     )
+
+    echo === VS PROJECT ===
+    cmake --preset vs2026
+    if %ERRORLEVEL% neq 0 (
+        echo VS PROJECT GENERATION FAILED
+        exit /b %ERRORLEVEL%
+    )
 )
 
 REM --- Build ---

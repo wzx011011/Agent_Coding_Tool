@@ -1,5 +1,6 @@
 # Build
 build/
+build-vs2026/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/

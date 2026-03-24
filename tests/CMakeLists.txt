@@ -6,6 +6,10 @@ set(ACT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
 # Default per-test timeout to prevent hangs (e.g. QEventLoop without QCoreApplication)
 set(ACT_TEST_TIMEOUT 10 CACHE STRING "Per-test timeout in seconds")
 
+# Defer test discovery to test-time to avoid DLL resolution issues at build time
+# (VS/MSBuild post-build steps run test exes without vcpkg DLLs in PATH)
+set(ACT_TEST_DISCOVERY_MODE PRE_TEST)
+
 # Core tests
 add_executable(act_core_tests
     core/RuntimeVersionTest.cpp
@@ -13,7 +17,10 @@ add_executable(act_core_tests
 )
 target_include_directories(act_core_tests PRIVATE ${ACT_SOURCE_DIR})
 target_link_libraries(act_core_tests PRIVATE act_core Qt6::Core GTest::gtest_main)
-gtest_discover_tests(act_core_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_core_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Framework tests
 add_executable(act_framework_tests
@@ -31,7 +38,10 @@ add_executable(act_framework_tests
     framework/TerminalStyleTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
-gtest_discover_tests(act_framework_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_framework_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Subagent manager tests (separate target to avoid MSVC C1903)
 add_executable(act_subagent_tests
@@ -41,7 +51,10 @@ target_link_libraries(act_subagent_tests PRIVATE act_framework GTest::gtest_main
 set_source_files_properties(framework/SubagentManagerTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
-gtest_discover_tests(act_subagent_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_subagent_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Task graph tests
 add_executable(act_task_graph_tests
@@ -51,7 +64,10 @@ target_link_libraries(act_task_graph_tests PRIVATE act_framework GTest::gtest_ma
 set_source_files_properties(framework/TaskGraphTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
-gtest_discover_tests(act_task_graph_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_task_graph_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Skill loader tests (separate target — toml++ heavy headers cause MSVC C1903)
 add_executable(act_skill_loader_tests
@@ -63,7 +79,10 @@ set_source_files_properties(framework/SkillLoaderTest.cpp PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
     CXX_SCAN_FOR_MODULES OFF
 )
-gtest_discover_tests(act_skill_loader_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_skill_loader_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Harness tests
 add_executable(act_harness_tests
@@ -80,7 +99,10 @@ add_executable(act_harness_tests
     harness/RepoMapToolTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
-gtest_discover_tests(act_harness_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_harness_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Services tests
 add_executable(act_services_tests
@@ -91,7 +113,10 @@ add_executable(act_services_tests
     services/FallbackChainTest.cpp
 )
 target_link_libraries(act_services_tests PRIVATE act_services GTest::gtest_main)
-gtest_discover_tests(act_services_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_services_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Anthropic converter tests (separate target to avoid MSVC C1903)
 add_executable(act_anthropic_converter_tests
@@ -101,7 +126,10 @@ target_link_libraries(act_anthropic_converter_tests PRIVATE act_services GTest::
 set_source_files_properties(services/AnthropicConverterTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
-gtest_discover_tests(act_anthropic_converter_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_anthropic_converter_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # OpenAI compat converter tests (separate target to avoid MSVC C1903)
 add_executable(act_openai_compat_converter_tests
@@ -111,7 +139,10 @@ target_link_libraries(act_openai_compat_converter_tests PRIVATE act_services GTe
 set_source_files_properties(services/OpenAICompatConverterTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
-gtest_discover_tests(act_openai_compat_converter_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_openai_compat_converter_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Infrastructure tests
 add_executable(act_infrastructure_tests
@@ -120,7 +151,10 @@ add_executable(act_infrastructure_tests
     infrastructure/SseParserTest.cpp
 )
 target_link_libraries(act_infrastructure_tests PRIVATE act_infrastructure GTest::gtest_main)
-gtest_discover_tests(act_infrastructure_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_infrastructure_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # HttpNetwork tests
 add_executable(act_http_network_tests
@@ -130,7 +164,10 @@ target_link_libraries(act_http_network_tests PRIVATE act_infrastructure GTest::g
 set_source_files_properties(infrastructure/HttpNetworkTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
-gtest_discover_tests(act_http_network_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_http_network_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Integration tests
 add_executable(act_integration_tests
@@ -139,7 +176,10 @@ add_executable(act_integration_tests
     integration/EndToEndCliTest.cpp
 )
 target_link_libraries(act_integration_tests PRIVATE act_framework GTest::gtest_main)
-gtest_discover_tests(act_integration_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
+gtest_discover_tests(act_integration_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
 
 # Live provider integration tests (needs real API keys)
 add_executable(act_live_provider_tests
@@ -150,4 +190,7 @@ set_source_files_properties(integration/LiveProviderTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
 # Longer timeout for real network calls
-gtest_discover_tests(act_live_provider_tests PROPERTIES TIMEOUT 30)
+gtest_discover_tests(act_live_provider_tests
+    PROPERTIES TIMEOUT 30
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
