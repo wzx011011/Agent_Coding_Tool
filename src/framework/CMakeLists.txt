@@ -1,8 +1,11 @@
 add_library(act_framework STATIC
     agent_loop.cpp
+    agent_scheduler.cpp
     cli_repl.cpp
+    execution_lane.cpp
     framework.cpp
     markdown_formatter.cpp
+    patch_transaction.cpp
     resume_manager.cpp
     runtime_event_logger.cpp
     runtime_trace_store.cpp

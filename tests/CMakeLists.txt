@@ -19,8 +19,11 @@ gtest_discover_tests(act_core_tests PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT})
 add_executable(act_framework_tests
     framework/SmokeTest.cpp
     framework/AgentLoopTest.cpp
+    framework/AgentSchedulerTest.cpp
     framework/CliReplTest.cpp
+    framework/ExecutionLaneTest.cpp
     framework/MarkdownFormatterTest.cpp
+    framework/PatchTransactionTest.cpp
     framework/ResumeManagerTest.cpp
     framework/SkillCatalogTest.cpp
     framework/RuntimeTraceTest.cpp
