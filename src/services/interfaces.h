@@ -20,7 +20,9 @@ public:
     virtual void setModel(const QString &model) = 0;
     [[nodiscard]] virtual QString apiKey(const QString &provider) const = 0;
     virtual void setApiKey(const QString &provider, const QString &key) = 0;
-    [[nodiscard]] virtual QString workspacePath() const = 0;
+
+    [[nodiscard]] virtual QString configFilePath() const = 0;
+    [[nodiscard]] virtual bool isConfigured() const = 0;
 };
 
 class IAIEngine

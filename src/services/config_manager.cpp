@@ -3,19 +3,33 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-
-#include <sstream>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <spdlog/spdlog.h>
-
-#include <toml++/toml.hpp>
 
 namespace act::services
 {
 
-ConfigManager::ConfigManager(const QString &workspacePath)
-    : m_workspacePath(workspacePath)
+ConfigManager::ConfigManager()
+    : m_configFilePath(defaultConfigPath())
 {
+}
+
+ConfigManager::ConfigManager(const QString &configPath)
+    : m_configFilePath(configPath)
+{
+}
+
+QString ConfigManager::defaultConfigDir()
+{
+    return QDir::homePath() + QStringLiteral("/.act");
+}
+
+QString ConfigManager::defaultConfigPath()
+{
+    return QDir::homePath() + QStringLiteral("/.act/settings.json");
 }
 
 QString ConfigManager::currentModel() const
@@ -38,9 +52,18 @@ void ConfigManager::setApiKey(const QString &provider, const QString &key)
     m_apiKeys[provider.toLower()] = key;
 }
 
-QString ConfigManager::workspacePath() const
+QString ConfigManager::configFilePath() const
 {
-    return m_workspacePath;
+    return m_configFilePath;
+}
+
+bool ConfigManager::isConfigured() const
+{
+    if (m_provider.isEmpty())
+        return false;
+    if (m_apiKeys.value(m_provider.toLower()).isEmpty())
+        return false;
+    return true;
 }
 
 QString ConfigManager::provider() const
@@ -82,11 +105,6 @@ QString ConfigManager::defaultBaseUrl(const QString &provider)
     return QString::fromUtf8(OPENAI_COMPAT_BASE_URL);
 }
 
-QString ConfigManager::configFilePath() const
-{
-    return QDir(m_workspacePath).absoluteFilePath(QStringLiteral(".act/config.toml"));
-}
-
 bool ConfigManager::load()
 {
     const auto path = configFilePath();
@@ -98,96 +116,98 @@ bool ConfigManager::load()
         return true;
     }
 
-    try
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        {
-            spdlog::error("Cannot open config file: {}", path.toStdString());
-            return false;
-        }
-        const auto data = file.readAll();
-        file.close();
-
-        auto tbl = toml::parse(data.toStdString());
-
-        // Read model
-        auto modelNode = tbl["model"];
-        if (modelNode.is_string())
-        {
-            auto val = modelNode.value_or(std::string_view{DEFAULT_MODEL});
-            m_model = QString::fromUtf8(val.data(), static_cast<int>(val.size()));
-        }
-
-        // Read provider
-        auto providerNode = tbl["provider"];
-        if (providerNode.is_string())
-        {
-            auto val = providerNode.value_or(std::string_view{DEFAULT_PROVIDER});
-            m_provider = QString::fromUtf8(val.data(), static_cast<int>(val.size()));
-        }
-
-        // Read [network] section
-        auto networkNode = tbl["network"];
-        if (networkNode.is_table())
-        {
-            auto baseUrlVal = networkNode.as_table()->get("base_url");
-            if (baseUrlVal && baseUrlVal->is_string())
-            {
-                auto sv = baseUrlVal->value_or(std::string_view{});
-                m_baseUrl = QString::fromUtf8(sv.data(), static_cast<int>(sv.size()));
-            }
-            auto proxyVal = networkNode.as_table()->get("proxy");
-            if (proxyVal && proxyVal->is_string())
-            {
-                auto sv = proxyVal->value_or(std::string_view{});
-                m_proxy = QString::fromUtf8(sv.data(), static_cast<int>(sv.size()));
-            }
-            auto fallbackVal = networkNode.as_table()->get("fallback_providers");
-            if (fallbackVal && fallbackVal->is_array())
-            {
-                auto *arr = fallbackVal->as_array();
-                for (std::size_t i = 0; i < arr->size(); ++i)
-                {
-                    auto &v = (*arr)[i];
-                    if (v.is_string())
-                    {
-                        auto sv = v.value_or(std::string_view{});
-                        m_fallbackProviders.append(
-                            QString::fromUtf8(sv.data(), static_cast<int>(sv.size())));
-                    }
-                }
-            }
-        }
-
-        // Read API keys
-        auto keysNode = tbl["api_keys"];
-        if (keysNode.is_table())
-        {
-            for (const auto &[k, v] : *keysNode.as_table())
-            {
-                if (v.is_table())
-                {
-                    auto keyVal = v.as_table()->get("key");
-                    if (keyVal && keyVal->is_string())
-                    {
-                        auto sv = keyVal->value_or(std::string_view{});
-                        m_apiKeys[QString::fromStdString(std::string(k))] =
-                            QString::fromUtf8(sv.data(),
-                                              static_cast<int>(sv.size()));
-                    }
-                }
-            }
-        }
-
-        spdlog::info("Config loaded from {}", path.toStdString());
-        return true;
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::error("Failed to parse config: {}", e.what());
+        spdlog::error("Cannot open config file: {}", path.toStdString());
         return false;
     }
+
+    const auto data = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    const auto doc = QJsonDocument::fromJson(data, &parseError);
+    if (parseError.error != QJsonParseError::NoError)
+    {
+        spdlog::error("Failed to parse config JSON: {}",
+                      parseError.errorString().toStdString());
+        return false;
+    }
+
+    if (!doc.isObject())
+    {
+        spdlog::error("Config root must be a JSON object");
+        return false;
+    }
+
+    const auto root = doc.object();
+
+    // Read model
+    if (root.contains(QStringLiteral("model")))
+    {
+        const auto val = root[QStringLiteral("model")];
+        if (val.isString())
+            m_model = val.toString();
+    }
+
+    // Read provider
+    if (root.contains(QStringLiteral("provider")))
+    {
+        const auto val = root[QStringLiteral("provider")];
+        if (val.isString())
+            m_provider = val.toString().toLower();
+    }
+
+    // Read [network] section
+    if (root.contains(QStringLiteral("network")))
+    {
+        const auto network = root[QStringLiteral("network")].toObject();
+        if (network.contains(QStringLiteral("base_url")))
+        {
+            const auto val = network[QStringLiteral("base_url")];
+            if (val.isString())
+                m_baseUrl = val.toString();
+        }
+        if (network.contains(QStringLiteral("proxy")))
+        {
+            const auto val = network[QStringLiteral("proxy")];
+            if (val.isString())
+                m_proxy = val.toString();
+        }
+        if (network.contains(QStringLiteral("fallback_providers")))
+        {
+            const auto val = network[QStringLiteral("fallback_providers")];
+            if (val.isArray())
+            {
+                const auto arr = val.toArray();
+                for (const auto &item : arr)
+                {
+                    if (item.isString())
+                        m_fallbackProviders.append(item.toString());
+                }
+            }
+        }
+    }
+
+    // Read API keys
+    if (root.contains(QStringLiteral("api_keys")))
+    {
+        const auto keys = root[QStringLiteral("api_keys")].toObject();
+        for (auto it = keys.constBegin(); it != keys.constEnd(); ++it)
+        {
+            const auto entry = it.value().toObject();
+            if (entry.contains(QStringLiteral("key")))
+            {
+                const auto keyVal = entry[QStringLiteral("key")];
+                if (keyVal.isString())
+                    m_apiKeys[it.key().toLower()] = keyVal.toString();
+            }
+        }
+    }
+
+    spdlog::info("Config loaded from {}", path.toStdString());
+    return true;
 }
 
 bool ConfigManager::save()
@@ -201,56 +221,49 @@ bool ConfigManager::save()
         return false;
     }
 
-    try
+    QJsonObject root;
+    root[QStringLiteral("provider")] = m_provider;
+    root[QStringLiteral("model")] = m_model;
+
+    QJsonObject network;
+    if (!m_baseUrl.isEmpty())
+        network[QStringLiteral("base_url")] = m_baseUrl;
+    if (!m_proxy.isEmpty())
+        network[QStringLiteral("proxy")] = m_proxy;
+    if (!m_fallbackProviders.isEmpty())
     {
-        toml::table config;
-        config.insert("model", m_model.toStdString());
-        config.insert("provider", m_provider.toStdString());
-
-        toml::table network;
-        if (!m_baseUrl.isEmpty())
-            network.insert("base_url", m_baseUrl.toStdString());
-        if (!m_proxy.isEmpty())
-            network.insert("proxy", m_proxy.toStdString());
-        if (!m_fallbackProviders.isEmpty())
-        {
-            toml::array fallbackArr;
-            for (const auto &p : m_fallbackProviders)
-                fallbackArr.push_back(p.toStdString());
-            network.insert("fallback_providers", std::move(fallbackArr));
-        }
-        if (!network.empty())
-            config.insert("network", std::move(network));
-
-        toml::table keys;
-        for (auto it = m_apiKeys.constBegin(); it != m_apiKeys.constEnd(); ++it)
-        {
-            toml::table entry;
-            entry.insert("key", it.value().toStdString());
-            keys.insert(it.key().toStdString(), std::move(entry));
-        }
-        config.insert("api_keys", std::move(keys));
-
-        std::ostringstream ss;
-        ss << config;
-
-        QFile file(path);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-        {
-            spdlog::error("Cannot write config file: {}", path.toStdString());
-            return false;
-        }
-        file.write(QByteArray::fromStdString(ss.str()));
-        file.close();
-
-        spdlog::info("Config saved to {}", path.toStdString());
-        return true;
+        QJsonArray fallbackArr;
+        for (const auto &p : m_fallbackProviders)
+            fallbackArr.append(p);
+        network[QStringLiteral("fallback_providers")] = fallbackArr;
     }
-    catch (const std::exception &e)
+    if (!network.isEmpty())
+        root[QStringLiteral("network")] = network;
+
+    QJsonObject keys;
+    for (auto it = m_apiKeys.constBegin(); it != m_apiKeys.constEnd(); ++it)
     {
-        spdlog::error("Failed to save config: {}", e.what());
+        QJsonObject entry;
+        entry[QStringLiteral("key")] = it.value();
+        keys[it.key()] = entry;
+    }
+    if (!keys.isEmpty())
+        root[QStringLiteral("api_keys")] = keys;
+
+    QJsonDocument doc(root);
+    const auto json = doc.toJson(QJsonDocument::Indented);
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    {
+        spdlog::error("Cannot write config file: {}", path.toStdString());
         return false;
     }
+    file.write(json);
+    file.close();
+
+    spdlog::info("Config saved to {}", path.toStdString());
+    return true;
 }
 
 } // namespace act::services

@@ -30,7 +30,7 @@ std::unique_ptr<LLMProvider> AIEngine::createProvider(
     const QString &providerName) const
 {
     auto apiKey = m_config.apiKey(providerName);
-    auto baseUrl = m_config.defaultBaseUrl(providerName);
+    auto baseUrl = m_config.baseUrl();
     auto model = m_config.currentModel();
     auto proxy = m_config.proxy();
 

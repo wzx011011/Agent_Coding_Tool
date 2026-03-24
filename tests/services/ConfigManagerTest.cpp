@@ -13,14 +13,17 @@ protected:
     void SetUp() override
     {
         m_tempDir.emplace();
-        m_config = std::make_unique<ConfigManager>(m_tempDir->path());
+        m_configPath = m_tempDir->path() + QStringLiteral("/settings.json");
+        m_config = std::make_unique<ConfigManager>(m_configPath);
     }
 
     QTemporaryDir *tempDir() { return &(*m_tempDir); }
     ConfigManager *config() { return m_config.get(); }
+    const QString &configPath() const { return m_configPath; }
 
 private:
     std::optional<QTemporaryDir> m_tempDir;
+    QString m_configPath;
     std::unique_ptr<ConfigManager> m_config;
 };
 
@@ -54,9 +57,17 @@ TEST_F(ConfigManagerTest, MissingApiKeyReturnsEmpty)
     EXPECT_TRUE(config()->apiKey(QStringLiteral("anthropic")).isEmpty());
 }
 
-TEST_F(ConfigManagerTest, WorkspacePath)
+TEST_F(ConfigManagerTest, ConfigFilePathReturnsConstructorArg)
 {
-    EXPECT_EQ(config()->workspacePath(), tempDir()->path());
+    EXPECT_EQ(config()->configFilePath(), configPath());
+}
+
+TEST_F(ConfigManagerTest, DefaultConfigDirAndPath)
+{
+    EXPECT_EQ(ConfigManager::defaultConfigDir(),
+              QDir::homePath() + QStringLiteral("/.act"));
+    EXPECT_EQ(ConfigManager::defaultConfigPath(),
+              QDir::homePath() + QStringLiteral("/.act/settings.json"));
 }
 
 TEST_F(ConfigManagerTest, SaveAndLoadRoundtrip)
@@ -67,7 +78,7 @@ TEST_F(ConfigManagerTest, SaveAndLoadRoundtrip)
     ASSERT_TRUE(config()->save());
 
     // Create a new ConfigManager to verify persistence
-    ConfigManager loaded(tempDir()->path());
+    ConfigManager loaded(configPath());
     ASSERT_TRUE(loaded.load());
 
     EXPECT_EQ(loaded.currentModel(), QStringLiteral("custom-model"));
@@ -81,14 +92,34 @@ TEST_F(ConfigManagerTest, LoadNonexistentFileUsesDefaults)
     EXPECT_EQ(config()->currentModel(), ConfigManager::DEFAULT_MODEL);
 }
 
-TEST_F(ConfigManagerTest, SaveCreatesConfigDirectory)
+TEST_F(ConfigManagerTest, SaveCreatesConfigFile)
 {
     config()->setModel(QStringLiteral("test-model"));
     ASSERT_TRUE(config()->save());
 
-    QFile file(QDir(tempDir()->path())
-                   .absoluteFilePath(QStringLiteral(".act/config.toml")));
+    QFile file(configPath());
     EXPECT_TRUE(file.exists());
+}
+
+// --- IsConfigured ---
+
+TEST_F(ConfigManagerTest, NotConfiguredWhenNoApiKey)
+{
+    EXPECT_FALSE(config()->isConfigured());
+}
+
+TEST_F(ConfigManagerTest, ConfiguredWithProviderAndApiKey)
+{
+    config()->setProvider(QStringLiteral("anthropic"));
+    config()->setApiKey(QStringLiteral("anthropic"), QStringLiteral("sk-test"));
+    EXPECT_TRUE(config()->isConfigured());
+}
+
+TEST_F(ConfigManagerTest, NotConfiguredWithWrongProviderApiKey)
+{
+    config()->setProvider(QStringLiteral("anthropic"));
+    config()->setApiKey(QStringLiteral("openai_compat"), QStringLiteral("sk-test"));
+    EXPECT_FALSE(config()->isConfigured());
 }
 
 // --- Provider & Network Config ---
@@ -148,7 +179,7 @@ TEST_F(ConfigManagerTest, ProviderAndNetworkRoundtrip)
 
     ASSERT_TRUE(config()->save());
 
-    ConfigManager loaded(tempDir()->path());
+    ConfigManager loaded(configPath());
     ASSERT_TRUE(loaded.load());
 
     EXPECT_EQ(loaded.provider(), QStringLiteral("openai_compat"));

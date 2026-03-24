@@ -27,15 +27,18 @@ public:
     {
         m_apiKeys[provider] = key;
     }
-    [[nodiscard]] QString workspacePath() const override
+    [[nodiscard]] QString configFilePath() const override
     {
-        return m_workspacePath;
+        return m_configPath;
+    }
+    [[nodiscard]] bool isConfigured() const override
+    {
+        return !m_provider.isEmpty() && m_apiKeys.contains(m_provider);
     }
 
     // Convenience setters
     void setModelDirect(const QString &m) { m_model = m; }
     void setProviderDirect(const QString &p) { m_provider = p; }
-    void setWorkspacePath(const QString &p) { m_workspacePath = p; }
     void addApiKey(const QString &provider, const QString &key)
     {
         m_apiKeys[provider] = key;
@@ -43,7 +46,7 @@ public:
 
     QString m_model = QStringLiteral("test-model");
     QString m_provider = QStringLiteral("anthropic");
-    QString m_workspacePath = QStringLiteral("/workspace");
+    QString m_configPath = QStringLiteral("/tmp/test/settings.json");
     QMap<QString, QString> m_apiKeys;
 };
 
