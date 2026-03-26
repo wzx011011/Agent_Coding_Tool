@@ -43,6 +43,19 @@ gtest_discover_tests(act_framework_tests
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
 )
 
+# Interactive session tests
+add_executable(act_cli_tests
+    cli/test_main.cpp
+    cli/InteractiveSessionStateTest.cpp
+    cli/InteractiveSessionControllerTest.cpp
+)
+target_include_directories(act_cli_tests PRIVATE ${PROJECT_SOURCE_DIR} ${ACT_SOURCE_DIR})
+target_link_libraries(act_cli_tests PRIVATE act_framework Qt6::Core GTest::gtest)
+gtest_discover_tests(act_cli_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
+
 # Subagent manager tests (separate target to avoid MSVC C1903)
 add_executable(act_subagent_tests
     framework/SubagentManagerTest.cpp
@@ -141,6 +154,19 @@ set_source_files_properties(services/OpenAICompatConverterTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
 gtest_discover_tests(act_openai_compat_converter_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
+
+# Responses converter tests
+add_executable(act_responses_converter_tests
+    services/ResponsesConverterTest.cpp
+)
+target_link_libraries(act_responses_converter_tests PRIVATE act_services GTest::gtest_main)
+set_source_files_properties(services/ResponsesConverterTest.cpp PROPERTIES
+    CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_responses_converter_tests
     PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
 )

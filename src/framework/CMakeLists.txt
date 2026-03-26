@@ -6,6 +6,8 @@ add_library(act_framework STATIC
     eval_runner.cpp
     execution_lane.cpp
     framework.cpp
+    interactive_session_controller.cpp
+    interactive_session_state.cpp
     markdown_formatter.cpp
     patch_transaction.cpp
     resume_manager.cpp

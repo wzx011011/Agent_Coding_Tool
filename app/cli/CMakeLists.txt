@@ -1,5 +1,8 @@
+find_package(ftxui CONFIG REQUIRED)
+
 add_executable(aictl
     main.cpp
+    tui_app.cpp
 )
 
 target_include_directories(aictl
@@ -12,6 +15,9 @@ target_link_libraries(aictl
         act_core
         act_framework
         act_services
+    ftxui::component
+    ftxui::dom
+    ftxui::screen
         Qt6::Core
 )
 
@@ -21,6 +27,7 @@ target_compile_features(aictl PRIVATE cxx_std_20)
 if(CMAKE_GENERATOR MATCHES "Visual Studio")
     set_target_properties(aictl PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        VS_DEBUGGER_COMMAND_ARGUMENTS ""
         VS_DEBUGGER_ENVIRONMENT
             "PATH=${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin\;E:\\Qt6.10\\bin\;%PATH%"
     )
