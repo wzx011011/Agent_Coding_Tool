@@ -58,6 +58,18 @@ class ConfigManager : public IConfigManager {
     [[nodiscard]] bool addProfile(const ModelProfile &p);
     [[nodiscard]] bool removeProfile(const QString &name);
 
+    // Feishu configuration
+    [[nodiscard]] bool feishuEnabled() const { return m_feishuEnabled; }
+    [[nodiscard]] QString feishuAppId() const { return m_feishuAppId; }
+    [[nodiscard]] QString feishuAppSecret() const { return m_feishuAppSecret; }
+    [[nodiscard]] QString feishuProxy() const { return m_feishuProxy; }
+    [[nodiscard]] int feishuSessionTimeoutMinutes() const { return m_feishuSessionTimeoutMinutes; }
+    void setFeishuEnabled(bool enabled);
+    void setFeishuAppId(const QString &appId);
+    void setFeishuAppSecret(const QString &secret);
+    void setFeishuProxy(const QString &proxy);
+    void setFeishuSessionTimeoutMinutes(int minutes);
+
   private:
     QString m_configFilePath;
     QString m_model = QString::fromUtf8(DEFAULT_MODEL);
@@ -69,6 +81,13 @@ class ConfigManager : public IConfigManager {
     QStringList m_fallbackProviders;
     QString m_activeProfile;
     QMap<QString, ModelProfile> m_profiles;
+
+    // Feishu
+    bool m_feishuEnabled = false;
+    QString m_feishuAppId;
+    QString m_feishuAppSecret;
+    QString m_feishuProxy;
+    int m_feishuSessionTimeoutMinutes = 30;
 };
 
 } // namespace act::services

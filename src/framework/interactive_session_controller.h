@@ -43,6 +43,12 @@ class InteractiveSessionController : public QObject {
   signals:
     void stateChanged();
 
+    /// Emitted when a streaming token arrives (for terminal observation).
+    void tokenStreamed(const QString &token);
+
+    /// Emitted when a conversation turn completes (for terminal newline).
+    void turnCompleted();
+
   private:
     void applyState(const std::function<void(InteractiveSessionState &)> &updater);
     bool requestPermission(const act::core::PermissionRequest &request);

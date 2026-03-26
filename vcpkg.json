@@ -8,6 +8,11 @@
       "features": ["openssl"]
     },
     "ftxui",
+    {
+      "name": "ixwebsocket",
+      "default-features": false,
+      "features": ["openssl"]
+    },
     "gtest",
     "nlohmann-json",
     "spdlog",

@@ -44,6 +44,7 @@ find_package(GTest REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(tomlplusplus REQUIRED)
+find_package(ixwebsocket CONFIG REQUIRED)
 
 # Core (standalone, not in layer chain)
 add_subdirectory(src)

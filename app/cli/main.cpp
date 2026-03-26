@@ -6,15 +6,22 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QTextStream>
+#include <QTimer>
 
 #ifdef _WIN32
 #include <cstdio>
 #include <io.h>
 #include <windows.h>
+#else
+#include <sys/select.h>
+#include <unistd.h>
 #endif
 
 #include "core/runtime_version.h"
 #include "framework/cli_repl.h"
+#include "framework/feishu_channel.h"
+#include "framework/interactive_session_controller.h"
+#include "framework/input_dispatcher.h"
 #include "framework/terminal_style.h"
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
@@ -34,7 +41,7 @@
 #include "services/ai_engine.h"
 #include "services/config_manager.h"
 #include "tui_app.h"
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>
 
 // --- Production IFileSystem implementation ---
@@ -137,6 +144,48 @@ static QString readConsoleLine(QTextStream &in) {
     }
 #endif
     return in.readLine();
+}
+
+/// Non-blocking stdin check with timeout.
+/// Returns the line if input is available, or null QString on timeout/EOF.
+static QString readConsoleLineWithTimeout(QTextStream &in, int timeoutMs) {
+#ifdef _WIN32
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    if (hStdin != INVALID_HANDLE_VALUE && GetFileType(hStdin) == FILE_TYPE_CHAR) {
+        // Wait for input with timeout
+        if (WaitForSingleObject(hStdin, static_cast<DWORD>(timeoutMs)) != WAIT_OBJECT_0)
+            return QString();  // Timeout, no input available
+
+        INPUT_RECORD records[256];
+        DWORD recordsRead = 0;
+        if (!PeekConsoleInputW(hStdin, records, 256, &recordsRead) || recordsRead == 0)
+            return QString();
+
+        // Check if there's a key event (not a focus/resize event)
+        bool hasKeyEvent = false;
+        for (DWORD i = 0; i < recordsRead; ++i) {
+            if (records[i].EventType == KEY_EVENT && records[i].Event.KeyEvent.bKeyDown)
+                hasKeyEvent = true;
+        }
+        if (!hasKeyEvent)
+            return QString();
+
+        // Data available — use blocking read
+        return readConsoleLine(in);
+    }
+#else
+    // Unix: use select() on stdin
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(0, &fds);
+    struct timeval tv;
+    tv.tv_sec = timeoutMs / 1000;
+    tv.tv_usec = (timeoutMs % 1000) * 1000;
+    if (select(1, &fds, nullptr, nullptr, &tv) <= 0)
+        return QString();
+    return in.readLine();
+#endif
+    return QString();
 }
 
 static bool isInteractiveConsole() {
@@ -284,10 +333,10 @@ int main(int argc, char *argv[]) {
     SetConsoleOutputCP(CP_UTF8);
 #endif
 
-    // Reinitialize spdlog default logger with UTF-8 console sink.
-    // Created after SetConsoleOutputCP so the sink inherits UTF-8 codepage.
+    // Reinitialize spdlog default logger with file-only sink.
+    // Logs go to act.log in the working directory; console stays clean.
     {
-        auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("act.log", true);
         auto logger = std::make_shared<spdlog::logger>("", std::move(sink));
         spdlog::set_default_logger(std::move(logger));
     }
@@ -484,9 +533,50 @@ int main(int argc, char *argv[]) {
                      [&out](const QString &line) { out << line << Qt::endl; });
     QObject::connect(&repl, &act::framework::CliRepl::exitRequested, &app, &QCoreApplication::quit);
 
+    // Thinking spinner state and timer
+    bool thinking = false;
+    int spinnerFrame = 0;
+    static const QStringList spinnerChars = {
+        QStringLiteral("\xe2\x97\x8b"), QStringLiteral("\xe2\x96\xb2"),
+        QStringLiteral("\xe2\x96\xb3"), QStringLiteral("\xe2\x96\xb2")
+    };
+    QTimer spinnerTimer;
+    spinnerTimer.setInterval(120);
+
+    auto clearSpinnerLine = [&out]() {
+        out << act::framework::TerminalStyle::clearLine();
+        out.flush();
+    };
+
+    QObject::connect(&spinnerTimer, &QTimer::timeout, [&]() {
+        out << act::framework::TerminalStyle::clearLine();
+        out << act::framework::TerminalStyle::thinkingIndicator(spinnerChars[spinnerFrame % spinnerChars.size()]);
+        out.flush();
+        ++spinnerFrame;
+    });
+
+    QObject::connect(&repl, &act::framework::CliRepl::thinkingStarted, [&]() {
+        if (jsonMode || useTuiMode || batchMode) return;
+        thinking = true;
+        spinnerFrame = 0;
+        spinnerTimer.start();
+    });
+
+    QObject::connect(&repl, &act::framework::CliRepl::thinkingEnded, [&]() {
+        if (!thinking) return;
+        thinking = false;
+        spinnerTimer.stop();
+        clearSpinnerLine();
+    });
+
     if (!jsonMode && !useTuiMode) {
-        QObject::connect(engine.get(), &act::services::AIEngine::streamTokenReceived, [&out](const QString &token) {
-            out << token;
+        QObject::connect(engine.get(), &act::services::AIEngine::streamTokenReceived, [&](const QString &token) {
+            if (thinking) {
+                thinking = false;
+                spinnerTimer.stop();
+                clearSpinnerLine();
+            }
+            out << act::framework::TerminalStyle::stripAnsi(token);
             out.flush();
         });
     }
@@ -501,7 +591,7 @@ int main(int argc, char *argv[]) {
         return tui.run();
     }
 
-    // --- Interactive REPL: colored banner ---
+    // --- Interactive REPL with channel support ---
     namespace TS = act::framework::TerminalStyle;
 
     out << TS::boldCyan(QStringLiteral("    _    ____ _____ ")) << Qt::endl;
@@ -511,19 +601,98 @@ int main(int argc, char *argv[]) {
     out << TS::boldCyan(QStringLiteral("/_/   \\_\\____| |_|  ")) << Qt::endl;
     out << Qt::endl;
 
-    out << TS::dim(QStringLiteral("  ACT CLI v%1  |  Streaming mode  |  /exit quit  /reset clear  /model switch  --tui fullscreen"))
-               .arg(app.applicationVersion())
-        << Qt::endl;
+    QString modeInfo = QStringLiteral("  ACT CLI v%1  |  Streaming mode  |  /exit quit  /reset clear  /model switch  --tui fullscreen")
+                           .arg(app.applicationVersion());
+
+    // Feishu channel integration
+    std::shared_ptr<act::framework::FeishuChannel> feishuChannel;
+    if (config->feishuEnabled()) {
+        act::framework::FeishuChannel::Config feishuConfig;
+        feishuConfig.appId = config->feishuAppId();
+        feishuConfig.appSecret = config->feishuAppSecret();
+        feishuConfig.timeoutSeconds = 30;
+        feishuConfig.ai = {engine.get(), registry.get(), context.get()};
+        if (!config->feishuProxy().isEmpty()) {
+            int colon = config->feishuProxy().lastIndexOf(QLatin1Char(':'));
+            if (colon >= 0) {
+                feishuConfig.proxyHost = config->feishuProxy().left(colon);
+                feishuConfig.proxyPort = config->feishuProxy().mid(colon + 1).toInt();
+            }
+        }
+        feishuChannel = std::make_shared<act::framework::FeishuChannel>(feishuConfig);
+        modeInfo += QStringLiteral("  |  Feishu: connecting...");
+    }
+
+    out << TS::dim(modeInfo) << Qt::endl;
     out << Qt::endl;
+
+    // Use the direct CliRepl for stdin (preserving existing behavior)
+    // Feishu channel operates independently via its own signals
+    if (feishuChannel) {
+        feishuChannel->start();
+        QObject::connect(feishuChannel.get(), &act::framework::IChannel::statusChanged,
+                         [&out](const QString &msg) {
+                             out << TS::dim(QStringLiteral("  [Feishu] ")) << msg << Qt::endl;
+                         });
+
+        // Incoming Feishu user messages -> display in terminal
+        QObject::connect(feishuChannel.get(), &act::framework::IChannel::messageReceived,
+                         [&out, &thinking, &spinnerTimer, &clearSpinnerLine](
+                             const QString &chatId, const QString &senderId, const QString &text) {
+                             if (thinking) {
+                                 thinking = false;
+                                 spinnerTimer.stop();
+                                 clearSpinnerLine();
+                             }
+                             out << Qt::endl;
+                             out << TS::channelUserMessage(QStringLiteral("Feishu"), senderId, text) << Qt::endl;
+                             out.flush();
+                         });
+
+        // Session created -> connect token streaming and turn completion
+        QObject::connect(feishuChannel.get(), &act::framework::IChannel::sessionCreated,
+                         [&out](const QString &chatId,
+                                act::framework::InteractiveSessionController *controller) {
+                             QObject::connect(controller,
+                                              &act::framework::InteractiveSessionController::tokenStreamed,
+                                              [&out](const QString &token) {
+                                                  out << TS::stripAnsi(token);
+                                                  out.flush();
+                                              });
+                             QObject::connect(controller,
+                                              &act::framework::InteractiveSessionController::turnCompleted,
+                                              [&out]() {
+                                                  out << Qt::endl;
+                                                  out.flush();
+                                              });
+                         });
+    }
 
     while (true) {
         out.flush();
-        QString line = readConsoleLine(in);
-        if (line.isNull())
-            break;
+
+        // Process Qt events (Feishu WebSocket signals, timers, etc.)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+
+        QString line = readConsoleLineWithTimeout(in, 100);
+        if (line.isNull()) {
+            // Check for actual EOF (pipe closed, not just timeout)
+#ifdef _WIN32
+            HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+            if (hStdin == INVALID_HANDLE_VALUE || GetFileType(hStdin) != FILE_TYPE_CHAR)
+                break;
+#else
+            if (!isatty(STDIN_FILENO))
+                break;
+#endif
+            continue;
+        }
 
         (void)repl.processInput(line);
     }
+
+    if (feishuChannel)
+        feishuChannel->stop();
 
     return 0;
 }

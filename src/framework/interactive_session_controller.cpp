@@ -177,6 +177,7 @@ void InteractiveSessionController::runConversationTurn(const QString &message) {
     QMetaObject::Connection streamConnection =
         QObject::connect(&activeEngine, &act::services::AIEngine::streamTokenReceived, [this](const QString &token) {
             applyState([&](InteractiveSessionState &state) { state.appendAssistantToken(token); });
+            emit tokenStreamed(token);
         });
 
     AgentLoop loop(activeEngine, m_tools, m_permissions, m_context);
@@ -248,6 +249,8 @@ void InteractiveSessionController::runConversationTurn(const QString &message) {
         else if (finalState == act::core::TaskState::Cancelled)
             state.logActivity(QStringLiteral("Turn cancelled"));
     });
+
+    emit turnCompleted();
 }
 
 void InteractiveSessionController::shutdownWorker() {

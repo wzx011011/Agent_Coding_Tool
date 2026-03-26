@@ -1,11 +1,14 @@
 add_library(act_framework STATIC
     agent_loop.cpp
     agent_scheduler.cpp
+    channel.cpp
     cli_repl.cpp
     command_registry.cpp
     eval_runner.cpp
     execution_lane.cpp
+    feishu_channel.cpp
     framework.cpp
+    input_dispatcher.cpp
     interactive_session_controller.cpp
     interactive_session_state.cpp
     markdown_formatter.cpp
@@ -13,6 +16,7 @@ add_library(act_framework STATIC
     resume_manager.cpp
     runtime_event_logger.cpp
     runtime_trace_store.cpp
+    session_manager.cpp
     skill_catalog.cpp
     skill_loader.cpp
     subagent_manager.cpp

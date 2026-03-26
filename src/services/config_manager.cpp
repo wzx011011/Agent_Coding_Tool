@@ -224,6 +224,17 @@ bool ConfigManager::load() {
         }
     }
 
+    // Read [feishu] section
+    if (root.contains(QStringLiteral("feishu"))) {
+        const auto feishu = root[QStringLiteral("feishu")].toObject();
+        m_feishuEnabled = feishu.value(QStringLiteral("enabled")).toBool(false);
+        m_feishuAppId = feishu.value(QStringLiteral("app_id")).toString();
+        m_feishuAppSecret = feishu.value(QStringLiteral("app_secret")).toString();
+        m_feishuProxy = feishu.value(QStringLiteral("proxy")).toString();
+        m_feishuSessionTimeoutMinutes = feishu.value(
+            QStringLiteral("session_timeout_minutes")).toInt(30);
+    }
+
     return true;
 }
 
@@ -287,6 +298,21 @@ bool ConfigManager::save() {
         root[QStringLiteral("profiles")] = profilesObj;
     }
 
+    // Save [feishu] section
+    if (m_feishuEnabled || !m_feishuAppId.isEmpty()) {
+        QJsonObject feishu;
+        feishu[QStringLiteral("enabled")] = m_feishuEnabled;
+        if (!m_feishuAppId.isEmpty())
+            feishu[QStringLiteral("app_id")] = m_feishuAppId;
+        if (!m_feishuAppSecret.isEmpty())
+            feishu[QStringLiteral("app_secret")] = m_feishuAppSecret;
+        if (!m_feishuProxy.isEmpty())
+            feishu[QStringLiteral("proxy")] = m_feishuProxy;
+        if (m_feishuSessionTimeoutMinutes != 30)
+            feishu[QStringLiteral("session_timeout_minutes")] = m_feishuSessionTimeoutMinutes;
+        root[QStringLiteral("feishu")] = feishu;
+    }
+
     QJsonDocument doc(root);
     const auto json = doc.toJson(QJsonDocument::Indented);
 
@@ -345,6 +371,14 @@ bool ConfigManager::removeProfile(const QString &name) {
     if (m_activeProfile == name)
         m_activeProfile.clear();
     return save();
+}
+
+void ConfigManager::setFeishuEnabled(bool enabled) { m_feishuEnabled = enabled; }
+void ConfigManager::setFeishuAppId(const QString &appId) { m_feishuAppId = appId.trimmed(); }
+void ConfigManager::setFeishuAppSecret(const QString &secret) { m_feishuAppSecret = secret.trimmed(); }
+void ConfigManager::setFeishuProxy(const QString &proxy) { m_feishuProxy = proxy.trimmed(); }
+void ConfigManager::setFeishuSessionTimeoutMinutes(int minutes) {
+    m_feishuSessionTimeoutMinutes = minutes > 0 ? minutes : 30;
 }
 
 } // namespace act::services
