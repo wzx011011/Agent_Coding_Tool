@@ -1,27 +1,58 @@
 #include "services/openai_compat_provider.h"
 
+#include "core/error_codes.h"
 #include <QJsonDocument>
-
 #include <spdlog/spdlog.h>
 
-#include "core/error_codes.h"
+namespace act::services {
 
-namespace act::services
-{
+namespace {
 
-OpenAICompatProvider::OpenAICompatProvider()
-    : m_network(std::make_unique<infrastructure::HttpNetwork>())
-{
+bool populateMessageFromCompletionBody(const QByteArray &responseBody, act::core::LLMMessage &response) {
+    QJsonDocument doc = QJsonDocument::fromJson(responseBody);
+    if (!doc.isObject())
+        return false;
+
+    const auto obj = doc.object();
+    const auto choices = obj[QStringLiteral("choices")].toArray();
+    if (choices.isEmpty())
+        return false;
+
+    const auto choice = choices[0].toObject();
+    const auto message = choice[QStringLiteral("message")].toObject();
+
+    response.role = act::core::MessageRole::Assistant;
+    response.content = message[QStringLiteral("content")].toString();
+
+    const auto toolCalls = message[QStringLiteral("tool_calls")].toArray();
+    for (const auto &tcVal : toolCalls) {
+        const auto tc = tcVal.toObject();
+        const auto fn = tc[QStringLiteral("function")].toObject();
+
+        act::core::ToolCall call;
+        call.id = tc[QStringLiteral("id")].toString();
+        call.name = fn[QStringLiteral("name")].toString();
+        call.params = QJsonDocument::fromJson(fn[QStringLiteral("arguments")].toString().toUtf8()).object();
+        response.toolCalls.append(call);
+    }
+
+    if (!response.toolCalls.isEmpty())
+        response.toolCall = response.toolCalls.first();
+
+    return true;
+}
+
+} // namespace
+
+OpenAICompatProvider::OpenAICompatProvider() : m_network(std::make_unique<infrastructure::HttpNetwork>()) {
     m_network->setBaseUrl(m_baseUrl);
 }
 
-void OpenAICompatProvider::setApiKey(const QString &key)
-{
+void OpenAICompatProvider::setApiKey(const QString &key) {
     m_apiKey = key;
 }
 
-void OpenAICompatProvider::setBaseUrl(const QString &url)
-{
+void OpenAICompatProvider::setBaseUrl(const QString &url) {
     m_baseUrl = url;
     if (m_baseUrl.endsWith(QLatin1Char('/')))
         m_baseUrl.chop(1);
@@ -33,34 +64,26 @@ void OpenAICompatProvider::setBaseUrl(const QString &url)
     m_network->setBaseUrl(m_baseUrl);
 }
 
-void OpenAICompatProvider::setModel(const QString &model)
-{
+void OpenAICompatProvider::setModel(const QString &model) {
     m_model = model;
 }
 
-QString OpenAICompatProvider::model() const
-{
+QString OpenAICompatProvider::model() const {
     return m_model;
 }
 
-bool OpenAICompatProvider::isConfigured() const
-{
+bool OpenAICompatProvider::isConfigured() const {
     return !m_apiKey.isEmpty();
 }
 
-void OpenAICompatProvider::setToolDefinitions(const QList<QJsonObject> &tools)
-{
+void OpenAICompatProvider::setToolDefinitions(const QList<QJsonObject> &tools) {
     m_toolDefs = tools;
 }
 
-void OpenAICompatProvider::complete(
-    const QList<act::core::LLMMessage> &messages,
-    std::function<void(act::core::LLMMessage)> onMessage,
-    std::function<void()> onComplete,
-    std::function<void(QString, QString)> onError)
-{
-    if (!isConfigured())
-    {
+void OpenAICompatProvider::complete(const QList<act::core::LLMMessage> &messages,
+                                    std::function<void(act::core::LLMMessage)> onMessage,
+                                    std::function<void()> onComplete, std::function<void(QString, QString)> onError) {
+    if (!isConfigured()) {
         if (onError)
             onError(QString::fromStdString(act::core::errors::NO_PROVIDER),
                     QStringLiteral("OpenAI-compatible provider is not configured. Set an API key."));
@@ -78,52 +101,41 @@ void OpenAICompatProvider::complete(
     int statusCode = 0;
     QByteArray responseBody;
 
-    if (!m_network->httpRequest(body, headers, statusCode, responseBody))
-    {
+    if (!m_network->httpRequest(body, headers, statusCode, responseBody)) {
         if (onError)
-            onError(QString::fromStdString(act::core::errors::PROVIDER_TIMEOUT),
-                    QStringLiteral("HTTP request failed"));
+            onError(QString::fromStdString(act::core::errors::PROVIDER_TIMEOUT), QStringLiteral("HTTP request failed"));
         return;
     }
 
-    if (statusCode == 401)
-    {
+    if (statusCode == 401) {
         if (onError)
             onError(QString::fromStdString(act::core::errors::AUTH_ERROR),
                     QStringLiteral("Authentication failed (401)"));
         return;
     }
-    if (statusCode == 429)
-    {
+    if (statusCode == 429) {
         if (onError)
-            onError(QString::fromStdString(act::core::errors::RATE_LIMIT),
-                    QStringLiteral("Rate limited (429)"));
+            onError(QString::fromStdString(act::core::errors::RATE_LIMIT), QStringLiteral("Rate limited (429)"));
         return;
     }
-    if (statusCode < 200 || statusCode >= 300)
-    {
+    if (statusCode < 200 || statusCode >= 300) {
         if (onError)
-            onError(QStringLiteral("HTTP_%1").arg(statusCode),
-                    QString::fromUtf8(responseBody));
+            onError(QStringLiteral("HTTP_%1").arg(statusCode), QString::fromUtf8(responseBody));
         return;
     }
 
     QJsonDocument doc = QJsonDocument::fromJson(responseBody);
-    if (!doc.isObject())
-    {
+    if (!doc.isObject()) {
         if (onError)
-            onError(QStringLiteral("PARSE_ERROR"),
-                    QStringLiteral("Invalid JSON response"));
+            onError(QStringLiteral("PARSE_ERROR"), QStringLiteral("Invalid JSON response"));
         return;
     }
 
     auto obj = doc.object();
     auto choices = obj[QStringLiteral("choices")].toArray();
-    if (choices.isEmpty())
-    {
+    if (choices.isEmpty()) {
         if (onError)
-            onError(QStringLiteral("EMPTY_RESPONSE"),
-                    QStringLiteral("No choices in response"));
+            onError(QStringLiteral("EMPTY_RESPONSE"), QStringLiteral("No choices in response"));
         return;
     }
 
@@ -135,16 +147,14 @@ void OpenAICompatProvider::complete(
     response.content = message[QStringLiteral("content")].toString();
 
     auto toolCalls = message[QStringLiteral("tool_calls")].toArray();
-    for (const auto &tcVal : toolCalls)
-    {
+    for (const auto &tcVal : toolCalls) {
         auto tc = tcVal.toObject();
         auto fn = tc[QStringLiteral("function")].toObject();
 
         act::core::ToolCall call;
         call.id = tc[QStringLiteral("id")].toString();
         call.name = fn[QStringLiteral("name")].toString();
-        call.params = QJsonDocument::fromJson(
-            fn[QStringLiteral("arguments")].toString().toUtf8()).object();
+        call.params = QJsonDocument::fromJson(fn[QStringLiteral("arguments")].toString().toUtf8()).object();
         response.toolCalls.append(call);
     }
 
@@ -157,15 +167,10 @@ void OpenAICompatProvider::complete(
         onComplete();
 }
 
-void OpenAICompatProvider::stream(
-    const QList<act::core::LLMMessage> &messages,
-    std::function<void(QString)> onToken,
-    std::function<void(act::core::LLMMessage)> onMessage,
-    std::function<void()> onComplete,
-    std::function<void(QString, QString)> onError)
-{
-    if (!isConfigured())
-    {
+void OpenAICompatProvider::stream(const QList<act::core::LLMMessage> &messages, std::function<void(QString)> onToken,
+                                  std::function<void(act::core::LLMMessage)> onMessage,
+                                  std::function<void()> onComplete, std::function<void(QString, QString)> onError) {
+    if (!isConfigured()) {
         if (onError)
             onError(QString::fromStdString(act::core::errors::NO_PROVIDER),
                     QStringLiteral("OpenAI-compatible provider is not configured. Set an API key."));
@@ -181,11 +186,8 @@ void OpenAICompatProvider::stream(
     auto accumulated = std::make_shared<OpenAICompatConverter::ParsedResponse>();
 
     m_network->sseRequest(
-        body,
-        headers,
-        [this, accumulated, onToken](
-            const infrastructure::SseEvent &event)
-        {
+        body, headers,
+        [this, accumulated, onToken](const infrastructure::SseEvent &event) {
             if (m_cancelled)
                 return;
 
@@ -203,15 +205,11 @@ void OpenAICompatProvider::stream(
             accumulated->text += parsed.text;
 
             // Accumulate tool calls
-            for (const auto &tc : parsed.toolCalls)
-            {
+            for (const auto &tc : parsed.toolCalls) {
                 // find matching or create
                 bool found = false;
-                for (auto &existing : accumulated->toolCalls)
-                {
-                    if (existing.name == tc.name &&
-                        (existing.id.isEmpty() || existing.id == tc.id))
-                    {
+                for (auto &existing : accumulated->toolCalls) {
+                    if (existing.name == tc.name && (existing.id.isEmpty() || existing.id == tc.id)) {
                         if (!tc.id.isEmpty())
                             existing.id = tc.id;
                         if (!tc.name.isEmpty())
@@ -229,8 +227,7 @@ void OpenAICompatProvider::stream(
             if (!parsed.finishReason.isEmpty())
                 accumulated->finishReason = parsed.finishReason;
         },
-        [this, accumulated, onMessage, onComplete](int statusCode, const QByteArray &)
-        {
+        [this, accumulated, onMessage, onComplete](int statusCode, const QByteArray &body) {
             if (m_cancelled)
                 return;
 
@@ -245,13 +242,15 @@ void OpenAICompatProvider::stream(
             if (!response.toolCalls.isEmpty())
                 response.toolCall = response.toolCalls.first();
 
+            if (response.content.isEmpty() && response.toolCalls.isEmpty() && !body.isEmpty())
+                (void)populateMessageFromCompletionBody(body, response);
+
             if (onMessage)
                 onMessage(response);
             if (onComplete)
                 onComplete();
         },
-        [this, onError](QString code, QString msg)
-        {
+        [this, onError](QString code, QString msg) {
             if (m_cancelled)
                 return;
 
@@ -265,16 +264,14 @@ void OpenAICompatProvider::stream(
         });
 }
 
-void OpenAICompatProvider::cancel()
-{
+void OpenAICompatProvider::cancel() {
     m_cancelled = true;
     if (m_network)
         m_network->cancel();
     spdlog::info("OpenAICompatProvider: request cancelled");
 }
 
-void OpenAICompatProvider::setProxy(const QString &host, int port)
-{
+void OpenAICompatProvider::setProxy(const QString &host, int port) {
     if (m_network)
         m_network->setProxy(host, port);
 }

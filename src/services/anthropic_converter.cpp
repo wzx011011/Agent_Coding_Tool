@@ -176,6 +176,7 @@ AnthropicConverter::ParsedResponse AnthropicConverter::parseSseEvent(
     {
         auto delta = data[QStringLiteral("delta")].toObject();
         auto deltaType = delta[QStringLiteral("type")].toString();
+        int index = data[QStringLiteral("index")].toInt(0);
 
         if (deltaType == QLatin1String("text_delta"))
         {
@@ -183,7 +184,13 @@ AnthropicConverter::ParsedResponse AnthropicConverter::parseSseEvent(
         }
         else if (deltaType == QLatin1String("input_json_delta"))
         {
-            response.text = delta[QStringLiteral("partial_json")].toString();
+            // Create a tool call with partial JSON for accumulation
+            act::core::ToolCall tc;
+            tc.params[QStringLiteral("_partial")] = delta[QStringLiteral("partial_json")].toString();
+            // Ensure we have enough slots
+            while (response.toolCalls.size() <= index)
+                response.toolCalls.append(act::core::ToolCall{});
+            response.toolCalls[index] = tc;
         }
     }
     else if (type == QLatin1String("content_block_stop"))

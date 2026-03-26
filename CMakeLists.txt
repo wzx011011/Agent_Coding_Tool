@@ -1,19 +1,28 @@
 cmake_minimum_required(VERSION 3.28)
 
-if(NOT DEFINED ENV{VCPKG_ROOT})
+set(_ACT_VCPKG_TOOLCHAIN_FROM_CACHE "${CMAKE_TOOLCHAIN_FILE}")
+set(_ACT_VCPKG_TOOLCHAIN "")
+
+if(_ACT_VCPKG_TOOLCHAIN_FROM_CACHE AND EXISTS "${_ACT_VCPKG_TOOLCHAIN_FROM_CACHE}")
+    set(_ACT_VCPKG_TOOLCHAIN "${_ACT_VCPKG_TOOLCHAIN_FROM_CACHE}")
+elseif(DEFINED ENV{VCPKG_ROOT} AND NOT "$ENV{VCPKG_ROOT}" STREQUAL "")
+    set(_ACT_VCPKG_TOOLCHAIN "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+endif()
+
+if(NOT _ACT_VCPKG_TOOLCHAIN)
     message(FATAL_ERROR
-        "VCPKG_ROOT environment variable is not set.\n"
-        "Set it to your vcpkg checkout before configuring ACT.")
+        "Unable to determine the vcpkg toolchain file.\n"
+        "Either configure once with VCPKG_ROOT set, or set CMAKE_TOOLCHAIN_FILE to an existing vcpkg.cmake path.")
 endif()
 
 set(CMAKE_TOOLCHAIN_FILE
-    "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+    "${_ACT_VCPKG_TOOLCHAIN}"
     CACHE FILEPATH "vcpkg toolchain")
 
 if(NOT EXISTS "${CMAKE_TOOLCHAIN_FILE}")
     message(FATAL_ERROR
         "vcpkg toolchain file was not found at:\n  ${CMAKE_TOOLCHAIN_FILE}\n"
-        "Verify VCPKG_ROOT points to a valid vcpkg checkout.")
+        "Verify VCPKG_ROOT points to a valid vcpkg checkout or update CMAKE_TOOLCHAIN_FILE.")
 endif()
 
 if(NOT DEFINED Qt6_DIR AND "${CMAKE_PREFIX_PATH}" STREQUAL "" AND "$ENV{CMAKE_PREFIX_PATH}" STREQUAL "")

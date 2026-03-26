@@ -3,8 +3,10 @@ add_library(act_services STATIC
     config_manager.cpp
     anthropic_provider.cpp
     openai_compat_provider.cpp
+    responses_provider.cpp
     anthropic_converter.cpp
     openai_compat_converter.cpp
+    responses_converter.cpp
     ai_engine.cpp
 )
 

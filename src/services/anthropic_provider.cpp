@@ -222,8 +222,10 @@ void AnthropicProvider::stream(
             // Accumulate tool calls
             for (const auto &tc : parsed.toolCalls)
             {
-                if (tc.id.isEmpty() && tc.name.isEmpty())
+                // Skip completely empty tool calls
+                if (tc.id.isEmpty() && tc.name.isEmpty() && tc.params.isEmpty())
                     continue;
+
                 // If this is a new tool call with an ID, add it
                 if (!tc.id.isEmpty())
                 {
@@ -240,14 +242,24 @@ void AnthropicProvider::stream(
                         accumulated->toolCalls.append(tc);
                 }
                 // Accumulate input_json_delta into the last tool call
-                if (!tc.params.isEmpty() && !accumulated->toolCalls.isEmpty())
+                if (tc.params.contains(QStringLiteral("_partial")) && !accumulated->toolCalls.isEmpty())
                 {
                     auto &last = accumulated->toolCalls.last();
-                    // Parse partial JSON and merge
-                    auto partial = QJsonDocument::fromJson(
-                        tc.params[QStringLiteral("_partial")].toString().toUtf8());
+                    // Accumulate partial JSON string
+                    QString partialStr = last.params.value(QStringLiteral("_partial")).toString();
+                    partialStr += tc.params[QStringLiteral("_partial")].toString();
+
+                    // Try to parse as complete JSON
+                    auto partial = QJsonDocument::fromJson(partialStr.toUtf8());
                     if (partial.isObject())
+                    {
                         last.params = partial.object();
+                    }
+                    else
+                    {
+                        // Still incomplete, keep accumulating
+                        last.params[QStringLiteral("_partial")] = partialStr;
+                    }
                 }
             }
 
