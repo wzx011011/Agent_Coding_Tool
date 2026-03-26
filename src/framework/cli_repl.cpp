@@ -16,12 +16,14 @@ CliRepl::CliRepl(services::IAIEngine &engine,
                  harness::ToolRegistry &tools,
                  harness::PermissionManager &permissions,
                  harness::ContextManager &context,
+                 services::IModelSwitcher *modelSwitcher,
                  QObject *parent)
     : QObject(parent)
     , m_engine(engine)
     , m_tools(tools)
     , m_permissions(permissions)
     , m_context(context)
+    , m_modelSwitcher(modelSwitcher)
 {
     // Register built-in commands
     m_commands.registerCommand(
@@ -78,6 +80,15 @@ CliRepl::CliRepl(services::IAIEngine &engine,
                     .arg(loop.turnCount())));
             return true;
         });
+
+    if (m_modelSwitcher) {
+        m_commands.registerCommand(
+            QStringLiteral("model"),
+            QStringLiteral("Show or switch AI model profile"),
+            [this](const QStringList &args) -> bool {
+                return handleModelCommand(args);
+            });
+    }
 }
 
 act::core::TaskState CliRepl::processInput(const QString &input)
@@ -350,6 +361,68 @@ QString CliRepl::formatJsonEvent(const act::core::RuntimeEvent &event) const
     obj[QStringLiteral("data")] = event.data;
     return QString::fromUtf8(
         QJsonDocument(obj).toJson(QJsonDocument::Compact));
+}
+
+bool CliRepl::handleModelCommand(const QStringList &args) {
+    if (!m_modelSwitcher)
+        return false;
+
+    if (args.isEmpty()) {
+        // Show current configuration
+        QString profile = m_modelSwitcher->activeProfile();
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Current model configuration:\n"
+                           "  Profile:  %1\n"
+                           "  Model:    %2\n"
+                           "  Provider: %3\n"
+                           "  Base URL: %4")
+                .arg(profile.isEmpty() ? QStringLiteral("(none)") : profile,
+                     m_modelSwitcher->currentModel(),
+                     m_modelSwitcher->currentProvider(),
+                     m_modelSwitcher->currentBaseUrl())));
+        return true;
+    }
+
+    if (args.at(0) == QLatin1String("list")) {
+        auto profiles = m_modelSwitcher->allProfiles();
+        if (profiles.isEmpty()) {
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("No profiles configured.")));
+            return true;
+        }
+        QString active = m_modelSwitcher->activeProfile();
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Available profiles:")));
+        for (const auto &p : profiles) {
+            QString marker = (p.name == active) ? QStringLiteral("* ") : QStringLiteral("  ");
+            emitOutput(QStringLiteral("%1%2 - %3 (%4)")
+                           .arg(marker, p.name, p.model, p.provider));
+        }
+        return true;
+    }
+
+    // Switch to named profile
+    QString profileName = args.at(0);
+    if (m_modelSwitcher->profileNames().contains(profileName)) {
+        if (m_modelSwitcher->switchToProfile(profileName)) {
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("Switched to profile '%1' (model: %2, provider: %3)")
+                    .arg(profileName,
+                         m_modelSwitcher->currentModel(),
+                         m_modelSwitcher->currentProvider())));
+        } else {
+            emitOutput(TerminalStyle::errorMessage(
+                QStringLiteral("SWITCH_FAILED"),
+                QStringLiteral("Cannot switch to '%1': check API key configuration.")
+                    .arg(profileName)));
+        }
+    } else {
+        emitOutput(TerminalStyle::errorMessage(
+            QStringLiteral("PROFILE_NOT_FOUND"),
+            QStringLiteral("Unknown profile '%1'.\nAvailable: %2")
+                .arg(profileName, m_modelSwitcher->profileNames().join(QStringLiteral(", ")))));
+    }
+    return true;
 }
 
 void CliRepl::emitOutput(const QString &line)

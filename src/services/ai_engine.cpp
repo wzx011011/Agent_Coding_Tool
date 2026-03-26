@@ -1,34 +1,32 @@
 #include "services/ai_engine.h"
 
-#include <spdlog/spdlog.h>
-
 #include "core/error_codes.h"
 #include "services/anthropic_provider.h"
 #include "services/config_manager.h"
 #include "services/openai_compat_provider.h"
+#include "services/responses_provider.h"
+#include <spdlog/spdlog.h>
 
-namespace act::services
-{
+namespace act::services {
 
-AIEngine::AIEngine(ConfigManager &config, QObject *parent)
-    : QObject(parent)
-    , m_config(config)
-{
+AIEngine::AIEngine(ConfigManager &config, QObject *parent) : QObject(parent), m_config(config) {
     initProvider();
 }
 
-void AIEngine::initProvider()
-{
+std::unique_ptr<AIEngine> AIEngine::createDetachedInstance() const {
+    auto detached = std::make_unique<AIEngine>(m_config);
+    detached->setToolDefinitions(m_toolDefs);
+    return detached;
+}
+
+void AIEngine::initProvider() {
     m_provider = createProvider(m_config.provider());
 
-    spdlog::info("AIEngine: initialized with provider={}, model={}",
-                 m_config.provider().toStdString(),
+    spdlog::info("AIEngine: initialized with provider={}, model={}", m_config.provider().toStdString(),
                  m_config.currentModel().toStdString());
 }
 
-std::unique_ptr<LLMProvider> AIEngine::createProvider(
-    const QString &providerName) const
-{
+std::unique_ptr<LLMProvider> AIEngine::createProvider(const QString &providerName) const {
     auto apiKey = m_config.apiKey(providerName);
     auto baseUrl = m_config.baseUrl();
     auto model = m_config.currentModel();
@@ -38,6 +36,8 @@ std::unique_ptr<LLMProvider> AIEngine::createProvider(
 
     if (providerName == QStringLiteral("anthropic"))
         provider = std::make_unique<AnthropicProvider>();
+    else if (m_config.wireApi() == QStringLiteral("responses"))
+        provider = std::make_unique<ResponsesProvider>();
     else
         provider = std::make_unique<OpenAICompatProvider>();
 
@@ -48,11 +48,9 @@ std::unique_ptr<LLMProvider> AIEngine::createProvider(
     if (!m_toolDefs.isEmpty())
         provider->setToolDefinitions(m_toolDefs);
 
-    if (!proxy.isEmpty())
-    {
+    if (!proxy.isEmpty()) {
         int lastColon = proxy.lastIndexOf(QLatin1Char(':'));
-        if (lastColon >= 0)
-        {
+        if (lastColon >= 0) {
             auto host = proxy.left(lastColon);
             int port = proxy.mid(lastColon + 1).toInt();
             if (port > 0)
@@ -63,21 +61,15 @@ std::unique_ptr<LLMProvider> AIEngine::createProvider(
     return provider;
 }
 
-bool AIEngine::isRetryableError(const QString &errorCode)
-{
+bool AIEngine::isRetryableError(const QString &errorCode) {
     return errorCode == QLatin1String(act::core::errors::AUTH_ERROR) ||
            errorCode == QLatin1String(act::core::errors::RATE_LIMIT) ||
            errorCode == QLatin1String(act::core::errors::PROVIDER_TIMEOUT);
 }
 
-void AIEngine::chat(
-    const QList<act::core::LLMMessage> &messages,
-    std::function<void(act::core::LLMMessage)> onMessage,
-    std::function<void()> onComplete,
-    std::function<void(QString, QString)> onError)
-{
-    if (!m_provider)
-    {
+void AIEngine::chat(const QList<act::core::LLMMessage> &messages, std::function<void(act::core::LLMMessage)> onMessage,
+                    std::function<void()> onComplete, std::function<void(QString, QString)> onError) {
+    if (!m_provider) {
         if (onError)
             onError(QString::fromStdString(act::core::errors::NO_PROVIDER),
                     QStringLiteral("No AI provider configured"));
@@ -88,47 +80,32 @@ void AIEngine::chat(
     providerNames.append(m_config.provider());
     providerNames.append(m_config.fallbackProviders());
 
-    tryStreamWithProvider(messages, providerNames,
-                         std::move(onMessage), std::move(onComplete),
-                         std::move(onError), 0);
+    tryStreamWithProvider(messages, providerNames, std::move(onMessage), std::move(onComplete), std::move(onError), 0);
 }
 
-void AIEngine::tryStreamWithProvider(
-    const QList<act::core::LLMMessage> &messages,
-    const QStringList &providerNames,
-    std::function<void(act::core::LLMMessage)> onMessage,
-    std::function<void()> onComplete,
-    std::function<void(QString, QString)> onError,
-    int currentIndex)
-{
-    if (currentIndex >= providerNames.size())
-    {
+void AIEngine::tryStreamWithProvider(const QList<act::core::LLMMessage> &messages, const QStringList &providerNames,
+                                     std::function<void(act::core::LLMMessage)> onMessage,
+                                     std::function<void()> onComplete, std::function<void(QString, QString)> onError,
+                                     int currentIndex) {
+    if (currentIndex >= providerNames.size()) {
         if (onError)
-            onError(QString::fromStdString(act::core::errors::NO_PROVIDER),
-                    QStringLiteral("All providers exhausted"));
+            onError(QString::fromStdString(act::core::errors::NO_PROVIDER), QStringLiteral("All providers exhausted"));
         return;
     }
 
     const auto &name = providerNames[currentIndex];
 
-    if (currentIndex == 0)
-    {
+    if (currentIndex == 0) {
         // Primary provider is already in m_provider
-    }
-    else
-    {
+    } else {
         m_provider = createProvider(name);
-        emit fallbackTriggered(providerNames[0], name,
-                              QStringLiteral("retryable error"));
-        spdlog::warn("AIEngine: falling back to provider {}",
-                     name.toStdString());
+        emit fallbackTriggered(providerNames[0], name, QStringLiteral("retryable error"));
+        spdlog::warn("AIEngine: falling back to provider {}", name.toStdString());
     }
 
-    if (!m_provider)
-    {
-        tryStreamWithProvider(messages, providerNames,
-                             std::move(onMessage), std::move(onComplete),
-                             std::move(onError), currentIndex + 1);
+    if (!m_provider) {
+        tryStreamWithProvider(messages, providerNames, std::move(onMessage), std::move(onComplete), std::move(onError),
+                              currentIndex + 1);
         return;
     }
 
@@ -137,47 +114,33 @@ void AIEngine::tryStreamWithProvider(
     auto nextIdx = currentIndex + 1;
 
     m_provider->stream(
-        messages,
-        [this](QString token) { emit streamTokenReceived(token); },
+        messages, [this](QString token) { emit streamTokenReceived(token); },
 
         std::move(onMessage),
 
         std::move(onComplete),
 
-        [this, messages, providerNamesCopy, nextIdx,
-         onError](QString errCode, QString errMsg) mutable
-        {
-            if (isRetryableError(errCode) &&
-                nextIdx < providerNamesCopy.size())
-            {
+        [this, messages, providerNamesCopy, nextIdx, onError](QString errCode, QString errMsg) mutable {
+            if (isRetryableError(errCode) && nextIdx < providerNamesCopy.size()) {
                 spdlog::warn("AIEngine: provider {} failed ({}), "
                              "trying fallback",
-                             providerNamesCopy[nextIdx - 1].toStdString(),
-                             errCode.toStdString());
-                tryStreamWithProvider(messages, providerNamesCopy,
-                                     nullptr, nullptr,
-                                     std::move(onError), nextIdx);
-            }
-            else
-            {
+                             providerNamesCopy[nextIdx - 1].toStdString(), errCode.toStdString());
+                tryStreamWithProvider(messages, providerNamesCopy, nullptr, nullptr, std::move(onError), nextIdx);
+            } else {
                 if (onError)
                     onError(std::move(errCode), std::move(errMsg));
             }
         });
 }
 
-void AIEngine::cancel()
-{
+void AIEngine::cancel() {
     if (m_provider)
         m_provider->cancel();
 }
 
-int AIEngine::estimateTokens(
-    const QList<act::core::LLMMessage> &messages) const
-{
+int AIEngine::estimateTokens(const QList<act::core::LLMMessage> &messages) const {
     long long totalChars = 0;
-    for (const auto &msg : messages)
-    {
+    for (const auto &msg : messages) {
         totalChars += msg.content.length();
         totalChars += msg.toolCall.name.length();
         totalChars += msg.toolCall.id.length();
@@ -186,16 +149,21 @@ int AIEngine::estimateTokens(
     return static_cast<int>(totalChars / 3.5);
 }
 
-void AIEngine::setToolDefinitions(const QList<QJsonObject> &tools)
-{
+void AIEngine::setToolDefinitions(const QList<QJsonObject> &tools) {
     m_toolDefs = tools;
     if (m_provider)
         m_provider->setToolDefinitions(tools);
 }
 
-QString AIEngine::providerName() const
-{
+QString AIEngine::providerName() const {
     return m_config.provider();
+}
+
+bool AIEngine::reinitializeProvider() {
+    if (m_provider)
+        m_provider->cancel();
+    initProvider();
+    return m_provider != nullptr;
 }
 
 } // namespace act::services

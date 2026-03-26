@@ -20,6 +20,8 @@ class AIEngine : public QObject, public IAIEngine
 public:
     explicit AIEngine(ConfigManager &config, QObject *parent = nullptr);
 
+    [[nodiscard]] std::unique_ptr<AIEngine> createDetachedInstance() const;
+
     // IAIEngine
     void chat(const QList<act::core::LLMMessage> &messages,
               std::function<void(act::core::LLMMessage)> onMessage,
@@ -34,6 +36,10 @@ public:
 
     /// Get current provider name.
     [[nodiscard]] QString providerName() const;
+
+    /// Reinitialize the provider from current config (call after config changes).
+    /// Returns true if the provider was successfully created.
+    [[nodiscard]] bool reinitializeProvider();
 
     /// Check if an error code is retryable (should trigger fallback).
     [[nodiscard]] static bool isRetryableError(const QString &errorCode);

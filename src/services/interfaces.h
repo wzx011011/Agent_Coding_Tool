@@ -1,10 +1,12 @@
 #pragma once
 
+#include <QList>
 #include <QString>
 #include <QStringList>
 #include <QJsonObject>
 
 #include <functional>
+#include <optional>
 
 #include "core/types.h"
 
@@ -62,6 +64,34 @@ public:
     [[nodiscard]] virtual QString getContextForQuery(
         const QString &query,
         int maxTokens) const = 0;
+};
+
+/// A named preset that bundles model + provider + network settings.
+struct ModelProfile
+{
+    QString name;
+    QString model;
+    QString provider;
+    QString baseUrl;
+    QString wireApi;
+};
+
+/// Interface for switching AI model profiles at runtime.
+class IModelSwitcher
+{
+public:
+    virtual ~IModelSwitcher() = default;
+
+    [[nodiscard]] virtual QStringList profileNames() const = 0;
+    [[nodiscard]] virtual QList<ModelProfile> allProfiles() const = 0;
+    [[nodiscard]] virtual QString activeProfile() const = 0;
+    [[nodiscard]] virtual QString currentModel() const = 0;
+    [[nodiscard]] virtual QString currentProvider() const = 0;
+    [[nodiscard]] virtual QString currentBaseUrl() const = 0;
+
+    /// Switch to a named profile. Reinitializes the engine provider.
+    /// Returns false if profile not found or API key missing.
+    virtual bool switchToProfile(const QString &profileName) = 0;
 };
 
 } // namespace act::services

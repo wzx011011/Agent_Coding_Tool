@@ -30,6 +30,7 @@ public:
                        harness::ToolRegistry &tools,
                        harness::PermissionManager &permissions,
                        harness::ContextManager &context,
+                       services::IModelSwitcher *modelSwitcher = nullptr,
                        QObject *parent = nullptr);
 
     /// Get the command registry for registering custom commands.
@@ -71,6 +72,7 @@ private:
     QString formatJsonMessage(const act::core::LLMMessage &msg) const;
     QString formatJsonEvent(const act::core::RuntimeEvent &event) const;
     void emitOutput(const QString &line);
+    bool handleModelCommand(const QStringList &args);
 
     services::IAIEngine &m_engine;
     harness::ToolRegistry &m_tools;
@@ -79,6 +81,7 @@ private:
 
     OutputMode m_outputMode = OutputMode::Human;
     CommandRegistry m_commands;
+    services::IModelSwitcher *m_modelSwitcher = nullptr;
     bool m_exitRequested = false;
 };
 

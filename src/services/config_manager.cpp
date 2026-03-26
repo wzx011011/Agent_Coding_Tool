@@ -6,59 +6,51 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-
 #include <spdlog/spdlog.h>
 
-namespace act::services
-{
+namespace act::services {
 
-ConfigManager::ConfigManager()
-    : m_configFilePath(defaultConfigPath())
-{
+ConfigManager::ConfigManager() : m_configFilePath(defaultConfigPath()) {
 }
 
-ConfigManager::ConfigManager(const QString &configPath)
-    : m_configFilePath(configPath)
-{
+ConfigManager::ConfigManager(const QString &configPath) : m_configFilePath(configPath) {
 }
 
-QString ConfigManager::defaultConfigDir()
-{
+QString ConfigManager::defaultConfigDir() {
     return QDir::homePath() + QStringLiteral("/.act");
 }
 
-QString ConfigManager::defaultConfigPath()
-{
+QString ConfigManager::defaultConfigPath() {
     return QDir::homePath() + QStringLiteral("/.act/settings.json");
 }
 
-QString ConfigManager::currentModel() const
-{
+QString ConfigManager::currentModel() const {
     return m_model;
 }
 
-void ConfigManager::setModel(const QString &model)
-{
-    m_model = model;
+void ConfigManager::setModel(const QString &model) {
+    m_model = model.trimmed();
+    if (m_model.isEmpty())
+        m_model = QString::fromUtf8(DEFAULT_MODEL);
 }
 
-QString ConfigManager::apiKey(const QString &provider) const
-{
+QString ConfigManager::apiKey(const QString &provider) const {
     return m_apiKeys.value(provider.toLower());
 }
 
-void ConfigManager::setApiKey(const QString &provider, const QString &key)
-{
-    m_apiKeys[provider.toLower()] = key;
+void ConfigManager::setApiKey(const QString &provider, const QString &key) {
+    const auto normalizedProvider = provider.trimmed().toLower();
+    if (normalizedProvider.isEmpty())
+        return;
+
+    m_apiKeys[normalizedProvider] = key.trimmed();
 }
 
-QString ConfigManager::configFilePath() const
-{
+QString ConfigManager::configFilePath() const {
     return m_configFilePath;
 }
 
-bool ConfigManager::isConfigured() const
-{
+bool ConfigManager::isConfigured() const {
     if (m_provider.isEmpty())
         return false;
     if (m_apiKeys.value(m_provider.toLower()).isEmpty())
@@ -66,59 +58,60 @@ bool ConfigManager::isConfigured() const
     return true;
 }
 
-QString ConfigManager::provider() const
-{
+QString ConfigManager::provider() const {
     return m_provider;
 }
 
-void ConfigManager::setProvider(const QString &provider)
-{
-    m_provider = provider.toLower();
+void ConfigManager::setProvider(const QString &provider) {
+    m_provider = provider.trimmed().toLower();
+    if (m_provider.isEmpty())
+        m_provider = QString::fromUtf8(DEFAULT_PROVIDER);
 }
 
-QString ConfigManager::baseUrl() const
-{
+QString ConfigManager::wireApi() const {
+    return m_wireApi;
+}
+
+void ConfigManager::setWireApi(const QString &wireApi) {
+    m_wireApi = wireApi.trimmed().toLower();
+    if (m_wireApi.isEmpty())
+        m_wireApi = QString::fromUtf8(DEFAULT_WIRE_API);
+}
+
+QString ConfigManager::baseUrl() const {
     if (!m_baseUrl.isEmpty())
         return m_baseUrl;
     return defaultBaseUrl(m_provider);
 }
 
-void ConfigManager::setBaseUrl(const QString &url)
-{
-    m_baseUrl = url;
+void ConfigManager::setBaseUrl(const QString &url) {
+    m_baseUrl = url.trimmed();
 }
 
-QString ConfigManager::proxy() const
-{
+QString ConfigManager::proxy() const {
     return m_proxy;
 }
 
-void ConfigManager::setProxy(const QString &proxy)
-{
-    m_proxy = proxy;
+void ConfigManager::setProxy(const QString &proxy) {
+    m_proxy = proxy.trimmed();
 }
 
-QString ConfigManager::defaultBaseUrl(const QString &provider)
-{
+QString ConfigManager::defaultBaseUrl(const QString &provider) {
     if (provider.toLower() == QStringLiteral("anthropic"))
         return QString::fromUtf8(ANTHROPIC_BASE_URL);
     return QString::fromUtf8(OPENAI_COMPAT_BASE_URL);
 }
 
-bool ConfigManager::load()
-{
+bool ConfigManager::load() {
     const auto path = configFilePath();
     QFileInfo fi(path);
-    if (!fi.exists())
-    {
-        spdlog::info("Config file not found at {}, using defaults",
-                     path.toStdString());
+    if (!fi.exists()) {
+        spdlog::info("Config file not found at {}, using defaults", path.toStdString());
         return true;
     }
 
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         spdlog::error("Cannot open config file: {}", path.toStdString());
         return false;
     }
@@ -128,15 +121,12 @@ bool ConfigManager::load()
 
     QJsonParseError parseError;
     const auto doc = QJsonDocument::fromJson(data, &parseError);
-    if (parseError.error != QJsonParseError::NoError)
-    {
-        spdlog::error("Failed to parse config JSON: {}",
-                      parseError.errorString().toStdString());
+    if (parseError.error != QJsonParseError::NoError) {
+        spdlog::error("Failed to parse config JSON: {}", parseError.errorString().toStdString());
         return false;
     }
 
-    if (!doc.isObject())
-    {
+    if (!doc.isObject()) {
         spdlog::error("Config root must be a JSON object");
         return false;
     }
@@ -144,45 +134,42 @@ bool ConfigManager::load()
     const auto root = doc.object();
 
     // Read model
-    if (root.contains(QStringLiteral("model")))
-    {
+    if (root.contains(QStringLiteral("model"))) {
         const auto val = root[QStringLiteral("model")];
         if (val.isString())
-            m_model = val.toString();
+            setModel(val.toString());
     }
 
     // Read provider
-    if (root.contains(QStringLiteral("provider")))
-    {
+    if (root.contains(QStringLiteral("provider"))) {
         const auto val = root[QStringLiteral("provider")];
         if (val.isString())
-            m_provider = val.toString().toLower();
+            setProvider(val.toString());
     }
 
     // Read [network] section
-    if (root.contains(QStringLiteral("network")))
-    {
+    if (root.contains(QStringLiteral("network"))) {
         const auto network = root[QStringLiteral("network")].toObject();
-        if (network.contains(QStringLiteral("base_url")))
-        {
+        if (network.contains(QStringLiteral("base_url"))) {
             const auto val = network[QStringLiteral("base_url")];
             if (val.isString())
-                m_baseUrl = val.toString();
+                setBaseUrl(val.toString());
         }
-        if (network.contains(QStringLiteral("proxy")))
-        {
+        if (network.contains(QStringLiteral("wire_api"))) {
+            const auto val = network[QStringLiteral("wire_api")];
+            if (val.isString())
+                setWireApi(val.toString());
+        }
+        if (network.contains(QStringLiteral("proxy"))) {
             const auto val = network[QStringLiteral("proxy")];
             if (val.isString())
-                m_proxy = val.toString();
+                setProxy(val.toString());
         }
-        if (network.contains(QStringLiteral("fallback_providers")))
-        {
+        if (network.contains(QStringLiteral("fallback_providers"))) {
             const auto val = network[QStringLiteral("fallback_providers")];
-            if (val.isArray())
-            {
+            if (val.isArray()) {
                 const auto arr = val.toArray();
-                for (const auto &item : arr)
-                {
+                for (const auto &item : arr) {
                     if (item.isString())
                         m_fallbackProviders.append(item.toString());
                 }
@@ -191,33 +178,60 @@ bool ConfigManager::load()
     }
 
     // Read API keys
-    if (root.contains(QStringLiteral("api_keys")))
-    {
+    if (root.contains(QStringLiteral("api_keys"))) {
         const auto keys = root[QStringLiteral("api_keys")].toObject();
-        for (auto it = keys.constBegin(); it != keys.constEnd(); ++it)
-        {
+        for (auto it = keys.constBegin(); it != keys.constEnd(); ++it) {
             const auto entry = it.value().toObject();
-            if (entry.contains(QStringLiteral("key")))
-            {
+            if (entry.contains(QStringLiteral("key"))) {
                 const auto keyVal = entry[QStringLiteral("key")];
                 if (keyVal.isString())
-                    m_apiKeys[it.key().toLower()] = keyVal.toString();
+                    setApiKey(it.key(), keyVal.toString());
             }
         }
     }
 
     spdlog::info("Config loaded from {}", path.toStdString());
+
+    // Read active_profile
+    if (root.contains(QStringLiteral("active_profile"))) {
+        const auto val = root[QStringLiteral("active_profile")];
+        if (val.isString())
+            m_activeProfile = val.toString();
+    }
+
+    // Read profiles
+    if (root.contains(QStringLiteral("profiles"))) {
+        const auto profiles = root[QStringLiteral("profiles")].toObject();
+        for (auto it = profiles.constBegin(); it != profiles.constEnd(); ++it) {
+            const auto obj = it.value().toObject();
+            ModelProfile p;
+            p.name = it.key();
+            p.model = obj[QStringLiteral("model")].toString();
+            p.provider = obj[QStringLiteral("provider")].toString();
+            if (p.model.isEmpty() || p.provider.isEmpty()) {
+                spdlog::warn("Config: skipping profile '{}' with empty model/provider",
+                             p.name.toStdString());
+                continue;
+            }
+            if (obj.contains(QStringLiteral("network"))) {
+                const auto net = obj[QStringLiteral("network")].toObject();
+                if (net.contains(QStringLiteral("base_url")))
+                    p.baseUrl = net[QStringLiteral("base_url")].toString();
+                if (net.contains(QStringLiteral("wire_api")))
+                    p.wireApi = net[QStringLiteral("wire_api")].toString();
+            }
+            m_profiles[p.name] = p;
+        }
+    }
+
     return true;
 }
 
-bool ConfigManager::save()
-{
+bool ConfigManager::save() {
     const auto path = configFilePath();
     QDir dir = QFileInfo(path).absoluteDir();
-    if (!dir.exists() && !dir.mkpath(QStringLiteral(".")))
-    {
-        spdlog::error("Cannot create config directory: {}",
-                      dir.absolutePath().toStdString());
+    if (!dir.exists() && !dir.mkpath(QStringLiteral("."))) {
+        spdlog::error("Cannot create config directory: {}", dir.absolutePath().toStdString());
         return false;
     }
 
@@ -228,10 +242,12 @@ bool ConfigManager::save()
     QJsonObject network;
     if (!m_baseUrl.isEmpty())
         network[QStringLiteral("base_url")] = m_baseUrl;
+    if (!m_wireApi.isEmpty() && m_wireApi != QString::fromUtf8(DEFAULT_WIRE_API)) {
+        network[QStringLiteral("wire_api")] = m_wireApi;
+    }
     if (!m_proxy.isEmpty())
         network[QStringLiteral("proxy")] = m_proxy;
-    if (!m_fallbackProviders.isEmpty())
-    {
+    if (!m_fallbackProviders.isEmpty()) {
         QJsonArray fallbackArr;
         for (const auto &p : m_fallbackProviders)
             fallbackArr.append(p);
@@ -241,8 +257,7 @@ bool ConfigManager::save()
         root[QStringLiteral("network")] = network;
 
     QJsonObject keys;
-    for (auto it = m_apiKeys.constBegin(); it != m_apiKeys.constEnd(); ++it)
-    {
+    for (auto it = m_apiKeys.constBegin(); it != m_apiKeys.constEnd(); ++it) {
         QJsonObject entry;
         entry[QStringLiteral("key")] = it.value();
         keys[it.key()] = entry;
@@ -250,12 +265,33 @@ bool ConfigManager::save()
     if (!keys.isEmpty())
         root[QStringLiteral("api_keys")] = keys;
 
+    if (!m_activeProfile.isEmpty())
+        root[QStringLiteral("active_profile")] = m_activeProfile;
+
+    if (!m_profiles.isEmpty()) {
+        QJsonObject profilesObj;
+        for (auto it = m_profiles.constBegin(); it != m_profiles.constEnd(); ++it) {
+            const auto &p = it.value();
+            QJsonObject obj;
+            obj[QStringLiteral("model")] = p.model;
+            obj[QStringLiteral("provider")] = p.provider;
+            QJsonObject net;
+            if (!p.baseUrl.isEmpty())
+                net[QStringLiteral("base_url")] = p.baseUrl;
+            if (!p.wireApi.isEmpty())
+                net[QStringLiteral("wire_api")] = p.wireApi;
+            if (!net.isEmpty())
+                obj[QStringLiteral("network")] = net;
+            profilesObj[it.key()] = obj;
+        }
+        root[QStringLiteral("profiles")] = profilesObj;
+    }
+
     QJsonDocument doc(root);
     const auto json = doc.toJson(QJsonDocument::Indented);
 
     QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
-    {
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         spdlog::error("Cannot write config file: {}", path.toStdString());
         return false;
     }
@@ -264,6 +300,51 @@ bool ConfigManager::save()
 
     spdlog::info("Config saved to {}", path.toStdString());
     return true;
+}
+
+bool ConfigManager::setActiveProfile(const QString &profileName) {
+    auto it = m_profiles.find(profileName);
+    if (it == m_profiles.end())
+        return false;
+
+    const auto &p = it.value();
+    m_model = p.model;
+    m_provider = p.provider.toLower();
+    m_baseUrl = p.baseUrl;
+    m_wireApi = p.wireApi;
+    m_activeProfile = profileName;
+
+    return save();
+}
+
+QStringList ConfigManager::profileNames() const {
+    return m_profiles.keys();
+}
+
+std::optional<ModelProfile> ConfigManager::profile(const QString &name) const {
+    auto it = m_profiles.find(name);
+    if (it != m_profiles.end())
+        return it.value();
+    return std::nullopt;
+}
+
+bool ConfigManager::hasProfile(const QString &name) const {
+    return m_profiles.contains(name);
+}
+
+bool ConfigManager::addProfile(const ModelProfile &p) {
+    if (p.name.isEmpty() || p.model.isEmpty() || p.provider.isEmpty())
+        return false;
+    m_profiles[p.name] = p;
+    return save();
+}
+
+bool ConfigManager::removeProfile(const QString &name) {
+    if (!m_profiles.remove(name))
+        return false;
+    if (m_activeProfile == name)
+        m_activeProfile.clear();
+    return save();
 }
 
 } // namespace act::services
