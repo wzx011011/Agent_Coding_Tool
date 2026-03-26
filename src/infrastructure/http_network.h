@@ -60,6 +60,7 @@ private:
     int m_timeoutSeconds = 120;
     QMap<QString, QString> m_defaultHeaders;
     bool m_cancelled = false;
+    bool m_inSseCallback = false;  // Guard against reentrant processEvents
 };
 
 } // namespace act::infrastructure

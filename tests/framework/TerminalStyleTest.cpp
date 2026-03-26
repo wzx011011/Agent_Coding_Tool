@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <QStringList>
+
 #include "framework/terminal_style.h"
 
 using namespace act::framework::TerminalStyle;
@@ -216,7 +218,7 @@ TEST(TerminalStyleTest, ToolCallStartedOffFormat)
     setColorEnabled(false);
     QString result = toolCallStarted(
         QStringLiteral("file_read"), QStringLiteral(" /src/main.cpp"));
-    EXPECT_EQ(result, QStringLiteral("> file_read /src/main.cpp"));
+    EXPECT_EQ(result, QStringLiteral("\xe2\x97\x8f file_read /src/main.cpp"));
 }
 
 TEST(TerminalStyleTest, ToolCallCompletedSuccessOffFormat)
@@ -224,7 +226,7 @@ TEST(TerminalStyleTest, ToolCallCompletedSuccessOffFormat)
     setColorEnabled(false);
     QString result = toolCallCompleted(
         QStringLiteral("file_read"), QStringLiteral("(42 lines)"), true);
-    EXPECT_EQ(result, QStringLiteral("+ file_read (42 lines)"));
+    EXPECT_EQ(result, QStringLiteral("\xe2\x97\x8f   (42 lines)"));
 }
 
 TEST(TerminalStyleTest, ToolCallCompletedFailOffFormat)
@@ -232,7 +234,7 @@ TEST(TerminalStyleTest, ToolCallCompletedFailOffFormat)
     setColorEnabled(false);
     QString result = toolCallCompleted(
         QStringLiteral("shell"), QStringLiteral("[PERMISSION_DENIED]"), false);
-    EXPECT_EQ(result, QStringLiteral("x shell [PERMISSION_DENIED]"));
+    EXPECT_EQ(result, QStringLiteral("\xe2\x97\x8f   [PERMISSION_DENIED]"));
 }
 
 TEST(TerminalStyleTest, ErrorMessageOffFormat)
@@ -269,7 +271,7 @@ TEST(TerminalStyleTest, ToolCallCompletedSuccessOnContainsGreen)
     setColorEnabled(true);
     QString result = toolCallCompleted(
         QStringLiteral("tool"), QStringLiteral("(1 lines)"), true);
-    EXPECT_TRUE(result.contains(esc(32))); // green
+    EXPECT_TRUE(result.contains(esc(92))); // bright green
     setColorEnabled(false);
 }
 
@@ -313,4 +315,108 @@ TEST(TerminalStyleTest, StripAnsiMultipleSequences)
 TEST(TerminalStyleTest, StripAnsiEmptyString)
 {
     EXPECT_EQ(stripAnsi(QString()), QString());
+}
+
+// ============================================================
+// fgBrightGreen
+// ============================================================
+
+TEST(TerminalStyleTest, FgBrightGreenOffReturnsPlain)
+{
+    setColorEnabled(false);
+    EXPECT_EQ(fgBrightGreen(QStringLiteral("dot")), QStringLiteral("dot"));
+}
+
+TEST(TerminalStyleTest, FgBrightGreenOnGeneratesAnsi)
+{
+    setColorEnabled(true);
+    QString result = fgBrightGreen(QStringLiteral("dot"));
+    EXPECT_TRUE(result.contains(esc(92))); // bright green
+    EXPECT_TRUE(result.contains(QStringLiteral("dot")));
+    setColorEnabled(false);
+}
+
+// ============================================================
+// Rich streaming helpers — color off
+// ============================================================
+
+TEST(TerminalStyleTest, ThinkingIndicatorOffFormat)
+{
+    setColorEnabled(false);
+    QString result = thinkingIndicator(QStringLiteral("\xe2\x97\x8b"));
+    EXPECT_TRUE(result.contains(QStringLiteral("Thinking")));
+    EXPECT_TRUE(result.contains(QStringLiteral("\xe2\x97\x8b")));
+    setColorEnabled(false);
+}
+
+TEST(TerminalStyleTest, ThinkingIndicatorOnContainsAnsi)
+{
+    setColorEnabled(true);
+    QString result = thinkingIndicator();
+    EXPECT_TRUE(result.contains(esc(0))); // has reset
+    EXPECT_TRUE(result.contains(QStringLiteral("Thinking")));
+    setColorEnabled(false);
+}
+
+TEST(TerminalStyleTest, SectionIndicatorCollapsedOff)
+{
+    setColorEnabled(false);
+    QString result = sectionIndicator(true);
+    EXPECT_EQ(result, QStringLiteral("\xe2\x96\xb6"));
+}
+
+TEST(TerminalStyleTest, SectionIndicatorExpandedOff)
+{
+    setColorEnabled(false);
+    QString result = sectionIndicator(false);
+    EXPECT_EQ(result, QStringLiteral("\xe2\x96\xbc"));
+}
+
+TEST(TerminalStyleTest, ResultBoxBasicStructure)
+{
+    setColorEnabled(false);
+    QStringList lines = {
+        QStringLiteral("line1"),
+        QStringLiteral("line2")
+    };
+    QString result = resultBox(QStringLiteral("title"), lines);
+    // Should contain box-drawing characters even when color is off
+    EXPECT_TRUE(result.contains(QStringLiteral("title")));
+    EXPECT_TRUE(result.contains(QStringLiteral("line1")));
+    EXPECT_TRUE(result.contains(QStringLiteral("line2")));
+    // Check for box drawing corners
+    EXPECT_TRUE(result.contains(QStringLiteral("\xe2\x94\x8c"))); // ┌
+    EXPECT_TRUE(result.contains(QStringLiteral("\xe2\x94\x90"))); // ┐
+    EXPECT_TRUE(result.contains(QStringLiteral("\xe2\x94\x94"))); // └
+    EXPECT_TRUE(result.contains(QStringLiteral("\xe2\x94\x98"))); // ┘
+}
+
+TEST(TerminalStyleTest, ResultBoxTruncation)
+{
+    setColorEnabled(false);
+    QStringList lines;
+    for (int i = 0; i < 30; ++i)
+        lines.append(QStringLiteral("line%1").arg(i));
+    QString result = resultBox(QStringLiteral("test"), lines);
+    EXPECT_TRUE(result.contains(QStringLiteral("... (10 more lines)")));
+}
+
+TEST(TerminalStyleTest, ResultBoxEmptyLines)
+{
+    setColorEnabled(false);
+    QStringList emptyLines;
+    QString result = resultBox(QStringLiteral("empty"), emptyLines);
+    EXPECT_TRUE(result.contains(QStringLiteral("empty")));
+    EXPECT_TRUE(result.contains(QStringLiteral("\xe2\x94\x8c")));
+    EXPECT_TRUE(result.contains(QStringLiteral("\xe2\x94\x98")));
+}
+
+TEST(TerminalStyleTest, StripAnsiRemovesRichStyles)
+{
+    setColorEnabled(true);
+    QString thinking = thinkingIndicator();
+    QString stripped = stripAnsi(thinking);
+    EXPECT_TRUE(stripped.contains(QStringLiteral("Thinking")));
+    EXPECT_FALSE(stripped.contains('\x1b'));
+    setColorEnabled(false);
 }

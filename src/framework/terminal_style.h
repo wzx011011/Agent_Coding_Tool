@@ -38,6 +38,7 @@ void setColorEnabled(bool enabled);
 [[nodiscard]] QString boldRed(const QString &text);
 [[nodiscard]] QString boldGreen(const QString &text);
 [[nodiscard]] QString boldMagenta(const QString &text);
+[[nodiscard]] QString fgBrightGreen(const QString &text);
 [[nodiscard]] QString reset();
 
 // ---- Semantic helpers ----
@@ -52,10 +53,36 @@ void setColorEnabled(bool enabled);
 [[nodiscard]] QString permissionRequest(const QString &tool,
                                           const QString &level);
 
+// ---- Channel display helpers ----
+
+/// Format an incoming user message from a channel.
+/// Example: "[Feishu] user_abc: Hello"
+[[nodiscard]] QString channelUserMessage(const QString &channelName,
+                                          const QString &senderId,
+                                          const QString &text);
+
+/// Channel prefix for AI response streaming.
+/// Example: "[Feishu] " (styled)
+[[nodiscard]] QString channelPrefix(const QString &channelName);
+
+// ---- Rich streaming helpers ----
+
+/// Thinking/waiting spinner indicator: e.g. "● Thinking ⠋"
+[[nodiscard]] QString thinkingIndicator(const QString &spinnerChar = QStringLiteral("⠋"));
+
+/// Collapsible section arrow: "▶" (collapsed) or "▼" (expanded)
+[[nodiscard]] QString sectionIndicator(bool collapsed);
+
+/// Bordered result box for tool output display.
+[[nodiscard]] QString resultBox(const QString &title, const QStringList &lines);
+
 // ---- Utility ----
 
 /// Strip all ANSI escape sequences from text (useful in tests / pipe mode).
 [[nodiscard]] QString stripAnsi(const QString &text);
+
+/// CR + clear to end of line. Used by spinner to erase the thinking indicator.
+[[nodiscard]] QString clearLine();
 
 } // namespace TerminalStyle
 } // namespace act::framework

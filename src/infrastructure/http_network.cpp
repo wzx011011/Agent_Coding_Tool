@@ -2,6 +2,8 @@
 
 #include <sstream>
 
+#include <QCoreApplication>
+
 #include <httplib.h>
 
 #include <spdlog/spdlog.h>
@@ -169,6 +171,16 @@ bool HttpNetwork::sseRequest(
             {
                 if (onEvent)
                     onEvent(event);
+            }
+            // Pump the Qt event loop so queued signals (e.g.
+            // streamTokenReceived) and timers (e.g. thinking spinner)
+            // get a chance to run during the synchronous HTTP read.
+            // Guard against reentrancy: a slot triggered here must not
+            // re-enter the SSE callback (e.g. by cancelling the request).
+            if (!m_inSseCallback) {
+                m_inSseCallback = true;
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 0);
+                m_inSseCallback = false;
             }
             return true;
         });

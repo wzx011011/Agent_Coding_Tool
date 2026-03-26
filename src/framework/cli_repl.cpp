@@ -12,6 +12,18 @@
 namespace act::framework
 {
 
+/// Record of a completed tool call section for collapsible display.
+struct CliRepl::ToolSection
+{
+    int id = 0;
+    QString name;
+    QString args;
+    QString output;
+    QString summary;
+    bool success = true;
+    bool expanded = false;
+};
+
 CliRepl::CliRepl(services::IAIEngine &engine,
                  harness::ToolRegistry &tools,
                  harness::PermissionManager &permissions,
@@ -89,6 +101,22 @@ CliRepl::CliRepl(services::IAIEngine &engine,
                 return handleModelCommand(args);
             });
     }
+
+    m_commands.registerCommand(
+        QStringLiteral("verbose"),
+        QStringLiteral("Toggle tool output expansion (/v or /v all)"),
+        [this](const QStringList &args) -> bool {
+            handleVerboseCommand(args);
+            return true;
+        });
+
+    m_commands.registerCommand(
+        QStringLiteral("v"),
+        QStringLiteral("Alias for /verbose"),
+        [this](const QStringList &args) -> bool {
+            handleVerboseCommand(args);
+            return true;
+        });
 }
 
 act::core::TaskState CliRepl::processInput(const QString &input)
@@ -125,6 +153,12 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     // Run the agent loop with the user input
     AgentLoop loop(m_engine, m_tools, m_permissions, m_context, this);
     loop.setMaxTurns(50);
+
+    // Reset per-turn rich output state
+    m_toolSections.clear();
+    m_sectionIdCounter = 0;
+    m_pendingSectionId = -1;
+    m_firstTokenReceived = false;
 
     // Wire up event callback — handle events in both Human and JSON modes
     loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
@@ -230,7 +264,7 @@ void CliRepl::processBatch(const QStringList &inputs)
     }
 }
 
-QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event) const
+QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event)
 {
     using ET = act::core::EventType;
 
@@ -249,6 +283,14 @@ QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event) const
             argsPreview = QStringLiteral(" ") + params.value(QStringLiteral("pattern")).toString();
         else if (params.contains(QStringLiteral("command")))
             argsPreview = QStringLiteral(" ") + params.value(QStringLiteral("command")).toString();
+
+        // Record the section for collapsible display
+        ToolSection section;
+        section.id = m_sectionIdCounter++;
+        section.name = name;
+        section.args = argsPreview;
+        m_toolSections.append(section);
+        m_pendingSectionId = section.id;
 
         return TerminalStyle::toolCallStarted(name, argsPreview);
     }
@@ -271,6 +313,17 @@ QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event) const
             QString code = event.data.value(QStringLiteral("error_code")).toString();
             summary = QStringLiteral("[%1]").arg(code);
         }
+
+        // Update the corresponding section with completion data
+        if (m_pendingSectionId >= 0 && !m_toolSections.isEmpty())
+        {
+            auto &lastSection = m_toolSections.last();
+            lastSection.output = output;
+            lastSection.summary = summary;
+            lastSection.success = success;
+            m_pendingSectionId = -1;
+        }
+
         return TerminalStyle::toolCallCompleted(name, summary, success);
     }
 
@@ -295,6 +348,21 @@ QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event) const
         case act::core::PermissionLevel::Destructive: levelStr = QStringLiteral("Destructive"); break;
         }
         return TerminalStyle::permissionRequest(tool, levelStr);
+    }
+
+    case ET::TaskStateChanged:
+    {
+        int stateInt = event.data.value(QStringLiteral("state")).toInt();
+        auto state = static_cast<act::core::TaskState>(stateInt);
+        // Running = AI is thinking (each turn)
+        if (state == act::core::TaskState::Running)
+        {
+            if (m_firstTokenReceived)
+                emit thinkingEnded();
+            m_firstTokenReceived = false;
+            emit thinkingStarted();
+        }
+        return {};
     }
 
     default:
@@ -428,6 +496,63 @@ bool CliRepl::handleModelCommand(const QStringList &args) {
 void CliRepl::emitOutput(const QString &line)
 {
     emit outputLine(line);
+}
+
+void CliRepl::handleVerboseCommand(const QStringList &args)
+{
+    if (m_toolSections.isEmpty())
+    {
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("No tool calls to display.")));
+        return;
+    }
+
+    bool toggleAll = !args.isEmpty() && args.at(0) == QLatin1String("all");
+
+    if (toggleAll)
+    {
+        // Toggle all sections
+        bool anyCollapsed = false;
+        for (const auto &s : m_toolSections)
+        {
+            if (!s.expanded)
+            {
+                anyCollapsed = true;
+                break;
+            }
+        }
+        // If any is collapsed, expand all; otherwise collapse all
+        for (auto &s : m_toolSections)
+            s.expanded = anyCollapsed;
+
+        emitOutput(TerminalStyle::systemMessage(
+            anyCollapsed ? QStringLiteral("Expanded all tool outputs.")
+                        : QStringLiteral("Collapsed all tool outputs.")));
+    }
+    else
+    {
+        // Toggle the last completed section
+        auto &last = m_toolSections.last();
+        last.expanded = !last.expanded;
+    }
+
+    // Render the expanded sections
+    for (const auto &section : m_toolSections)
+    {
+        if (!section.expanded)
+            continue;
+
+        QString header = TerminalStyle::sectionIndicator(false) +
+                         QStringLiteral(" ") + section.name + section.args +
+                         QStringLiteral(" ") + section.summary;
+        emitOutput(header);
+
+        if (!section.output.isEmpty())
+        {
+            QStringList lines = section.output.split(QLatin1Char('\n'));
+            emitOutput(TerminalStyle::resultBox(section.name, lines));
+        }
+    }
 }
 
 } // namespace act::framework

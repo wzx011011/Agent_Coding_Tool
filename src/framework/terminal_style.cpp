@@ -31,6 +31,7 @@ const char *const FG_MAGENTA = "\x1b[35m";
 const char *const FG_CYAN = "\x1b[36m";
 const char *const FG_WHITE = "\x1b[37m";
 const char *const FG_GRAY = "\x1b[90m";
+const char *const FG_BRIGHT_GREEN = "\x1b[92m";
 
 } // anonymous namespace
 
@@ -153,6 +154,12 @@ QString boldMagenta(const QString &text)
         : text;
 }
 
+QString fgBrightGreen(const QString &text)
+{
+    return s_colorEnabled ? QString::fromUtf8(FG_BRIGHT_GREEN) + text + QString::fromUtf8(RESET)
+                          : text;
+}
+
 QString reset()
 {
     return s_colorEnabled ? QString::fromUtf8(RESET) : QString();
@@ -172,7 +179,7 @@ QString systemMessage(const QString &msg)
 
 QString toolCallStarted(const QString &name, const QString &args)
 {
-    return boldYellow(QStringLiteral("> ")) + name + args;
+    return fgBrightGreen(QStringLiteral("\xe2\x97\x8f ")) + name + args;
 }
 
 QString toolCallCompleted(const QString &name,
@@ -180,8 +187,8 @@ QString toolCallCompleted(const QString &name,
                            bool success)
 {
     if (success)
-        return boldGreen(QStringLiteral("+ ")) + name + QStringLiteral(" ") + summary;
-    return boldRed(QStringLiteral("x ")) + name + QStringLiteral(" ") + summary;
+        return fgBrightGreen(QStringLiteral("\xe2\x97\x8f ")) + dim(QStringLiteral("  ") + summary);
+    return fgRed(QStringLiteral("\xe2\x97\x8f ")) + dim(QStringLiteral("  ") + summary);
 }
 
 QString errorMessage(const QString &code, const QString &msg)
@@ -195,6 +202,79 @@ QString permissionRequest(const QString &tool, const QString &level)
            QStringLiteral(" [") + level + QStringLiteral("]?");
 }
 
+// ---- Channel display helpers ----
+
+QString channelUserMessage(const QString &channelName,
+                           const QString &senderId,
+                           const QString &text)
+{
+    return dim(QStringLiteral("[%1] ").arg(channelName)) +
+           boldYellow(senderId) + QStringLiteral(": ") + text;
+}
+
+QString channelPrefix(const QString &channelName)
+{
+    return dim(QStringLiteral("[%1] ").arg(channelName));
+}
+
+// ---- Rich streaming helpers ----
+
+QString thinkingIndicator(const QString &spinnerChar)
+{
+    return fgBrightGreen(QStringLiteral("\xe2\x97\x8f Thinking")) + dim(QStringLiteral(" ") + spinnerChar);
+}
+
+QString sectionIndicator(bool collapsed)
+{
+    return dim(collapsed ? QStringLiteral("\xe2\x96\xb6") : QStringLiteral("\xe2\x96\xbc"));
+}
+
+QString resultBox(const QString &title, const QStringList &lines)
+{
+    static constexpr int MAX_LINES = 20;
+    const auto displayLines = lines.size() > MAX_LINES
+                                  ? lines.mid(0, MAX_LINES)
+                                  : lines;
+
+    int contentWidth = 0;
+    for (const auto &line : displayLines)
+        if (line.size() > contentWidth)
+            contentWidth = static_cast<int>(line.size());
+    int boxWidth = (title.size() + 4 > contentWidth + 4) ? title.size() + 4 : contentWidth + 4;
+
+    QString raw;
+    // Top border
+    raw += QStringLiteral("\xe2\x94\x8c\xe2\x94\x80 ") + title + QStringLiteral(" ");
+    int remaining = boxWidth - title.size() - 4;
+    raw.fill(QLatin1Char('\xe2\x94\x80'), remaining);
+    raw += QStringLiteral("\xe2\x94\x90\n");
+
+    // Content lines
+    for (const auto &line : displayLines)
+    {
+        raw += QStringLiteral("\xe2\x94\x82  ") + line;
+        int pad = boxWidth - line.size() - 4;
+        if (pad < 0) pad = 0;
+        raw += QString(pad, QLatin1Char(' ')) + QStringLiteral("  \xe2\x94\x82\n");
+    }
+
+    // Truncation notice
+    if (lines.size() > MAX_LINES)
+    {
+        QString notice = QStringLiteral("  ... (%1 more lines)").arg(lines.size() - MAX_LINES);
+        int pad = boxWidth - notice.size() - 2;
+        if (pad < 0) pad = 0;
+        raw += QStringLiteral("\xe2\x94\x82") + notice + QString(pad, QLatin1Char(' ')) + QStringLiteral(" \xe2\x94\x82\n");
+    }
+
+    // Bottom border
+    raw += QStringLiteral("\xe2\x94\x94");
+    raw.fill(QLatin1Char('\xe2\x94\x80'), boxWidth);
+    raw += QStringLiteral("\xe2\x94\x98");
+
+    return dim(raw);
+}
+
 // ---- Utility ----
 
 QString stripAnsi(const QString &text)
@@ -202,6 +282,11 @@ QString stripAnsi(const QString &text)
     static const QRegularExpression ansiRe(
         QStringLiteral("\x1b\\[[0-9;]*m"));
     return QString(text).remove(ansiRe);
+}
+
+QString clearLine()
+{
+    return QString::fromUtf8("\r\x1b[2K");
 }
 
 } // namespace act::framework::TerminalStyle

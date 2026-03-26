@@ -66,13 +66,20 @@ signals:
     /// Emitted when the REPL should exit (e.g. /exit command).
     void exitRequested();
 
+    /// Emitted when the agent starts waiting for the first AI token.
+    void thinkingStarted();
+
+    /// Emitted when the first AI token arrives (thinking phase ends).
+    void thinkingEnded();
+
 private:
     QString formatHumanMessage(const act::core::LLMMessage &msg) const;
-    QString formatHumanEvent(const act::core::RuntimeEvent &event) const;
+    QString formatHumanEvent(const act::core::RuntimeEvent &event);
     QString formatJsonMessage(const act::core::LLMMessage &msg) const;
     QString formatJsonEvent(const act::core::RuntimeEvent &event) const;
     void emitOutput(const QString &line);
     bool handleModelCommand(const QStringList &args);
+    void handleVerboseCommand(const QStringList &args);
 
     services::IAIEngine &m_engine;
     harness::ToolRegistry &m_tools;
@@ -83,6 +90,13 @@ private:
     CommandRegistry m_commands;
     services::IModelSwitcher *m_modelSwitcher = nullptr;
     bool m_exitRequested = false;
+
+    // Rich output state
+    struct ToolSection;
+    QList<ToolSection> m_toolSections;
+    int m_sectionIdCounter = 0;
+    int m_pendingSectionId = -1;
+    bool m_firstTokenReceived = false;
 };
 
 } // namespace act::framework
