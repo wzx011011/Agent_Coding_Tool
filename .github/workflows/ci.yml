@@ -28,7 +28,6 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
-          modules: ''
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -45,7 +44,12 @@ jobs:
           restore-keys: vcpkg-${{ runner.os }}-
 
       - name: Configure
-        run: cmake --preset default
+        run: |
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=${{ env.CONFIGURATION }} `
+            -DCMAKE_CXX_STANDARD=20 `
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON `
+            -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
         run: cmake --build build --config ${{ env.CONFIGURATION }}
