@@ -128,6 +128,13 @@ bool HttpNetwork::sseRequest(
 {
     m_cancelled = false;
 
+    if (m_baseUrl.isEmpty())
+    {
+        if (onError)
+            onError(QStringLiteral("INVALID_URL"), QStringLiteral("Base URL is empty"));
+        return false;
+    }
+
     QString schemeHost = toSchemeHost(m_baseUrl);
     QString path = toPath(m_baseUrl);
 
