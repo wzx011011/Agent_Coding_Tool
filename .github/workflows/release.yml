@@ -1,17 +1,19 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
   CONFIGURATION: RelWithDebInfo
 
 jobs:
-  build-windows:
+  release:
     runs-on: windows-latest
     timeout-minutes: 30
 
@@ -58,9 +60,11 @@ jobs:
           cmake --install build --prefix build/dist --config ${{ env.CONFIGURATION }}
           windeployqt6 build\dist\bin\aictl.exe --no-translations --no-opengl-sw --no-system-d3d-compiler
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - name: Package
+        run: Compress-Archive -Path build\dist\bin\* -DestinationPath aictl-${{ github.ref_name }}-windows-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: aictl-windows-x64
-          path: build/dist/bin/
-          retention-days: 7
+          generate_release_notes: true
+          files: aictl-*-windows-x64.zip
