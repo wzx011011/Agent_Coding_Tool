@@ -25,6 +25,61 @@ QString MarkdownFormatter::format(const QString &markdown, bool colorEnabled)
     return result;
 }
 
+QString MarkdownFormatter::formatLine(const QString &line, bool colorEnabled)
+{
+    if (line.trimmed().isEmpty())
+        return line;
+
+    QString result = formatInlineCode(line, colorEnabled);
+    result = formatBold(result, colorEnabled);
+
+    // Heading detection
+    static const QRegularExpression headingRe(
+        QStringLiteral("^(#{1,6})\\s+(.+)"));
+    auto headingMatch = headingRe.match(result.trimmed());
+    if (headingMatch.hasMatch())
+    {
+        int level = headingMatch.captured(1).length();
+        QString title = headingMatch.captured(2);
+
+        if (colorEnabled)
+            title = TerminalStyle::bold(title);
+
+        QString underline;
+        if (level <= 2)
+            underline = QStringLiteral("\u2550").repeated(qMin(title.length(), 60));
+        else
+            underline = QStringLiteral("\u2500").repeated(qMin(title.length(), 60));
+
+        if (colorEnabled)
+            underline = TerminalStyle::dim(underline);
+
+        return QStringLiteral("  ") + title + QStringLiteral("\n  ") + underline;
+    }
+
+    // List detection
+    static const QRegularExpression listRe(
+        QStringLiteral("^[-*]\\s+(.+)"));
+    auto listMatch = listRe.match(result.trimmed());
+    if (listMatch.hasMatch())
+    {
+        return QStringLiteral("  \u2022 ") + listMatch.captured(1);
+    }
+
+    // Horizontal rule detection
+    static const QRegularExpression hrRe(
+        QStringLiteral("^\\s*[-*_]{3,}\\s*$"));
+    if (hrRe.match(result).hasMatch())
+    {
+        QString separator = QString::fromUtf8("\u2500").repeated(40);
+        if (colorEnabled)
+            separator = TerminalStyle::dim(separator);
+        return QStringLiteral("  ") + separator;
+    }
+
+    return result;
+}
+
 QString MarkdownFormatter::formatCodeBlocks(const QString &text,
                                              bool colorEnabled)
 {

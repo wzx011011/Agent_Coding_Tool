@@ -46,6 +46,7 @@ void setColorEnabled(bool enabled);
 [[nodiscard]] QString userPrompt(const QString &input);
 [[nodiscard]] QString systemMessage(const QString &msg);
 [[nodiscard]] QString toolCallStarted(const QString &name, const QString &args);
+[[nodiscard]] QString toolCallRunning(const QString &name, const QString &args);
 [[nodiscard]] QString toolCallCompleted(const QString &name,
                                          const QString &summary,
                                          bool success);
@@ -75,6 +76,20 @@ void setColorEnabled(bool enabled);
 
 /// Bordered result box for tool output display.
 [[nodiscard]] QString resultBox(const QString &title, const QStringList &lines);
+
+// ---- Diff formatting ----
+
+/// Format a unified-diff added line (+ prefix) with green color.
+[[nodiscard]] QString diffAddedLine(const QString &line);
+
+/// Format a unified-diff removed line (- prefix) with red color.
+[[nodiscard]] QString diffRemovedLine(const QString &line);
+
+/// Format a unified-diff context line (space prefix) as dim.
+[[nodiscard]] QString diffContextLine(const QString &line);
+
+/// Format an entire unified diff output with per-line coloring.
+[[nodiscard]] QString formatDiff(const QString &diffOutput);
 
 // ---- Utility ----
 

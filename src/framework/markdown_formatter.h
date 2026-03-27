@@ -16,11 +16,17 @@ public:
     [[nodiscard]] static QString format(const QString &markdown,
                                          bool colorEnabled = false);
 
-private:
-    /// Format fenced code blocks (```...```)
+    /// Format a single line of Markdown for terminal display.
+    /// Handles inline code, bold, headings, lists, and horizontal rules.
+    /// Does NOT add a trailing newline — the caller controls line termination.
+    [[nodiscard]] static QString formatLine(const QString &line,
+                                           bool colorEnabled = false);
+
+    /// Format fenced code blocks — public so StreamFormatter can reuse it.
     [[nodiscard]] static QString formatCodeBlocks(const QString &text,
                                                    bool colorEnabled);
 
+private:
     /// Format inline code (`...`)
     [[nodiscard]] static QString formatInlineCode(const QString &text,
                                                    bool colorEnabled);

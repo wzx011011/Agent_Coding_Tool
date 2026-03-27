@@ -12,18 +12,6 @@
 namespace act::framework
 {
 
-/// Record of a completed tool call section for collapsible display.
-struct CliRepl::ToolSection
-{
-    int id = 0;
-    QString name;
-    QString args;
-    QString output;
-    QString summary;
-    bool success = true;
-    bool expanded = false;
-};
-
 CliRepl::CliRepl(services::IAIEngine &engine,
                  harness::ToolRegistry &tools,
                  harness::PermissionManager &permissions,
@@ -158,7 +146,6 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     m_toolSections.clear();
     m_sectionIdCounter = 0;
     m_pendingSectionId = -1;
-    m_firstTokenReceived = false;
 
     // Wire up event callback — handle events in both Human and JSON modes
     loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
@@ -292,7 +279,7 @@ QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event)
         m_toolSections.append(section);
         m_pendingSectionId = section.id;
 
-        return TerminalStyle::toolCallStarted(name, argsPreview);
+        return TerminalStyle::toolCallRunning(name, argsPreview);
     }
 
     case ET::ToolCallCompleted:
@@ -300,6 +287,13 @@ QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event)
         QString name = event.data.value(QStringLiteral("tool")).toString();
         bool success = event.data.value(QStringLiteral("success")).toBool();
         QString output = event.data.value(QStringLiteral("output")).toString();
+
+        // Colorize unified diff output for diff-related tools
+        if (success && (name == QLatin1String("diff_view") ||
+                        name == QLatin1String("git_diff")))
+        {
+            output = TerminalStyle::formatDiff(output);
+        }
 
         QString summary;
         if (success)
@@ -357,9 +351,6 @@ QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event)
         // Running = AI is thinking (each turn)
         if (state == act::core::TaskState::Running)
         {
-            if (m_firstTokenReceived)
-                emit thinkingEnded();
-            m_firstTokenReceived = false;
             emit thinkingStarted();
         }
         return {};

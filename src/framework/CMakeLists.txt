@@ -17,6 +17,7 @@ add_library(act_framework STATIC
     runtime_event_logger.cpp
     runtime_trace_store.cpp
     session_manager.cpp
+    stream_formatter.cpp
     skill_catalog.cpp
     skill_loader.cpp
     subagent_manager.cpp

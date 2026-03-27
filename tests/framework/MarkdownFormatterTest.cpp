@@ -176,3 +176,104 @@ TEST_F(MarkdownColorTest, HorizontalRuleWithColor)
     QString result = act::framework::MarkdownFormatter::format(input, true);
     EXPECT_TRUE(result.contains(esc(0))); // dim wraps with reset
 }
+
+// ============================================================
+// formatLine() tests (single-line formatting for streaming)
+// ============================================================
+
+TEST(MarkdownFormatterTest, FormatLine_PlainText)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("Hello world"), false);
+    EXPECT_EQ(result, QStringLiteral("Hello world"));
+}
+
+TEST(MarkdownFormatterTest, FormatLine_Bold)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("This is **important** text."), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("IMPORTANT")));
+    EXPECT_FALSE(result.contains(QStringLiteral("important")));
+}
+
+TEST(MarkdownFormatterTest, FormatLine_InlineCode)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("Use `std::format` for output."), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("[std::format]")));
+}
+
+TEST(MarkdownFormatterTest, FormatLine_Heading1)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("# My Title"), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("My Title")));
+    EXPECT_TRUE(result.contains(QStringLiteral("\u2550"))); // ═
+}
+
+TEST(MarkdownFormatterTest, FormatLine_Heading2)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("## Section"), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("Section")));
+    EXPECT_TRUE(result.contains(QStringLiteral("\u2550"))); // ═
+}
+
+TEST(MarkdownFormatterTest, FormatLine_Heading3)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("### Subsection"), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("Subsection")));
+    EXPECT_TRUE(result.contains(QStringLiteral("\u2500"))); // ─
+}
+
+TEST(MarkdownFormatterTest, FormatLine_ListItem)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("- First item"), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("\u2022 First item"))); // •
+}
+
+TEST(MarkdownFormatterTest, FormatLine_StarListItem)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("* Another item"), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("\u2022 Another item"))); // •
+}
+
+TEST(MarkdownFormatterTest, FormatLine_HorizontalRule)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("---"), false);
+    EXPECT_TRUE(result.contains(QStringLiteral("\u2500")));
+}
+
+TEST(MarkdownFormatterTest, FormatLine_EmptyLine)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QString(), false);
+    EXPECT_TRUE(result.isEmpty());
+}
+
+TEST(MarkdownFormatterTest, FormatLine_DoesNotAddTrailingNewline)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("plain text"), false);
+    EXPECT_FALSE(result.endsWith(QLatin1Char('\n')));
+}
+
+TEST_F(MarkdownColorTest, FormatLine_BoldWithColor)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("This is **important** text."), true);
+    EXPECT_FALSE(result.contains(QStringLiteral("IMPORTANT")));
+    EXPECT_TRUE(result.contains(esc(1))); // bold
+}
+
+TEST_F(MarkdownColorTest, FormatLine_InlineCodeWithColor)
+{
+    QString result = act::framework::MarkdownFormatter::formatLine(
+        QStringLiteral("Use `std::format` here."), true);
+    QString stripped = act::framework::TerminalStyle::stripAnsi(result);
+    EXPECT_TRUE(stripped.contains(QStringLiteral("[std::format]")));
+}

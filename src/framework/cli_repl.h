@@ -69,9 +69,6 @@ signals:
     /// Emitted when the agent starts waiting for the first AI token.
     void thinkingStarted();
 
-    /// Emitted when the first AI token arrives (thinking phase ends).
-    void thinkingEnded();
-
 private:
     QString formatHumanMessage(const act::core::LLMMessage &msg) const;
     QString formatHumanEvent(const act::core::RuntimeEvent &event);
@@ -92,11 +89,19 @@ private:
     bool m_exitRequested = false;
 
     // Rich output state
-    struct ToolSection;
+    struct ToolSection
+    {
+        int id = 0;
+        QString name;
+        QString args;
+        QString output;
+        QString summary;
+        bool success = true;
+        bool expanded = false;
+    };
     QList<ToolSection> m_toolSections;
     int m_sectionIdCounter = 0;
     int m_pendingSectionId = -1;
-    bool m_firstTokenReceived = false;
 };
 
 } // namespace act::framework

@@ -182,6 +182,12 @@ QString toolCallStarted(const QString &name, const QString &args)
     return fgBrightGreen(QStringLiteral("\xe2\x97\x8f ")) + name + args;
 }
 
+QString toolCallRunning(const QString &name, const QString &args)
+{
+    return fgGray(QStringLiteral("  ")) + dim(name + args) +
+           dim(QStringLiteral(" ..."));
+}
+
 QString toolCallCompleted(const QString &name,
                            const QString &summary,
                            bool success)
@@ -242,37 +248,93 @@ QString resultBox(const QString &title, const QStringList &lines)
             contentWidth = static_cast<int>(line.size());
     int boxWidth = (title.size() + 4 > contentWidth + 4) ? title.size() + 4 : contentWidth + 4;
 
-    QString raw;
-    // Top border
-    raw += QStringLiteral("\xe2\x94\x8c\xe2\x94\x80 ") + title + QStringLiteral(" ");
-    int remaining = boxWidth - title.size() - 4;
-    raw.fill(QLatin1Char('\xe2\x94\x80'), remaining);
-    raw += QStringLiteral("\xe2\x94\x90\n");
+    // Box-drawing characters (Unicode codepoints for UTF-16)
+    const QChar HORZ(0x2500);  // ─
+    const QChar VERT(0x2502);  // │
+    const QChar TLC(0x250C);   // ┌
+    const QChar TRC(0x2510);   // ┐
+    const QChar BLC(0x2514);   // └
+    const QChar BRC(0x2518);   // ┘
 
-    // Content lines
+    QString raw;
+    // Top border: ┌─ title ─────────┐
+    raw += TLC;
+    raw += QString(2, HORZ) + QLatin1Char(' ') + title + QLatin1Char(' ');
+    int remaining = boxWidth - title.size() - 4;
+    if (remaining > 0)
+        raw += QString(remaining, HORZ);
+    raw += TRC;
+    raw += QLatin1Char('\n');
+
+    // Content lines: │  content          │
     for (const auto &line : displayLines)
     {
-        raw += QStringLiteral("\xe2\x94\x82  ") + line;
-        int pad = boxWidth - line.size() - 4;
-        if (pad < 0) pad = 0;
-        raw += QString(pad, QLatin1Char(' ')) + QStringLiteral("  \xe2\x94\x82\n");
+        raw += VERT;
+        raw += QStringLiteral("  ") + line;
+        int pad = boxWidth - static_cast<int>(line.size()) - 4;
+        if (pad > 0)
+            raw += QString(pad, QLatin1Char(' '));
+        raw += QStringLiteral("  ") + VERT;
+        raw += QLatin1Char('\n');
     }
 
     // Truncation notice
     if (lines.size() > MAX_LINES)
     {
         QString notice = QStringLiteral("  ... (%1 more lines)").arg(lines.size() - MAX_LINES);
-        int pad = boxWidth - notice.size() - 2;
-        if (pad < 0) pad = 0;
-        raw += QStringLiteral("\xe2\x94\x82") + notice + QString(pad, QLatin1Char(' ')) + QStringLiteral(" \xe2\x94\x82\n");
+        raw += VERT + notice;
+        int pad = boxWidth - static_cast<int>(notice.size()) - 2;
+        if (pad > 0)
+            raw += QString(pad, QLatin1Char(' '));
+        raw += VERT;
+        raw += QLatin1Char('\n');
     }
 
-    // Bottom border
-    raw += QStringLiteral("\xe2\x94\x94");
-    raw.fill(QLatin1Char('\xe2\x94\x80'), boxWidth);
-    raw += QStringLiteral("\xe2\x94\x98");
+    // Bottom border: └──────────────────┘
+    raw += BLC;
+    raw += QString(boxWidth, HORZ);
+    raw += BRC;
 
     return dim(raw);
+}
+
+// ---- Diff formatting ----
+
+QString diffAddedLine(const QString &line)
+{
+    return fgGreen(QStringLiteral("+") + line);
+}
+
+QString diffRemovedLine(const QString &line)
+{
+    return fgRed(QStringLiteral("-") + line);
+}
+
+QString diffContextLine(const QString &line)
+{
+    return dim(QStringLiteral(" ") + line);
+}
+
+QString formatDiff(const QString &diffOutput)
+{
+    const QStringList lines = diffOutput.split(QLatin1Char('\n'));
+    QStringList formatted;
+    for (const auto &line : lines)
+    {
+        if (line.startsWith(QLatin1Char('+')) && !line.startsWith(QStringLiteral("+++")))
+            formatted.append(diffAddedLine(line.mid(1)));
+        else if (line.startsWith(QLatin1Char('-')) && !line.startsWith(QStringLiteral("---")))
+            formatted.append(diffRemovedLine(line.mid(1)));
+        else if (line.startsWith(QLatin1Char(' ')))
+            formatted.append(diffContextLine(line.mid(1)));
+        else if (line.startsWith(QStringLiteral("+++")) ||
+                 line.startsWith(QStringLiteral("---")) ||
+                 line.startsWith(QStringLiteral("@@")))
+            formatted.append(dim(line));
+        else
+            formatted.append(line);
+    }
+    return formatted.join(QLatin1Char('\n'));
 }
 
 // ---- Utility ----

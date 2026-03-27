@@ -22,6 +22,7 @@
 #include "framework/feishu_channel.h"
 #include "framework/interactive_session_controller.h"
 #include "framework/input_dispatcher.h"
+#include "framework/stream_formatter.h"
 #include "framework/terminal_style.h"
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
@@ -484,11 +485,26 @@ int main(int argc, char *argv[]) {
             }
 
             out << Qt::endl;
-            out << TS::fgYellow(QStringLiteral("  Permission Request: %1").arg(request.toolName)) << Qt::endl;
-            out << TS::dim(QStringLiteral("  Level: %1 | Description: %2").arg(levelStr).arg(request.description))
-                << Qt::endl;
-            out << Qt::endl;
-            out << QStringLiteral("  Allow? [y/N/always]: ") << Qt::flush;
+            out << TS::boldMagenta(QStringLiteral("  ? Allow ")) << request.toolName
+                << TS::dim(QStringLiteral(" [%1]").arg(levelStr)) << Qt::endl;
+
+            // Show key parameter previews
+            if (!request.params.isEmpty()) {
+                static const QStringList paramKeys = {
+                    QStringLiteral("path"), QStringLiteral("command"),
+                    QStringLiteral("pattern"), QStringLiteral("url"),
+                    QStringLiteral("file_path")
+                };
+                for (const auto &key : paramKeys) {
+                    if (request.params.contains(key)) {
+                        QString val = request.params.value(key).toString();
+                        out << TS::dim(QStringLiteral("    %1: "))
+                            << TS::fgYellow(val) << Qt::endl;
+                    }
+                }
+            }
+
+            out << TS::dim(QStringLiteral("  Allow? [y/N/always]: ")) << Qt::flush;
 
             QString response = readConsoleLine(in).trimmed().toLower();
 
@@ -527,8 +543,6 @@ int main(int argc, char *argv[]) {
     if (jsonMode)
         repl.setOutputMode(act::framework::CliRepl::OutputMode::Json);
 
-    QObject::connect(&repl, &act::framework::CliRepl::outputLine,
-                     [&out](const QString &line) { out << line << Qt::endl; });
     QObject::connect(&repl, &act::framework::CliRepl::jsonEvent,
                      [&out](const QString &line) { out << line << Qt::endl; });
     QObject::connect(&repl, &act::framework::CliRepl::exitRequested, &app, &QCoreApplication::quit);
@@ -536,12 +550,16 @@ int main(int argc, char *argv[]) {
     // Thinking spinner state and timer
     bool thinking = false;
     int spinnerFrame = 0;
+    bool needsNewline = false;  // Set when stream tokens are written directly
     static const QStringList spinnerChars = {
-        QStringLiteral("\xe2\x97\x8b"), QStringLiteral("\xe2\x96\xb2"),
-        QStringLiteral("\xe2\x96\xb3"), QStringLiteral("\xe2\x96\xb2")
+        QStringLiteral("\xe2\xa0\x8b"), QStringLiteral("\xe2\xa0\x99"),
+        QStringLiteral("\xe2\xa0\xb9"), QStringLiteral("\xe2\xa0\xb8"),
+        QStringLiteral("\xe2\xa0\xbc"), QStringLiteral("\xe2\xa0\xb4"),
+        QStringLiteral("\xe2\xa0\xa6"), QStringLiteral("\xe2\xa7\xa7"),
+        QStringLiteral("\xe2\xa0\x87"), QStringLiteral("\xe2\xa0\x8f")
     };
     QTimer spinnerTimer;
-    spinnerTimer.setInterval(120);
+    spinnerTimer.setInterval(100);
 
     auto clearSpinnerLine = [&out]() {
         out << act::framework::TerminalStyle::clearLine();
@@ -550,7 +568,8 @@ int main(int argc, char *argv[]) {
 
     QObject::connect(&spinnerTimer, &QTimer::timeout, [&]() {
         out << act::framework::TerminalStyle::clearLine();
-        out << act::framework::TerminalStyle::thinkingIndicator(spinnerChars[spinnerFrame % spinnerChars.size()]);
+        out << act::framework::TerminalStyle::thinkingIndicator(
+            spinnerChars[spinnerFrame % spinnerChars.size()]);
         out.flush();
         ++spinnerFrame;
     });
@@ -559,27 +578,44 @@ int main(int argc, char *argv[]) {
         if (jsonMode || useTuiMode || batchMode) return;
         thinking = true;
         spinnerFrame = 0;
+        needsNewline = false;
+        // Write first frame immediately — don't wait for QTimer
+        out << act::framework::TerminalStyle::thinkingIndicator(spinnerChars[0]);
+        out.flush();
         spinnerTimer.start();
     });
 
-    QObject::connect(&repl, &act::framework::CliRepl::thinkingEnded, [&]() {
-        if (!thinking) return;
-        thinking = false;
-        spinnerTimer.stop();
-        clearSpinnerLine();
-    });
+    // Stream formatter: buffers tokens into lines and applies Markdown formatting
+    auto streamFormatter = new act::framework::StreamFormatter(&app);
 
     if (!jsonMode && !useTuiMode) {
-        QObject::connect(engine.get(), &act::services::AIEngine::streamTokenReceived, [&](const QString &token) {
-            if (thinking) {
-                thinking = false;
-                spinnerTimer.stop();
-                clearSpinnerLine();
-            }
-            out << act::framework::TerminalStyle::stripAnsi(token);
-            out.flush();
-        });
+        QObject::connect(engine.get(), &act::services::AIEngine::streamTokenReceived,
+                         streamFormatter, &act::framework::StreamFormatter::feedToken);
+
+        QObject::connect(streamFormatter,
+                         &act::framework::StreamFormatter::formattedLineReady,
+                         [&](const QString &formatted) {
+                             if (thinking) {
+                                 thinking = false;
+                                 spinnerTimer.stop();
+                                 clearSpinnerLine();
+                             }
+                             out << formatted;
+                             out.flush();
+                             needsNewline = true;
+                         });
     }
+
+    QObject::connect(&repl, &act::framework::CliRepl::outputLine,
+                     [&out, &needsNewline](const QString &line) {
+                         // If stream tokens were written without newline,
+                         // ensure tool events start on a new line.
+                         if (needsNewline && !line.isEmpty()) {
+                             out << Qt::endl;
+                         }
+                         needsNewline = false;
+                         out << line << Qt::endl;
+                     });
 
     if (batchMode) {
         repl.processBatch(inputs);
@@ -689,6 +725,16 @@ int main(int argc, char *argv[]) {
         }
 
         (void)repl.processInput(line);
+
+        // Flush any remaining buffered content from the stream formatter
+        streamFormatter->flush();
+
+        // Ensure spinner is cleaned up (e.g. error without tokens)
+        if (thinking) {
+            thinking = false;
+            spinnerTimer.stop();
+            clearSpinnerLine();
+        }
     }
 
     if (feishuChannel)
