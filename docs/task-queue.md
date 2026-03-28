@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 41/43 + 16/30 (T11 skipped; T16 deferred; N1~N16 completed)
+- Completed: 41/43 + 18/29 (T11 skipped; T16 deferred; N1~N18 completed)
 
 ## Planning Notes
 
