@@ -26,7 +26,7 @@ public:
     /// The tool execute() is expected to be handled by the AgentLoop
     /// which transitions to WaitingUserInput state and resumes
     /// when the user provides input via onUserInput().
-    void setResponseCallback(std::function<void(const QString &)> callback);
+    [[nodiscard]] bool setResponseCallback(std::function<void(const QString &)> callback);
 
     /// Called when the user provides their input.
     /// Returns true if the tool was waiting for input.

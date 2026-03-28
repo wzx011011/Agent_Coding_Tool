@@ -86,10 +86,13 @@ bool AskUserTool::isThreadSafe() const
     return false;
 }
 
-void AskUserTool::setResponseCallback(
+bool AskUserTool::setResponseCallback(
     std::function<void(const QString &)> callback)
 {
+    if (!m_waiting)
+        return false;
     m_responseCallback = std::move(callback);
+    return true;
 }
 
 bool AskUserTool::onUserInput(const QString &response)
