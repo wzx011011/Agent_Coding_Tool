@@ -324,9 +324,8 @@ void AgentLoop::dispatchNextPendingToolCall()
         auto result = m_tools.execute(call.name, call.params);
         appendToolResult(call, result);
 
-        // Check if this tool triggered WaitingUserInput
-        if (call.name == QStringLiteral("ask_user") &&
-            result.metadata.value(QStringLiteral("waiting")).toBool(false))
+        // Check if this tool triggered WaitingUserInput (via metadata marker)
+        if (result.metadata.value(QStringLiteral("pause_agent")).toBool(false))
         {
             m_pendingUserInputCall = call;
             transitionTo(act::core::TaskState::WaitingUserInput);

@@ -72,7 +72,7 @@ act::core::ToolResult AskUserTool::execute(const QJsonObject &params)
     // This returns a marker that tells the loop to wait.
     return act::core::ToolResult::ok(
         QStringLiteral("__WAITING_USER_INPUT__"),
-        {{QStringLiteral("waiting"), true},
+        {{QStringLiteral("pause_agent"), true},
          {QStringLiteral("prompt"), question}});
 }
 

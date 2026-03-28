@@ -27,7 +27,7 @@ TEST(AskUserToolTest, ExecuteWithQuestionReturnsWaitingMarker)
     auto result = tool.execute(params);
     EXPECT_TRUE(result.success);
     EXPECT_EQ(result.output, QStringLiteral("__WAITING_USER_INPUT__"));
-    EXPECT_TRUE(result.metadata.value(QStringLiteral("waiting")).toBool());
+    EXPECT_TRUE(result.metadata.value(QStringLiteral("pause_agent")).toBool());
     EXPECT_EQ(result.metadata.value(QStringLiteral("prompt")).toString(),
               QStringLiteral("What is your name?"));
     EXPECT_TRUE(tool.isWaiting());
@@ -44,7 +44,7 @@ TEST(AskUserToolTest, ExecuteWithQuestionAndOptions)
 
     auto result = tool.execute(params);
     EXPECT_TRUE(result.success);
-    EXPECT_TRUE(result.metadata.value(QStringLiteral("waiting")).toBool());
+    EXPECT_TRUE(result.metadata.value(QStringLiteral("pause_agent")).toBool());
 }
 
 TEST(AskUserToolTest, MissingQuestionParameter)
