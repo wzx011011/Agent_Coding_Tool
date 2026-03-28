@@ -121,8 +121,8 @@ TEST(GitBranchToolTest, CreateAndSwitchBranch)
     auto result = tool.execute(params);
 
     EXPECT_TRUE(result.success);
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("checkout")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("-b")));
+    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("switch")));
+    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("-c")));
 }
 
 TEST(GitBranchToolTest, DeleteBranch)

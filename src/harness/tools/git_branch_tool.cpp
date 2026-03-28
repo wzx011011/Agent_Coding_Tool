@@ -195,7 +195,7 @@ act::core::ToolResult GitBranchTool::createBranch(const QString &name,
     QStringList args;
     if (switchTo)
     {
-        args << QStringLiteral("checkout") << QStringLiteral("-b") << name;
+        args << QStringLiteral("switch") << QStringLiteral("-c") << name;
     }
     else
     {
