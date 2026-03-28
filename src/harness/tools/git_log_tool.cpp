@@ -82,7 +82,7 @@ act::core::ToolResult GitLogTool::execute(const QJsonObject &params)
     {
         int count = countValue.toInt();
         if (count > 0)
-            args << QStringLiteral("-n") << QString::number(count);
+            args << QStringLiteral("-n%1").arg(count);
     }
 
     auto authorValue = params.value(QStringLiteral("author"));
@@ -90,7 +90,7 @@ act::core::ToolResult GitLogTool::execute(const QJsonObject &params)
     {
         QString author = authorValue.toString();
         if (!author.isEmpty())
-            args << QStringLiteral("--author") << author;
+            args << QStringLiteral("--author=%1").arg(author);
     }
 
     auto grepValue = params.value(QStringLiteral("grep"));
@@ -98,7 +98,7 @@ act::core::ToolResult GitLogTool::execute(const QJsonObject &params)
     {
         QString pattern = grepValue.toString();
         if (!pattern.isEmpty())
-            args << QStringLiteral("--grep") << pattern;
+            args << QStringLiteral("--grep=%1").arg(pattern);
     }
 
     auto sinceValue = params.value(QStringLiteral("since"));
@@ -106,7 +106,7 @@ act::core::ToolResult GitLogTool::execute(const QJsonObject &params)
     {
         QString since = sinceValue.toString();
         if (!since.isEmpty())
-            args << QStringLiteral("--since") << since;
+            args << QStringLiteral("--since=%1").arg(since);
     }
 
     QString output;

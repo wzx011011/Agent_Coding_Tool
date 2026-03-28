@@ -81,8 +81,7 @@ TEST(GitLogToolTest, CountParameter)
     params[QStringLiteral("count")] = 5;
     auto result = tool.execute(params);
     EXPECT_TRUE(result.success);
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("-n")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("5")));
+    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("-n5")));
 }
 
 TEST(GitLogToolTest, AuthorFilter)
@@ -95,8 +94,8 @@ TEST(GitLogToolTest, AuthorFilter)
     params[QStringLiteral("author")] = QStringLiteral("alice");
     auto result = tool.execute(params);
     EXPECT_TRUE(result.success);
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("--author")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("alice")));
+    EXPECT_TRUE(
+        proc.m_lastArgs.contains(QStringLiteral("--author=alice")));
 }
 
 TEST(GitLogToolTest, GrepFilter)
@@ -109,8 +108,8 @@ TEST(GitLogToolTest, GrepFilter)
     params[QStringLiteral("grep")] = QStringLiteral("bugfix");
     auto result = tool.execute(params);
     EXPECT_TRUE(result.success);
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("--grep")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("bugfix")));
+    EXPECT_TRUE(
+        proc.m_lastArgs.contains(QStringLiteral("--grep=bugfix")));
 }
 
 TEST(GitLogToolTest, SinceFilter)
@@ -123,8 +122,8 @@ TEST(GitLogToolTest, SinceFilter)
     params[QStringLiteral("since")] = QStringLiteral("2024-01-01");
     auto result = tool.execute(params);
     EXPECT_TRUE(result.success);
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("--since")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("2024-01-01")));
+    EXPECT_TRUE(
+        proc.m_lastArgs.contains(QStringLiteral("--since=2024-01-01")));
 }
 
 TEST(GitLogToolTest, MultipleFilters)
@@ -144,14 +143,13 @@ TEST(GitLogToolTest, MultipleFilters)
     // Verify all filters are present in the args
     EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("log")));
     EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("--oneline")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("-n")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("10")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("--author")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("bob")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("--grep")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("feature")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("--since")));
-    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("2024-06-01")));
+    EXPECT_TRUE(proc.m_lastArgs.contains(QStringLiteral("-n10")));
+    EXPECT_TRUE(
+        proc.m_lastArgs.contains(QStringLiteral("--author=bob")));
+    EXPECT_TRUE(
+        proc.m_lastArgs.contains(QStringLiteral("--grep=feature")));
+    EXPECT_TRUE(
+        proc.m_lastArgs.contains(QStringLiteral("--since=2024-06-01")));
 }
 
 TEST(GitLogToolTest, NotGitRepoReturnsError)
