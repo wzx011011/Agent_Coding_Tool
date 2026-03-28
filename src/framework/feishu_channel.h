@@ -76,6 +76,10 @@ private:
     void handleAIResponse(const QString &chatId);
     std::shared_ptr<InteractiveSessionController> getOrCreateSession(const QString &chatId);
 
+    /// Split text into chunks safe for Feishu message size limits.
+    /// Splits at newline boundaries, avoiding mid-code-block breaks.
+    static QStringList splitForFeishu(const QString &text, int maxChunkSize);
+
     struct QueuedMessage
     {
         QString messageId;

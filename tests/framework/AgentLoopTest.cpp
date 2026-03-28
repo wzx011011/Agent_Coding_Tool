@@ -433,14 +433,18 @@ TEST_F(AgentLoopTest, ContextCompactionTriggersOnThreshold)
 // Double Submit Protection
 // ============================================================
 
-TEST_F(AgentLoopTest, SubmitWhileRunningIsIgnored)
+TEST_F(AgentLoopTest, SubmitAfterFailureIsAccepted)
 {
     // First submit with no response (will fail)
     engine->lastError = QStringLiteral("TIMEOUT");
     loop->submitUserMessage(QStringLiteral("First"));
+    EXPECT_EQ(loop->state(), act::core::TaskState::Failed);
 
-    // Second submit should be ignored (state is no longer Idle)
-    int msgCountBefore = loop->messages().size();
+    // Second submit should be accepted (recovery from terminal state)
+    engine->lastError.clear();
+    engine->responseQueue.append(
+        act::core::LLMMessage{act::core::MessageRole::Assistant, QStringLiteral("recovered")});
     loop->submitUserMessage(QStringLiteral("Second"));
-    EXPECT_EQ(loop->messages().size(), msgCountBefore);
+    EXPECT_EQ(loop->state(), act::core::TaskState::Completed);
+    EXPECT_GE(loop->messages().size(), 3); // First user + error msg + Second user + assistant
 }

@@ -125,7 +125,7 @@ TEST(SseParserTest, EmptyFeed)
 TEST(SseParserTest, FlushIncompleteEvent)
 {
     SseParser parser;
-    parser.feed("data: partial");
+    (void)parser.feed("data: partial");
     auto events = parser.flush();
     ASSERT_EQ(events.size(), 1);
     EXPECT_EQ(events[0].data, QStringLiteral("partial"));
@@ -134,7 +134,7 @@ TEST(SseParserTest, FlushIncompleteEvent)
 TEST(SseParserTest, Reset)
 {
     SseParser parser;
-    parser.feed("data: partial");
+    (void)parser.feed("data: partial");
     parser.reset();
     auto events = parser.feed("data: new\n\n");
     ASSERT_EQ(events.size(), 1);
@@ -144,7 +144,7 @@ TEST(SseParserTest, Reset)
 TEST(SseParserTest, EventIdTracked)
 {
     SseParser parser;
-    parser.feed("id: evt-123\ndata: test\n\n");
+    (void)parser.feed("id: evt-123\ndata: test\n\n");
     EXPECT_EQ(parser.lastEventId(), QStringLiteral("evt-123"));
 }
 

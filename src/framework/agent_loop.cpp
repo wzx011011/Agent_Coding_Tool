@@ -20,7 +20,12 @@ AgentLoop::AgentLoop(services::IAIEngine &engine,
 
 void AgentLoop::submitUserMessage(const QString &message)
 {
-    if (m_state != act::core::TaskState::Idle)
+    // Allow re-entry from terminal states (Completed/Failed/Cancelled)
+    // so conversation history is preserved across turns.
+    if (m_state != act::core::TaskState::Idle &&
+        m_state != act::core::TaskState::Completed &&
+        m_state != act::core::TaskState::Failed &&
+        m_state != act::core::TaskState::Cancelled)
     {
         spdlog::warn("AgentLoop::submitUserMessage called in state {}",
                      static_cast<int>(m_state));
@@ -34,6 +39,7 @@ void AgentLoop::submitUserMessage(const QString &message)
 
     m_turnCount = 0;
     m_cancelled = false;
+    m_running = false;
     transitionTo(act::core::TaskState::Running);
     runLoop();
 }
@@ -129,6 +135,9 @@ void AgentLoop::runLoop()
 
     // Context compaction check
     maybeCompactContext();
+
+    spdlog::info("AgentLoop::runLoop: sending {} messages to engine (turns so far: {})",
+                 m_messages.size(), m_turnCount);
 
     // Call AI engine
     m_engine.chat(

@@ -346,6 +346,12 @@ QString stripAnsi(const QString &text)
     return QString(text).remove(ansiRe);
 }
 
+QString turnSeparator()
+{
+    const QChar HORZ(0x2500);  // ─
+    return dim(QString(72, HORZ));
+}
+
 QString clearLine()
 {
     return QString::fromUtf8("\r\x1b[2K");

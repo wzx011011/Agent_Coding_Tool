@@ -96,6 +96,10 @@ void setColorEnabled(bool enabled);
 /// Strip all ANSI escape sequences from text (useful in tests / pipe mode).
 [[nodiscard]] QString stripAnsi(const QString &text);
 
+/// Horizontal line separator between conversation turns.
+/// Returns a dim 72-char wide ─ line (plain when color is off).
+[[nodiscard]] QString turnSeparator();
+
 /// CR + clear to end of line. Used by spinner to erase the thinking indicator.
 [[nodiscard]] QString clearLine();
 

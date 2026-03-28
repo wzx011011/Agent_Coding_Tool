@@ -87,6 +87,10 @@ private:
     CommandRegistry m_commands;
     services::IModelSwitcher *m_modelSwitcher = nullptr;
     bool m_exitRequested = false;
+    int m_turnCount = 0;
+
+    // Persistent agent loop — keeps conversation history across turns
+    AgentLoop m_loop;
 
     // Rich output state
     struct ToolSection
