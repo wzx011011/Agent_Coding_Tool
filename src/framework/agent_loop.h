@@ -42,6 +42,9 @@ public:
     /// Resend after permission was approved (executes the pending tool and continues).
     void onPermissionApproved();
 
+    /// Submit user input when the agent is in WaitingUserInput state.
+    void onUserInput(const QString &response);
+
     /// Current state of the agent loop.
     [[nodiscard]] act::core::TaskState state() const { return m_state; }
 
@@ -132,6 +135,9 @@ private:
     QList<act::core::ToolCall> m_pendingToolCalls;
     int m_pendingToolCallIndex = 0;
     QList<act::core::ToolResult> m_pendingToolResults;
+
+    /// Tool call that triggered WaitingUserInput state.
+    std::optional<act::core::ToolCall> m_pendingUserInputCall;
 
     EventCallback m_eventCallback;
     FinishCallback m_finishCallback;

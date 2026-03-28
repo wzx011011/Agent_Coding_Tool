@@ -18,6 +18,7 @@ enum class TaskState
     Running,
     ToolRunning,
     WaitingApproval,
+    WaitingUserInput,
     Paused,
     Cancelled,
     Failed,

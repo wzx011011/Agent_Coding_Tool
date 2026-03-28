@@ -19,8 +19,9 @@ TEST(PermissionLevelTest, HasExpectedValues) {
 TEST(TaskStateTest, HasExpectedValues) {
     EXPECT_EQ(static_cast<int>(TaskState::Idle), 0);
     EXPECT_EQ(static_cast<int>(TaskState::Running), 1);
-    EXPECT_EQ(static_cast<int>(TaskState::Completed), 7);
-    EXPECT_EQ(static_cast<int>(TaskState::Failed), 6);
+    EXPECT_EQ(static_cast<int>(TaskState::WaitingUserInput), 4);
+    EXPECT_EQ(static_cast<int>(TaskState::Completed), 8);
+    EXPECT_EQ(static_cast<int>(TaskState::Failed), 7);
 }
 
 TEST(MessageRoleTest, HasExpectedValues) {
@@ -186,4 +187,16 @@ TEST(RuntimeEventTest, ErrorEvent) {
     EXPECT_EQ(ev.type, EventType::ErrorOccurred);
     EXPECT_EQ(ev.data[QStringLiteral("code")].toString(), errors::PROVIDER_TIMEOUT);
     EXPECT_EQ(ev.data[QStringLiteral("message")].toString(), QStringLiteral("Connection timed out"));
+}
+
+TEST(RuntimeEventTest, UserInputRequestEvent) {
+    auto ev = RuntimeEvent::userInputRequest(QStringLiteral("What is your name?"));
+    EXPECT_EQ(ev.type, EventType::UserInputRequested);
+    EXPECT_EQ(ev.data[QStringLiteral("prompt")].toString(), QStringLiteral("What is your name?"));
+}
+
+TEST(RuntimeEventTest, UserInputProvidedEvent) {
+    auto ev = RuntimeEvent::userInputProvided(QStringLiteral("Alice"));
+    EXPECT_EQ(ev.type, EventType::UserInputProvided);
+    EXPECT_EQ(ev.data[QStringLiteral("response")].toString(), QStringLiteral("Alice"));
 }

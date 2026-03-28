@@ -27,12 +27,20 @@
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
+#include "harness/tools/ask_user_tool.h"
+#include "harness/tools/diagnostic_tool.h"
 #include "harness/tools/diff_view_tool.h"
 #include "harness/tools/file_edit_tool.h"
+#include "harness/tools/file_delete_tool.h"
+#include "harness/tools/directory_tool.h"
+#include "harness/tools/build_tool.h"
+#include "harness/tools/test_runner_tool.h"
 #include "harness/tools/file_read_tool.h"
 #include "harness/tools/file_write_tool.h"
+#include "harness/tools/git_branch_tool.h"
 #include "harness/tools/git_commit_tool.h"
 #include "harness/tools/git_diff_tool.h"
+#include "harness/tools/git_log_tool.h"
 #include "harness/tools/git_status_tool.h"
 #include "harness/tools/glob_tool.h"
 #include "harness/tools/grep_tool.h"
@@ -84,6 +92,8 @@ class LocalFileSystem : public act::infrastructure::IFileSystem {
     [[nodiscard]] bool exists(const QString &path) const override { return QFile::exists(path) || QDir(path).exists(); }
 
     bool removeFile(const QString &path) override { return QFile::remove(normalizePath(path)); }
+
+    bool createDirectory(const QString &path) override { return QDir().mkpath(normalizePath(path)); }
 
   private:
     QString m_workspaceRoot;
@@ -452,8 +462,16 @@ int main(int argc, char *argv[]) {
     registry->registerTool(std::make_unique<act::harness::GitStatusTool>(*process, QDir::currentPath()));
     registry->registerTool(std::make_unique<act::harness::GitDiffTool>(*process, QDir::currentPath()));
     registry->registerTool(std::make_unique<act::harness::GitCommitTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::GitLogTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::GitBranchTool>(*process, QDir::currentPath()));
     registry->registerTool(std::make_unique<act::harness::DiffViewTool>(*process, *fileSystem, QDir::currentPath()));
     registry->registerTool(std::make_unique<act::harness::RepoMapTool>(*fileSystem, *process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::FileDeleteTool>(*fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::DirectoryTool>(*fileSystem, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::BuildTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::TestRunnerTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::AskUserTool>());
+    registry->registerTool(std::make_unique<act::harness::DiagnosticTool>());
 
     permissions->setAutoApproved(act::core::PermissionLevel::Read, true);
     permissions->setAutoApproved(act::core::PermissionLevel::Write, true);

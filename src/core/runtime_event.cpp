@@ -48,6 +48,16 @@ RuntimeEvent RuntimeEvent::permissionResponse(const QString &id, bool approved)
             {{"id", id}, {"approved", approved}}};
 }
 
+RuntimeEvent RuntimeEvent::userInputRequest(const QString &prompt)
+{
+    return {EventType::UserInputRequested, {{"prompt", prompt}}};
+}
+
+RuntimeEvent RuntimeEvent::userInputProvided(const QString &response)
+{
+    return {EventType::UserInputProvided, {{"response", response}}};
+}
+
 RuntimeEvent RuntimeEvent::taskState(TaskState state, const QString &summary)
 {
     QJsonObject data;

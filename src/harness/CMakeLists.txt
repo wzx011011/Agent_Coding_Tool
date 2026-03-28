@@ -12,8 +12,16 @@ add_library(act_harness STATIC
     tools/git_status_tool.cpp
     tools/git_diff_tool.cpp
     tools/git_commit_tool.cpp
+    tools/git_log_tool.cpp
+    tools/git_branch_tool.cpp
     tools/diff_view_tool.cpp
     tools/repo_map_tool.cpp
+    tools/file_delete_tool.cpp
+    tools/directory_tool.cpp
+    tools/build_tool.cpp
+    tools/test_runner_tool.cpp
+    tools/ask_user_tool.cpp
+    tools/diagnostic_tool.cpp
 )
 
 target_include_directories(act_harness

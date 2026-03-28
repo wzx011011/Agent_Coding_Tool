@@ -2,6 +2,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include "harness/tools/ask_user_tool.h"
+
 namespace act::framework
 {
 
@@ -80,6 +82,30 @@ void AgentLoop::onPermissionApproved()
     dispatchNextPendingToolCall();
 }
 
+void AgentLoop::onUserInput(const QString &response)
+{
+    if (m_state != act::core::TaskState::WaitingUserInput ||
+        !m_pendingUserInputCall)
+        return;
+
+    // Build the tool result with user's response
+    act::core::ToolResult inputResult =
+        act::core::ToolResult::ok(response);
+    appendToolResult(*m_pendingUserInputCall, inputResult);
+
+    spdlog::info("AgentLoop: user input received for ask_user, "
+                 "continuing loop");
+
+    m_pendingUserInputCall = std::nullopt;
+
+    emitEvent(act::core::RuntimeEvent::userInputProvided(response));
+
+    // Continue the tool dispatch or next loop iteration
+    ++m_pendingToolCallIndex;
+    transitionTo(act::core::TaskState::ToolRunning);
+    dispatchNextPendingToolCall();
+}
+
 void AgentLoop::cancel()
 {
     if (m_state == act::core::TaskState::Idle ||
@@ -102,6 +128,7 @@ void AgentLoop::reset()
     m_messages.clear();
     m_turnCount = 0;
     m_pendingToolCall = std::nullopt;
+    m_pendingUserInputCall = std::nullopt;
     m_running = false;
     transitionTo(act::core::TaskState::Idle);
 }
@@ -296,6 +323,18 @@ void AgentLoop::dispatchNextPendingToolCall()
         emitEvent(act::core::RuntimeEvent::toolCall(call.name, call.params));
         auto result = m_tools.execute(call.name, call.params);
         appendToolResult(call, result);
+
+        // Check if this tool triggered WaitingUserInput
+        if (call.name == QStringLiteral("ask_user") &&
+            result.metadata.value(QStringLiteral("waiting")).toBool(false))
+        {
+            m_pendingUserInputCall = call;
+            transitionTo(act::core::TaskState::WaitingUserInput);
+            emitEvent(act::core::RuntimeEvent::userInputRequest(
+                result.metadata.value(QStringLiteral("prompt")).toString()));
+            return;
+        }
+
         ++m_pendingToolCallIndex;
         dispatchNextPendingToolCall();
     }

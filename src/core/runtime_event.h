@@ -15,6 +15,8 @@ enum class EventType
     ToolCallCompleted,
     PermissionRequested,
     PermissionResolved,
+    UserInputRequested,
+    UserInputProvided,
     TaskStateChanged,
     ToolExecutionProgress,
     ErrorOccurred
@@ -39,6 +41,8 @@ struct RuntimeEvent
                                                        PermissionLevel level);
     [[nodiscard]] static RuntimeEvent permissionResponse(const QString &id,
                                                         bool approved);
+    [[nodiscard]] static RuntimeEvent userInputRequest(const QString &prompt);
+    [[nodiscard]] static RuntimeEvent userInputProvided(const QString &response);
     [[nodiscard]] static RuntimeEvent taskState(TaskState state,
                                                 const QString &summary = {});
     [[nodiscard]] static RuntimeEvent error(const QString &code,

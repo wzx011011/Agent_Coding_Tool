@@ -108,9 +108,17 @@ add_executable(act_harness_tests
     harness/ContextManagerTest.cpp
     harness/GitToolsTest.cpp
     harness/GitCommitToolTest.cpp
+    harness/GitLogToolTest.cpp
+    harness/GitBranchToolTest.cpp
     harness/DiffViewToolTest.cpp
     harness/RepoMapToolTest.cpp
     harness/PermissionPromptTest.cpp
+    harness/FileDeleteToolTest.cpp
+    harness/DirectoryToolTest.cpp
+    harness/BuildToolTest.cpp
+    harness/TestRunnerToolTest.cpp
+    harness/AskUserToolTest.cpp
+    harness/DiagnosticToolTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
 gtest_discover_tests(act_harness_tests
