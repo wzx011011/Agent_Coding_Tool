@@ -58,6 +58,7 @@ public:
     }
 
     bool removeFile(const QString &path) override { return true; }
+    bool createDirectory(const QString &path) override { return true; }
 
     QString m_baseDir = QStringLiteral("/workspace");
     QStringList m_rootEntries = {QStringLiteral("src"),

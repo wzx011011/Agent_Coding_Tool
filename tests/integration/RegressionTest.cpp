@@ -86,6 +86,11 @@ public:
         return QFile::remove(resolve(path));
     }
 
+    bool createDirectory(const QString &path) override
+    {
+        return QDir().mkpath(resolve(path));
+    }
+
 private:
     QString resolve(const QString &path) const
     {

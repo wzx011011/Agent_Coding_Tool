@@ -23,6 +23,7 @@ public:
     [[nodiscard]] virtual QString normalizePath(const QString &path) const = 0;
     [[nodiscard]] virtual bool exists(const QString &path) const = 0;
     virtual bool removeFile(const QString &path) = 0;
+    virtual bool createDirectory(const QString &path) = 0;
 };
 
 class INetwork

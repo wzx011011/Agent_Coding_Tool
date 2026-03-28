@@ -61,6 +61,11 @@ public:
         return QFile::remove(path);
     }
 
+    bool createDirectory(const QString &path) override
+    {
+        return QDir().mkpath(path);
+    }
+
 private:
     QString m_workspaceRoot;
 };

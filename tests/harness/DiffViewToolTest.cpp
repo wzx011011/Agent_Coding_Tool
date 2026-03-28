@@ -97,6 +97,7 @@ public:
     }
 
     bool removeFile(const QString &path) override { return true; }
+    bool createDirectory(const QString &path) override { return true; }
 };
 
 TEST(DiffViewToolTest, NameAndDescription)
