@@ -635,6 +635,48 @@ int main(int argc, char *argv[]) {
                          out << line << Qt::endl;
                      });
 
+    // Handle ask_user tool — prompt user and resume the agent loop
+    QObject::connect(&repl, &act::framework::CliRepl::userInputRequested,
+        [&](const QString &prompt) {
+            if (jsonMode || batchMode)
+                return;
+
+            // Stop thinking spinner
+            if (thinking) {
+                thinking = false;
+                spinnerTimer.stop();
+                clearSpinnerLine();
+            }
+
+            out << Qt::endl;
+            out << act::framework::TerminalStyle::boldMagenta(QStringLiteral("  ? "))
+                << prompt << Qt::endl;
+            out << act::framework::TerminalStyle::dim(QStringLiteral("  > ")) << Qt::flush;
+
+            QString response;
+            do {
+                response = readConsoleLine(in).trimmed();
+                if (response.isEmpty())
+                {
+                    out << act::framework::TerminalStyle::dim(
+                               QStringLiteral("  (empty — please try again)"))
+                        << Qt::endl;
+                    out << act::framework::TerminalStyle::dim(
+                               QStringLiteral("  > "))
+                        << Qt::flush;
+                }
+            } while (response.isEmpty());
+            repl.respondToUserInput(response);
+
+            // Flush stream formatter and clean up spinner
+            streamFormatter->flush();
+            if (thinking) {
+                thinking = false;
+                spinnerTimer.stop();
+                clearSpinnerLine();
+            }
+        });
+
     if (batchMode) {
         repl.processBatch(inputs);
         return 0;

@@ -110,6 +110,10 @@ CliRepl::CliRepl(services::IAIEngine &engine,
 
     // Wire up event callback — handle events in both Human and JSON modes
     m_loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
+        // Capture user input prompt for CLI integration
+        if (event.type == act::core::EventType::UserInputRequested)
+            m_pendingUserPrompt = event.data.value(QStringLiteral("prompt")).toString();
+
         if (m_outputMode == OutputMode::Json)
         {
             emit jsonEvent(formatJsonEvent(event));
@@ -224,30 +228,16 @@ act::core::TaskState CliRepl::processInput(const QString &input)
         }
     }
 
-    // Ensure a newline after streaming text
-    if (m_outputMode == OutputMode::Human)
+    // Handle WaitingUserInput in non-interactive mode
+    while (m_loop.state() == act::core::TaskState::WaitingUserInput &&
+           m_outputMode != OutputMode::Human)
     {
-        emitOutput(QString());
+        spdlog::warn("ask_user triggered in non-interactive mode, auto-responding empty");
+        m_loop.onUserInput(QString());
     }
 
-    // Emit final state
-    if (m_outputMode == OutputMode::Json)
-    {
-        auto finalEvent = act::core::RuntimeEvent::taskState(m_loop.state());
-        emit jsonEvent(formatJsonEvent(finalEvent));
-    }
-    else if (m_loop.state() != act::core::TaskState::Completed)
-    {
-        QString stateStr;
-        switch (m_loop.state())
-        {
-        case act::core::TaskState::Failed: stateStr = QStringLiteral("failed"); break;
-        case act::core::TaskState::Cancelled: stateStr = QStringLiteral("cancelled"); break;
-        default: stateStr = QStringLiteral("unknown"); break;
-        }
-        emitOutput(TerminalStyle::systemMessage(
-            QStringLiteral("Agent %1.").arg(stateStr)));
-    }
+    if (finalizeTurn())
+        return act::core::TaskState::WaitingUserInput;
 
     ++m_turnCount;
 
@@ -368,6 +358,12 @@ QString CliRepl::formatHumanEvent(const act::core::RuntimeEvent &event)
         }
         return {};
     }
+
+    case ET::UserInputRequested:
+        return {};
+
+    case ET::UserInputProvided:
+        return {};
 
     default:
         return {};
@@ -495,6 +491,68 @@ bool CliRepl::handleModelCommand(const QStringList &args) {
                 .arg(profileName, m_modelSwitcher->profileNames().join(QStringLiteral(", ")))));
     }
     return true;
+}
+
+void CliRepl::respondToUserInput(const QString &response)
+{
+    // Display user's response
+    if (m_outputMode == OutputMode::Human)
+    {
+        emitOutput(TerminalStyle::userPrompt(response));
+        emitOutput(QString());
+    }
+    else
+    {
+        act::core::LLMMessage userMsg;
+        userMsg.role = act::core::MessageRole::User;
+        userMsg.content = response;
+        emit jsonEvent(formatJsonMessage(userMsg));
+    }
+
+    // Resume the agent loop (synchronous)
+    m_loop.onUserInput(response);
+
+    if (finalizeTurn())
+        return;
+
+    ++m_turnCount;
+}
+
+bool CliRepl::finalizeTurn()
+{
+    // Ensure a newline after streaming text (Human mode)
+    if (m_outputMode == OutputMode::Human)
+        emitOutput(QString());
+
+    // JSON mode: emit task state event, caller handles everything
+    if (m_outputMode == OutputMode::Json)
+    {
+        auto finalEvent = act::core::RuntimeEvent::taskState(m_loop.state());
+        emit jsonEvent(formatJsonEvent(finalEvent));
+        return false;
+    }
+
+    // Human mode: handle non-completed states
+    if (m_loop.state() == act::core::TaskState::WaitingUserInput)
+    {
+        emit userInputRequested(m_pendingUserPrompt);
+        return true;
+    }
+
+    if (m_loop.state() != act::core::TaskState::Completed)
+    {
+        QString stateStr;
+        switch (m_loop.state())
+        {
+        case act::core::TaskState::Failed: stateStr = QStringLiteral("failed"); break;
+        case act::core::TaskState::Cancelled: stateStr = QStringLiteral("cancelled"); break;
+        default: stateStr = QStringLiteral("unknown"); break;
+        }
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Agent %1.").arg(stateStr)));
+    }
+
+    return false;
 }
 
 void CliRepl::emitOutput(const QString &line)

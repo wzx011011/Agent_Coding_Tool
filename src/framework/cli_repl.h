@@ -53,6 +53,9 @@ public:
     /// Reset the exit requested flag (for reusing the REPL).
     void clearExitRequested() { m_exitRequested = false; }
 
+    /// Resume the agent loop after user input was provided.
+    void respondToUserInput(const QString &response);
+
     /// Current output mode.
     [[nodiscard]] OutputMode outputMode() const { return m_outputMode; }
 
@@ -69,6 +72,9 @@ signals:
     /// Emitted when the agent starts waiting for the first AI token.
     void thinkingStarted();
 
+    /// Emitted when ask_user tool triggers WaitingUserInput state.
+    void userInputRequested(const QString &prompt);
+
 private:
     QString formatHumanMessage(const act::core::LLMMessage &msg) const;
     QString formatHumanEvent(const act::core::RuntimeEvent &event);
@@ -76,6 +82,7 @@ private:
     QString formatJsonEvent(const act::core::RuntimeEvent &event) const;
     void emitOutput(const QString &line);
     bool handleModelCommand(const QStringList &args);
+    bool finalizeTurn();
     void handleVerboseCommand(const QStringList &args);
 
     services::IAIEngine &m_engine;
@@ -106,6 +113,7 @@ private:
     QList<ToolSection> m_toolSections;
     int m_sectionIdCounter = 0;
     int m_pendingSectionId = -1;
+    QString m_pendingUserPrompt;
 };
 
 } // namespace act::framework
