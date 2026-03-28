@@ -24,9 +24,10 @@ CliRepl::CliRepl(services::IAIEngine &engine,
     , m_permissions(permissions)
     , m_context(context)
     , m_modelSwitcher(modelSwitcher)
+    , m_loop(engine, tools, permissions, context, this)
 {
     // Register built-in commands
-    m_commands.registerCommand(
+    (void)m_commands.registerCommand(
         QStringLiteral("help"),
         QStringLiteral("Show available commands"),
         [this](const QStringList & /*args*/) -> bool {
@@ -41,7 +42,7 @@ CliRepl::CliRepl(services::IAIEngine &engine,
             return true;
         });
 
-    m_commands.registerCommand(
+    (void)m_commands.registerCommand(
         QStringLiteral("exit"),
         QStringLiteral("Exit the REPL"),
         [this](const QStringList & /*args*/) -> bool {
@@ -50,7 +51,7 @@ CliRepl::CliRepl(services::IAIEngine &engine,
             return true;
         });
 
-    m_commands.registerCommand(
+    (void)m_commands.registerCommand(
         QStringLiteral("quit"),
         QStringLiteral("Exit the REPL (alias for /exit)"),
         [this](const QStringList & /*args*/) -> bool {
@@ -59,30 +60,31 @@ CliRepl::CliRepl(services::IAIEngine &engine,
             return true;
         });
 
-    m_commands.registerCommand(
+    (void)m_commands.registerCommand(
         QStringLiteral("reset"),
         QStringLiteral("Reset conversation context"),
         [this](const QStringList & /*args*/) -> bool {
+            m_loop.reset();
+            m_turnCount = 0;
             emitOutput(TerminalStyle::systemMessage(
                 QStringLiteral("Conversation reset.")));
             return true;
         });
 
-    m_commands.registerCommand(
+    (void)m_commands.registerCommand(
         QStringLiteral("status"),
         QStringLiteral("Show agent loop status"),
         [this](const QStringList & /*args*/) -> bool {
-            AgentLoop loop(m_engine, m_tools, m_permissions, m_context, this);
             emitOutput(TerminalStyle::systemMessage(
                 QStringLiteral("State: %1, Messages: %2, Turns: %3")
-                    .arg(static_cast<int>(loop.state()))
-                    .arg(loop.messages().size())
-                    .arg(loop.turnCount())));
+                    .arg(static_cast<int>(m_loop.state()))
+                    .arg(m_loop.messages().size())
+                    .arg(m_loop.turnCount())));
             return true;
         });
 
     if (m_modelSwitcher) {
-        m_commands.registerCommand(
+        (void)m_commands.registerCommand(
             QStringLiteral("model"),
             QStringLiteral("Show or switch AI model profile"),
             [this](const QStringList &args) -> bool {
@@ -90,7 +92,7 @@ CliRepl::CliRepl(services::IAIEngine &engine,
             });
     }
 
-    m_commands.registerCommand(
+    (void)m_commands.registerCommand(
         QStringLiteral("verbose"),
         QStringLiteral("Toggle tool output expansion (/v or /v all)"),
         [this](const QStringList &args) -> bool {
@@ -98,13 +100,32 @@ CliRepl::CliRepl(services::IAIEngine &engine,
             return true;
         });
 
-    m_commands.registerCommand(
+    (void)m_commands.registerCommand(
         QStringLiteral("v"),
         QStringLiteral("Alias for /verbose"),
         [this](const QStringList &args) -> bool {
             handleVerboseCommand(args);
             return true;
         });
+
+    // Wire up event callback — handle events in both Human and JSON modes
+    m_loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
+        if (m_outputMode == OutputMode::Json)
+        {
+            emit jsonEvent(formatJsonEvent(event));
+        }
+        else
+        {
+            // In Human mode, format and display key events
+            QString human = formatHumanEvent(event);
+            if (!human.isEmpty())
+                emitOutput(human);
+        }
+    });
+
+    m_loop.setFinishCallback([this]() {
+        // Nothing extra needed — messages are already emitted via event callback
+    });
 }
 
 act::core::TaskState CliRepl::processInput(const QString &input)
@@ -139,32 +160,11 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     }
 
     // Run the agent loop with the user input
-    AgentLoop loop(m_engine, m_tools, m_permissions, m_context, this);
-    loop.setMaxTurns(50);
 
     // Reset per-turn rich output state
     m_toolSections.clear();
     m_sectionIdCounter = 0;
     m_pendingSectionId = -1;
-
-    // Wire up event callback — handle events in both Human and JSON modes
-    loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
-        if (m_outputMode == OutputMode::Json)
-        {
-            emit jsonEvent(formatJsonEvent(event));
-        }
-        else
-        {
-            // In Human mode, format and display key events
-            QString human = formatHumanEvent(event);
-            if (!human.isEmpty())
-                emitOutput(human);
-        }
-    });
-
-    loop.setFinishCallback([this]() {
-        // Nothing extra needed — messages are already emitted via event callback
-    });
 
     if (m_outputMode == OutputMode::Json)
     {
@@ -176,16 +176,29 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     }
     else
     {
+        // Emit turn separator before each turn (except the first)
+        if (m_turnCount > 0)
+        {
+            emitOutput(TerminalStyle::turnSeparator());
+            emitOutput(TerminalStyle::dim(
+                QStringLiteral("[context: %1 messages]").arg(m_loop.messages().size())));
+        }
         emitOutput(TerminalStyle::userPrompt(trimmed));
+        emitOutput(QString()); // Blank line between question and answer
     }
 
     // Submit and wait for completion
-    loop.submitUserMessage(trimmed);
+    const int prevMsgCount = m_loop.messages().size();
+    m_loop.submitUserMessage(trimmed);
 
     // Output the conversation messages (skip duplicates from events)
-    const auto &messages = loop.messages();
-    for (const auto &msg : messages)
+    // In JSON mode, only emit new messages to avoid re-emitting history from
+    // previous turns. In Human mode, skip messages already shown via streaming/events.
+    const auto &messages = m_loop.messages();
+    const int startIdx = (m_outputMode == OutputMode::Json) ? prevMsgCount : 0;
+    for (int i = startIdx; i < messages.size(); ++i)
     {
+        const auto &msg = messages[i];
         if (msg.role == act::core::MessageRole::User)
             continue; // Already printed the prompt
 
@@ -201,12 +214,10 @@ act::core::TaskState CliRepl::processInput(const QString &input)
             // - Only show System messages that weren't already handled
             if (msg.role == act::core::MessageRole::Assistant)
             {
-                // Skip — text streamed, tool calls shown via events
                 continue;
             }
             if (msg.role == act::core::MessageRole::Tool)
             {
-                // Skip — shown via ToolCallCompleted event
                 continue;
             }
             emitOutput(formatHumanMessage(msg));
@@ -222,13 +233,13 @@ act::core::TaskState CliRepl::processInput(const QString &input)
     // Emit final state
     if (m_outputMode == OutputMode::Json)
     {
-        auto finalEvent = act::core::RuntimeEvent::taskState(loop.state());
+        auto finalEvent = act::core::RuntimeEvent::taskState(m_loop.state());
         emit jsonEvent(formatJsonEvent(finalEvent));
     }
-    else if (loop.state() != act::core::TaskState::Completed)
+    else if (m_loop.state() != act::core::TaskState::Completed)
     {
         QString stateStr;
-        switch (loop.state())
+        switch (m_loop.state())
         {
         case act::core::TaskState::Failed: stateStr = QStringLiteral("failed"); break;
         case act::core::TaskState::Cancelled: stateStr = QStringLiteral("cancelled"); break;
@@ -238,7 +249,9 @@ act::core::TaskState CliRepl::processInput(const QString &input)
             QStringLiteral("Agent %1.").arg(stateStr)));
     }
 
-    return loop.state();
+    ++m_turnCount;
+
+    return m_loop.state();
 }
 
 void CliRepl::processBatch(const QStringList &inputs)

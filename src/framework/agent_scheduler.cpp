@@ -14,7 +14,12 @@ void AgentScheduler::loadGraph(const TaskGraph &graph)
 {
     m_graph = graph;
     m_waves.clear();
-    m_graph.computeWaves(m_waves);
+    if (!m_graph.computeWaves(m_waves))
+    {
+        spdlog::error("AgentScheduler: cycle detected in task graph, cannot schedule");
+        m_graph = TaskGraph();
+        return;
+    }
     m_currentWave = 0;
     spdlog::info("AgentScheduler: loaded graph with {} tasks, {} waves",
                  graph.size(), m_waves.size());
@@ -38,6 +43,12 @@ bool AgentScheduler::start()
     if (m_graph.size() == 0)
     {
         spdlog::warn("AgentScheduler: empty graph, nothing to execute");
+        return false;
+    }
+
+    if (m_waves.isEmpty())
+    {
+        spdlog::error("AgentScheduler: no valid wave schedule (possible cycle)");
         return false;
     }
 

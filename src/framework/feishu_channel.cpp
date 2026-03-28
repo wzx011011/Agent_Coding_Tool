@@ -225,22 +225,68 @@ void FeishuChannel::handleAIResponse(const QString &chatId)
         if (!responseText.isEmpty())
         {
             const auto messageId = m_pendingReplyMessageId.value(chatId);
-            if (!messageId.isEmpty())
-            {
-                spdlog::info("FeishuChannel: sending reply to chat {} ({} chars)",
-                             chatId.toStdString(), responseText.size());
 
-                auto resp = m_restClient->replyTextMessage(messageId, responseText);
-                if (!resp.success)
+            static constexpr int FEISHU_CHUNK_SIZE = 3500;
+
+            if (responseText.size() <= FEISHU_CHUNK_SIZE || messageId.isEmpty())
+            {
+                // Single message — reply or send directly
+                if (!messageId.isEmpty())
                 {
-                    spdlog::error("FeishuChannel: reply failed: [{}] {}",
-                                  resp.code.toStdString(), resp.msg.toStdString());
+                    spdlog::info("FeishuChannel: sending reply to chat {} ({} chars)",
+                                 chatId.toStdString(), responseText.size());
+                    auto resp = m_restClient->replyTextMessage(messageId, responseText);
+                    if (!resp.success)
+                    {
+                        spdlog::error("FeishuChannel: reply failed: [{}] {}",
+                                      resp.code.toStdString(), resp.msg.toStdString());
+                    }
+                }
+                else
+                {
+                    spdlog::info("FeishuChannel: sending message to chat {} ({} chars)",
+                                 chatId.toStdString(), responseText.size());
+                    auto resp = m_restClient->sendTextMessage(chatId, responseText);
+                    if (!resp.success)
+                    {
+                        spdlog::error("FeishuChannel: send failed: [{}] {}",
+                                      resp.code.toStdString(), resp.msg.toStdString());
+                    }
                 }
             }
             else
             {
-                spdlog::warn("FeishuChannel: no pending messageId for chat {}",
-                             chatId.toStdString());
+                // Chunked delivery
+                QStringList chunks = splitForFeishu(responseText, FEISHU_CHUNK_SIZE);
+                spdlog::info("FeishuChannel: sending reply to chat {} in {} chunks ({} chars total)",
+                             chatId.toStdString(), chunks.size(), responseText.size());
+
+                for (int i = 0; i < chunks.size(); ++i)
+                {
+                    bool success = false;
+                    if (i == 0)
+                    {
+                        auto resp = m_restClient->replyTextMessage(messageId, chunks[i]);
+                        success = resp.success;
+                        if (!success)
+                            spdlog::error("FeishuChannel: chunked reply [0] failed: [{}] {}",
+                                          resp.code.toStdString(), resp.msg.toStdString());
+                    }
+                    else
+                    {
+                        auto resp = m_restClient->sendTextMessage(chatId, chunks[i]);
+                        success = resp.success;
+                        if (!success)
+                            spdlog::error("FeishuChannel: chunked send [{}] failed: [{}] {}",
+                                          i, resp.code.toStdString(), resp.msg.toStdString());
+                    }
+                    if (!success)
+                    {
+                        spdlog::warn("FeishuChannel: aborted chunked delivery at chunk {}/{} for chat {}",
+                                     i + 1, chunks.size(), chatId.toStdString());
+                        break;
+                    }
+                }
             }
         }
         else
@@ -287,6 +333,77 @@ void FeishuChannel::onWsError(const QString &code, const QString &msg)
 {
     spdlog::error("FeishuChannel: WebSocket error [{}]: {}", code.toStdString(), msg.toStdString());
     emit statusChanged(QStringLiteral("Feishu error: %1").arg(msg));
+}
+
+QStringList FeishuChannel::splitForFeishu(const QString &text, int maxChunkSize)
+{
+    QStringList chunks;
+    QStringList lines = text.split(QLatin1Char('\n'));
+    QString current;
+    bool inCodeBlock = false;
+
+    auto flush = [&]()
+    {
+        if (!current.isEmpty())
+        {
+            chunks.append(current);
+            current.clear();
+        }
+    };
+
+    for (const auto &line : lines)
+    {
+        bool lineIsFence = line.trimmed().startsWith(QStringLiteral("```"));
+        int lineLen = line.size() + 1; // +1 for newline separator
+
+        // Would adding this line exceed the chunk limit?
+        bool wouldExceed = !current.isEmpty() && (current.size() + lineLen > maxChunkSize);
+
+        if (wouldExceed)
+        {
+            if (inCodeBlock)
+            {
+                // Close the code block before splitting, reopen in next chunk
+                current += QStringLiteral("\n```");
+                inCodeBlock = false;
+                flush();
+                current = QStringLiteral("```");
+                inCodeBlock = true;
+            }
+            else
+            {
+                flush();
+            }
+        }
+
+        // Append line to current chunk
+        if (!current.isEmpty())
+            current += QLatin1Char('\n');
+        current += line;
+
+        // Track code block state *after* appending so the fence line
+        // belongs to the same chunk as the block it opens/closes.
+        if (lineIsFence)
+            inCodeBlock = !inCodeBlock;
+    }
+
+    flush();
+
+    // Force-split any chunk that still exceeds the limit (very long single lines)
+    QStringList result;
+    for (const auto &chunk : chunks)
+    {
+        if (chunk.size() <= maxChunkSize)
+        {
+            result.append(chunk);
+        }
+        else
+        {
+            for (int i = 0; i < chunk.size(); i += maxChunkSize)
+                result.append(chunk.mid(i, maxChunkSize));
+        }
+    }
+    return result;
 }
 
 } // namespace act::framework
