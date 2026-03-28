@@ -5,13 +5,15 @@ namespace act::core
 
 RuntimeEvent RuntimeEvent::streamToken(const QString &token)
 {
-    return {EventType::StreamToken, {{"token", token}}};
+    return {EventType::StreamToken, {{QStringLiteral("token"), token}}};
 }
 
 RuntimeEvent RuntimeEvent::toolCall(const QString &toolName,
                                     const QJsonObject &params)
 {
-    return {EventType::ToolCallStarted, {{"tool", toolName}, {"params", params}}};
+    return {EventType::ToolCallStarted,
+            {{QStringLiteral("tool"), toolName},
+             {QStringLiteral("params"), params}}};
 }
 
 RuntimeEvent RuntimeEvent::toolCallCompleted(
@@ -22,13 +24,13 @@ RuntimeEvent RuntimeEvent::toolCallCompleted(
     const QString &errorMsg)
 {
     QJsonObject data;
-    data["tool"] = toolName;
-    data["success"] = success;
-    data["output"] = output;
+    data[QStringLiteral("tool")] = toolName;
+    data[QStringLiteral("success")] = success;
+    data[QStringLiteral("output")] = output;
     if (!errorCode.isEmpty())
-        data["error_code"] = errorCode;
+        data[QStringLiteral("error_code")] = errorCode;
     if (!errorMsg.isEmpty())
-        data["error_message"] = errorMsg;
+        data[QStringLiteral("error_message")] = errorMsg;
     return {EventType::ToolCallCompleted, data};
 }
 
@@ -37,39 +39,40 @@ RuntimeEvent RuntimeEvent::permissionRequest(const QString &id,
                                              PermissionLevel level)
 {
     return {EventType::PermissionRequested,
-            {{"id", id},
-             {"tool", toolName},
-             {"level", static_cast<int>(level)}}};
+            {{QStringLiteral("id"), id},
+             {QStringLiteral("tool"), toolName},
+             {QStringLiteral("level"), static_cast<int>(level)}}};
 }
 
 RuntimeEvent RuntimeEvent::permissionResponse(const QString &id, bool approved)
 {
     return {EventType::PermissionResolved,
-            {{"id", id}, {"approved", approved}}};
+            {{QStringLiteral("id"), id}, {QStringLiteral("approved"), approved}}};
 }
 
 RuntimeEvent RuntimeEvent::userInputRequest(const QString &prompt)
 {
-    return {EventType::UserInputRequested, {{"prompt", prompt}}};
+    return {EventType::UserInputRequested, {{QStringLiteral("prompt"), prompt}}};
 }
 
 RuntimeEvent RuntimeEvent::userInputProvided(const QString &response)
 {
-    return {EventType::UserInputProvided, {{"response", response}}};
+    return {EventType::UserInputProvided, {{QStringLiteral("response"), response}}};
 }
 
 RuntimeEvent RuntimeEvent::taskState(TaskState state, const QString &summary)
 {
     QJsonObject data;
-    data["state"] = static_cast<int>(state);
+    data[QStringLiteral("state")] = static_cast<int>(state);
     if (!summary.isEmpty())
-        data["summary"] = summary;
+        data[QStringLiteral("summary")] = summary;
     return {EventType::TaskStateChanged, data};
 }
 
 RuntimeEvent RuntimeEvent::error(const QString &code, const QString &message)
 {
-    return {EventType::ErrorOccurred, {{"code", code}, {"message", message}}};
+    return {EventType::ErrorOccurred,
+            {{QStringLiteral("code"), code}, {QStringLiteral("message"), message}}};
 }
 
 } // namespace act::core
