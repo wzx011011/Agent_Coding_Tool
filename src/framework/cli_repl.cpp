@@ -243,12 +243,16 @@ act::core::TaskState CliRepl::processInput(const QString &input)
             // In Human mode:
             // - Assistant text was already streamed token-by-token (skip)
             // - Tool calls are already shown via ToolCallStarted/Completed events (skip)
-            // - Only show System messages that weren't already handled
+            // - System prompt was injected silently (skip)
             if (msg.role == act::core::MessageRole::Assistant)
             {
                 continue;
             }
             if (msg.role == act::core::MessageRole::Tool)
+            {
+                continue;
+            }
+            if (msg.role == act::core::MessageRole::System)
             {
                 continue;
             }
