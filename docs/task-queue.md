@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 41/43 + 18/29 (T11 skipped; T16 deferred; N1~N18 completed)
+- Completed: 41/43 + 20/33 (T11 skipped; T16 deferred; N1~N18, N30 completed)
 
 ## Planning Notes
 
@@ -100,6 +100,8 @@
 | 48 | N20 | 实现多行输入支持                                 | frontend    | T10     | [ ]    | build + CliReplTest.MultilineInput pass           | 行尾 \ 续行，... 提示符；非TTY保持单行                      |
 | 49 | N21 | 实现 --model 启动参数                            | frontend    | LLM-T11 | [ ]    | build + test pass                                 | CLI arg 优先级高于 config file                              |
 | 50 | N22 | 实现 /permissions 权限管理命令                   | frontend    | N17,N19 | [ ]    | build + test pass                                 | 显示5级权限状态；auto on/off；deny/allow tool                |
+| 51 | N30 | 实现 System Prompt 注入 + /init 命令            | integration | T9,T12   | [x]    | build + AgentLoopTest 4 项新测试 pass             | AgentLoop.setSystemPrompt() 注入 System 消息；三层 prompt 拼接（base + .act/system_prompt.md + skills/*.toml）；/init 生成项目 prompt 模板；转发到 CliRepl / InteractiveSessionController / SessionManager / FeishuChannel / TuiApp；system_prompt.h/cpp 新文件 | commit: pending |
+| 52 | N31 | Base prompt 增强（反吹捧 + 注入防御指令）       | backend     | N30      | [ ]    | build + test pass                                 | 在 system_prompt.cpp "Tone and style" 段添加反 sycophancy 指令；添加 prompt injection 防御提示；两处均为 prompt 文本修改，无代码逻辑变更 |
 
 ### Batch 7: P2 Agent 能力激活与工具扩展
 
@@ -112,6 +114,7 @@
 | 55 | N27 | 实现 SkillTool（load_skill）                  | integration | T12     | [ ]    | build + test pass                               | 封装 SkillCatalog 为 ITool；PermissionLevel::Read           |
 | 56 | N28 | 实现 RuntimeTrace 完善与 Model Request 日志    | backend     | T14     | [ ]    | build + test pass                               | 补充 Model Request、Permission Audit 事件类型               |
 | 57 | N29 | 端到端集成测试 v2（新命令与工具）              | testing     | N17,N24 | [ ]    | build + test pass (无key GTEST_SKIP)            | 权限确认、WebFetch、Subagent、/compact、/model、多行输入    |
+| 58 | N32 | 实现 Plan Mode（规划模式）                     | integration | N26      | [ ]    | build + test pass                                | TaskState 新增 Planning 状态；AgentLoop.enterPlanMode() 进入只读规划，限制为 Read 级工具（file_read/glob/grep/git_status/git_diff/repo_map）；exitPlanMode() 恢复全部工具；Planning 状态下 LLM 可自由探索代码库并设计实现方案，完成后由用户审批才进入执行；参考 Claude EnterPlanMode/ExitPlanMode 双工具模式 |
 
 ## Dependency Waves
 
@@ -155,20 +158,20 @@
 
 ### Batch 6: P1 CLI UX 差距补齐
 
-| Wave | Tasks         | 说明                                    |
-|------|---------------|-----------------------------------------|
-| B6-1 | N16, N20, N21 | N16 是命令基础；N20/N21 独立           |
-| B6-2 | N17           | 权限确认后端，独立                      |
-| B6-3 | N18, N19      | N18 接入 N17；N19 使用 N16 registry     |
-| B6-4 | N22           | 依赖 N17 + N19                         |
+| Wave | Tasks                | 说明                                    |
+|------|----------------------|-----------------------------------------|
+| B6-1 | N16, N20, N21       | N16 是命令基础；N20/N21 独立           |
+| B6-2 | N17                  | 权限确认后端，独立                      |
+| B6-3 | N18, N19             | N18 接入 N17；N19 使用 N16 registry     |
+| B6-4 | N22, N30, N31        | N22 依赖 N17+N19；N30/N31 已完成       |
 
 ### Batch 7: P2 Agent 能力激活与工具扩展
 
-| Wave | Tasks              | 说明                                  |
-|------|--------------------|---------------------------------------|
-| B7-1 | N23, N25           | 基础设施 + 独立工具                    |
-| B7-2 | N24, N26, N27, N28 | 各自独立                              |
-| B7-3 | N29                | 集成测试，依赖前面功能                 |
+| Wave | Tasks                  | 说明                                  |
+|------|------------------------|---------------------------------------|
+| B7-1 | N23, N25               | 基础设施 + 独立工具                    |
+| B7-2 | N24, N26, N27, N28     | 各自独立                              |
+| B7-3 | N29, N32               | 集成测试 + Plan Mode（依赖 N26）       |
 
 **跨 batch 并行：** B6-1、B6-2、B7-1 可同时执行。
 
@@ -205,19 +208,19 @@
 
 ### Batch 6: P1 CLI UX 差距补齐
 
-- 任务数：7
+- 任务数：9
 - 预估执行轮次：4 轮
 - 并行潜力：B6-1 中 N16、N20、N21 可并行；B6-3 中 N18、N19 可并行
 
 ### Batch 7: P2 Agent 能力激活与工具扩展
 
-- 任务数：7
+- 任务数：8
 - 预估执行轮次：3 轮
-- 并行潜力：B7-1 中 N23、N25 可并行；B7-2 中 N24、N26、N27、N28 可并行
+- 并行潜力：B7-1 中 N23、N25 可并行；B7-2 中 N24、N26、N27、N28 可并行；B7-3 中 N29、N32 可并行
 
 ### Batch 6-7 总计
 
-- 新增任务数：14
+- 新增任务数：17
 - 预估执行轮次：7 轮（Batch 6-7 可流水线重叠，且与 B6-1/B6-2/B7-1 可跨 batch 并行）
 
 ## Approval Checklist
