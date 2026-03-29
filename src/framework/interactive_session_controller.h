@@ -40,6 +40,9 @@ class InteractiveSessionController : public QObject {
     void approvePermission();
     void denyPermission();
 
+    /// Set the system prompt to inject before the first user message.
+    void setSystemPrompt(const QString &prompt) { m_systemPrompt = prompt; }
+
   signals:
     void stateChanged();
 
@@ -73,6 +76,7 @@ class InteractiveSessionController : public QObject {
     InteractiveSessionExecutionMode m_executionMode;
     std::unique_ptr<std::jthread> m_workerThread;
     std::atomic<bool> m_shuttingDown{false};
+    QString m_systemPrompt;
 };
 
 } // namespace act::framework

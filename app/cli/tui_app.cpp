@@ -113,8 +113,10 @@ ftxui::Element renderFooter(const act::framework::InteractiveSessionState &state
 } // namespace
 
 TuiApp::TuiApp(act::services::AIEngine &engine, act::harness::ToolRegistry &tools,
-               act::harness::PermissionManager &permissions, act::harness::ContextManager &context)
+               act::harness::PermissionManager &permissions, act::harness::ContextManager &context,
+               const QString &systemPrompt)
     : m_controller(engine, tools, permissions, context) {
+    m_controller.setSystemPrompt(systemPrompt);
 }
 
 TuiApp::~TuiApp() {

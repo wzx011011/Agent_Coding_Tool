@@ -20,6 +20,12 @@ AgentLoop::AgentLoop(services::IAIEngine &engine,
 {
 }
 
+void AgentLoop::setSystemPrompt(const QString &prompt)
+{
+    m_systemPrompt = prompt;
+    m_systemPromptApplied = false;
+}
+
 void AgentLoop::submitUserMessage(const QString &message)
 {
     // Allow re-entry from terminal states (Completed/Failed/Cancelled)
@@ -32,6 +38,17 @@ void AgentLoop::submitUserMessage(const QString &message)
         spdlog::warn("AgentLoop::submitUserMessage called in state {}",
                      static_cast<int>(m_state));
         return;
+    }
+
+    if (!m_systemPromptApplied && !m_systemPrompt.isEmpty())
+    {
+        act::core::LLMMessage sysMsg;
+        sysMsg.role = act::core::MessageRole::System;
+        sysMsg.content = m_systemPrompt;
+        m_messages.prepend(sysMsg);
+        m_systemPromptApplied = true;
+        spdlog::info("AgentLoop: system prompt injected ({} chars)",
+                     m_systemPrompt.size());
     }
 
     act::core::LLMMessage userMsg;
@@ -130,6 +147,7 @@ void AgentLoop::reset()
     m_pendingToolCall = std::nullopt;
     m_pendingUserInputCall = std::nullopt;
     m_running = false;
+    m_systemPromptApplied = false;
     transitionTo(act::core::TaskState::Idle);
 }
 

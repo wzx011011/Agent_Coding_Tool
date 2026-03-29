@@ -67,6 +67,10 @@ public:
     void setMaxTurns(int maxTurns) { m_maxTurns = maxTurns; }
     [[nodiscard]] int maxTurns() const { return m_maxTurns; }
 
+    /// Set the system prompt to inject before the first user message.
+    void setSystemPrompt(const QString &prompt);
+    [[nodiscard]] const QString &systemPrompt() const { return m_systemPrompt; }
+
     /// Set callback for runtime events (state changes, tool calls, etc.).
     void setEventCallback(EventCallback cb) { m_eventCallback = std::move(cb); }
 
@@ -129,6 +133,8 @@ private:
     int m_maxTurns = 50;
     bool m_cancelled = false;
     bool m_running = false;
+    QString m_systemPrompt;
+    bool m_systemPromptApplied = false;
 
     /// Pending tool calls during permission check (multiple tool_call support).
     std::optional<act::core::ToolCall> m_pendingToolCall;

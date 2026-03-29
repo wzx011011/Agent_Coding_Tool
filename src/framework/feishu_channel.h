@@ -52,6 +52,7 @@ public:
         int proxyPort = 0;
         int timeoutSeconds = 30;
         AIDeps ai;
+        QString systemPrompt;
     };
 
     explicit FeishuChannel(const Config &config, QObject *parent = nullptr);

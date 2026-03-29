@@ -1,5 +1,7 @@
 #include "framework/cli_repl.h"
 
+#include <QDir>
+#include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTextStream>
@@ -7,6 +9,7 @@
 #include <spdlog/spdlog.h>
 
 #include "framework/markdown_formatter.h"
+#include "framework/system_prompt.h"
 #include "framework/terminal_style.h"
 
 namespace act::framework
@@ -105,6 +108,31 @@ CliRepl::CliRepl(services::IAIEngine &engine,
         QStringLiteral("Alias for /verbose"),
         [this](const QStringList &args) -> bool {
             handleVerboseCommand(args);
+            return true;
+        });
+
+    (void)m_commands.registerCommand(
+        QStringLiteral("init"),
+        QStringLiteral("Initialize .act/system_prompt.md in current project"),
+        [this](const QStringList & /*args*/) -> bool {
+            QString actDir = QDir::currentPath() + QStringLiteral("/.act");
+            QString promptPath = QDir::cleanPath(actDir + QStringLiteral("/system_prompt.md"));
+
+            if (QFile::exists(promptPath)) {
+                emitOutput(QStringLiteral(".act/system_prompt.md already exists."));
+                return true;
+            }
+
+            QDir().mkpath(actDir);
+            QFile file(promptPath);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                emitOutput(QStringLiteral("Failed to create .act/system_prompt.md"));
+                return true;
+            }
+            file.write(defaultProjectPromptTemplate().toUtf8());
+            file.close();
+            emitOutput(QStringLiteral(
+                "Created .act/system_prompt.md. Edit it to add project-specific instructions."));
             return true;
         });
 

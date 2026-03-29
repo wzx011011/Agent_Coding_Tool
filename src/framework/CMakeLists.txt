@@ -36,6 +36,8 @@ add_library(act_framework STATIC
     session_manager.h
     stream_formatter.cpp
     stream_formatter.h
+    system_prompt.cpp
+    system_prompt.h
     skill_catalog.cpp
     skill_catalog.h
     skill_loader.cpp

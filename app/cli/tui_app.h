@@ -13,7 +13,8 @@ namespace act::cli {
 class TuiApp {
   public:
     TuiApp(act::services::AIEngine &engine, act::harness::ToolRegistry &tools,
-           act::harness::PermissionManager &permissions, act::harness::ContextManager &context);
+           act::harness::PermissionManager &permissions, act::harness::ContextManager &context,
+           const QString &systemPrompt = {});
     ~TuiApp();
 
     int run();

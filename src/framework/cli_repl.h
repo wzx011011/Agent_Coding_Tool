@@ -59,6 +59,9 @@ public:
     /// Current output mode.
     [[nodiscard]] OutputMode outputMode() const { return m_outputMode; }
 
+    /// Set the system prompt to inject before the first user message.
+    void setSystemPrompt(const QString &prompt) { m_loop.setSystemPrompt(prompt); }
+
 signals:
     /// Emitted when a line of output is ready to display.
     void outputLine(const QString &line);

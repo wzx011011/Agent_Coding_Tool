@@ -448,3 +448,92 @@ TEST_F(AgentLoopTest, SubmitAfterFailureIsAccepted)
     EXPECT_EQ(loop->state(), act::core::TaskState::Completed);
     EXPECT_GE(loop->messages().size(), 3); // First user + error msg + Second user + assistant
 }
+
+// ============================================================
+// System Prompt Tests
+// ============================================================
+
+TEST_F(AgentLoopTest, SystemPromptPrependedBeforeFirstUserMessage)
+{
+    loop->setSystemPrompt(QStringLiteral("You are a helpful assistant."));
+
+    engine->responseQueue.append(
+        finalResponse(QStringLiteral("Hello!")));
+    loop->submitUserMessage(QStringLiteral("Hi"));
+
+    ASSERT_GE(loop->messages().size(), 2);
+    // First message should be the system prompt
+    EXPECT_EQ(loop->messages().at(0).role, MessageRole::System);
+    EXPECT_EQ(loop->messages().at(0).content,
+              QStringLiteral("You are a helpful assistant."));
+    // Second message should be the user message
+    EXPECT_EQ(loop->messages().at(1).role, MessageRole::User);
+    EXPECT_EQ(loop->messages().at(1).content, QStringLiteral("Hi"));
+}
+
+TEST_F(AgentLoopTest, SystemPromptAppliedOnlyOnce)
+{
+    loop->setSystemPrompt(QStringLiteral("System prompt."));
+
+    engine->responseQueue.append(
+        finalResponse(QStringLiteral("First response.")));
+    loop->submitUserMessage(QStringLiteral("First message."));
+
+    // Count system messages
+    int systemCount = 0;
+    for (const auto &msg : loop->messages())
+    {
+        if (msg.role == MessageRole::System)
+            ++systemCount;
+    }
+    EXPECT_EQ(systemCount, 1);
+
+    // Second message in a multi-turn conversation
+    engine->responseQueue.append(
+        finalResponse(QStringLiteral("Second response.")));
+    loop->submitUserMessage(QStringLiteral("Second message."));
+
+    // Still only one system message
+    systemCount = 0;
+    for (const auto &msg : loop->messages())
+    {
+        if (msg.role == MessageRole::System)
+            ++systemCount;
+    }
+    EXPECT_EQ(systemCount, 1);
+}
+
+TEST_F(AgentLoopTest, SystemPromptReappliedAfterReset)
+{
+    loop->setSystemPrompt(QStringLiteral("Reapplied prompt."));
+
+    engine->responseQueue.append(
+        finalResponse(QStringLiteral("First.")));
+    loop->submitUserMessage(QStringLiteral("First message."));
+    loop->reset();
+
+    // After reset, system prompt should be reapplied
+    engine->responseQueue.append(
+        finalResponse(QStringLiteral("After reset.")));
+    loop->submitUserMessage(QStringLiteral("After reset message."));
+
+    ASSERT_GE(loop->messages().size(), 2);
+    EXPECT_EQ(loop->messages().at(0).role, MessageRole::System);
+    EXPECT_EQ(loop->messages().at(0).content,
+              QStringLiteral("Reapplied prompt."));
+}
+
+TEST_F(AgentLoopTest, EmptySystemPromptIsNoop)
+{
+    loop->setSystemPrompt(QString());
+
+    engine->responseQueue.append(
+        finalResponse(QStringLiteral("Hello!")));
+    loop->submitUserMessage(QStringLiteral("Hi"));
+
+    // No system message should be injected
+    for (const auto &msg : loop->messages())
+    {
+        EXPECT_NE(msg.role, MessageRole::System);
+    }
+}

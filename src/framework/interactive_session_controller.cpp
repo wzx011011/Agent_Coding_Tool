@@ -182,6 +182,7 @@ void InteractiveSessionController::runConversationTurn(const QString &message) {
 
     AgentLoop loop(activeEngine, m_tools, m_permissions, m_context);
     loop.setMaxTurns(50);
+    loop.setSystemPrompt(m_systemPrompt);
     loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
         switch (event.type) {
         case act::core::EventType::ToolCallStarted: {

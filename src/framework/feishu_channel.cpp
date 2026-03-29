@@ -124,6 +124,8 @@ std::shared_ptr<InteractiveSessionController> FeishuChannel::getOrCreateSession(
         *m_config.ai.context,
         InteractiveSessionExecutionMode::AsyncThreaded);
 
+    controller->setSystemPrompt(m_config.systemPrompt);
+
     // Monitor state changes for response delivery
     QObject::connect(controller.get(), &InteractiveSessionController::stateChanged,
                      this, [this, chatId]() { handleAIResponse(chatId); });

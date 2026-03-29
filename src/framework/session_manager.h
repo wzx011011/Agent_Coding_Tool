@@ -55,6 +55,9 @@ public:
     /// Clean up sessions idle longer than maxAgeMinutes.
     void cleanupIdleSessions(int maxAgeMinutes = 30);
 
+    /// Set the system prompt to inject before the first user message.
+    void setSystemPrompt(const QString &prompt) { m_systemPrompt = prompt; }
+
 signals:
     /// A response is ready to be sent back through the channel.
     void responseReady(const QString &conversationId,
@@ -78,6 +81,7 @@ private:
     act::harness::ToolRegistry &m_tools;
     act::harness::PermissionManager &m_permissions;
     act::harness::ContextManager &m_contextTemplate;
+    QString m_systemPrompt;
 };
 
 } // namespace act::framework

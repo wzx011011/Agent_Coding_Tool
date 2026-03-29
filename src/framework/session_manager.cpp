@@ -97,6 +97,7 @@ void ConversationSessionManager::runAgentForSession(
     // Create and run the AgentLoop
     AgentLoop loop(*workerEngine, m_tools, channelPerms, channelContext);
     loop.setMaxTurns(50);
+    loop.setSystemPrompt(m_systemPrompt);
 
     // Collect the final assistant response text
     QString responseText;

@@ -22,7 +22,10 @@
 #include "framework/feishu_channel.h"
 #include "framework/interactive_session_controller.h"
 #include "framework/input_dispatcher.h"
+#include "framework/skill_catalog.h"
+#include "framework/skill_loader.h"
 #include "framework/stream_formatter.h"
+#include "framework/system_prompt.h"
 #include "framework/terminal_style.h"
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
@@ -558,6 +561,36 @@ int main(int argc, char *argv[]) {
     // --- Create CLI REPL ---
     act::framework::CliRepl repl(*engine, *registry, *permissions, *context, switcher.get());
 
+    // --- Build system prompt ---
+    QString systemPrompt;
+    {
+        // 1) Base prompt (built-in, always present)
+        systemPrompt = act::framework::defaultBasePrompt();
+
+        // 2) Project prompt from .act/system_prompt.md
+        QString actDir = QDir::currentPath() + QStringLiteral("/.act");
+        QString promptPath = QDir::cleanPath(actDir + QStringLiteral("/system_prompt.md"));
+        QFile file(promptPath);
+        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            systemPrompt += QStringLiteral("\n\n") + QString::fromUtf8(file.readAll());
+            spdlog::info("Loaded project prompt from {}", promptPath.toStdString());
+        }
+
+        // 3) TOML skills from .act/skills/
+        act::framework::SkillCatalog catalog;
+        act::framework::SkillLoader loader;
+        int loaded = loader.loadFromDirectory(
+            QDir::currentPath() + QStringLiteral("/.act/skills"), catalog);
+        if (loaded > 0) {
+            QString skillPrompt = catalog.buildSystemPrompt();
+            if (!skillPrompt.isEmpty()) {
+                systemPrompt += QStringLiteral("\n\n") + skillPrompt;
+            }
+        }
+    }
+
+    repl.setSystemPrompt(systemPrompt);
+
     if (jsonMode)
         repl.setOutputMode(act::framework::CliRepl::OutputMode::Json);
 
@@ -683,7 +716,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (useTuiMode) {
-        act::cli::TuiApp tui(*engine, *registry, *permissions, *context);
+        act::cli::TuiApp tui(*engine, *registry, *permissions, *context, systemPrompt);
         return tui.run();
     }
 
@@ -708,6 +741,7 @@ int main(int argc, char *argv[]) {
         feishuConfig.appSecret = config->feishuAppSecret();
         feishuConfig.timeoutSeconds = 30;
         feishuConfig.ai = {engine.get(), registry.get(), context.get()};
+        feishuConfig.systemPrompt = systemPrompt;
         if (!config->feishuProxy().isEmpty()) {
             int colon = config->feishuProxy().lastIndexOf(QLatin1Char(':'));
             if (colon >= 0) {
