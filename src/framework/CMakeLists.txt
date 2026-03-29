@@ -1,28 +1,51 @@
 add_library(act_framework STATIC
     agent_loop.cpp
+    agent_loop.h
     agent_scheduler.cpp
+    agent_scheduler.h
     channel.cpp
+    channel.h
     cli_repl.cpp
+    cli_repl.h
     command_registry.cpp
+    command_registry.h
     eval_runner.cpp
+    eval_runner.h
     execution_lane.cpp
+    execution_lane.h
     feishu_channel.cpp
+    feishu_channel.h
     framework.cpp
     input_dispatcher.cpp
+    input_dispatcher.h
     interactive_session_controller.cpp
+    interactive_session_controller.h
     interactive_session_state.cpp
+    interactive_session_state.h
     markdown_formatter.cpp
+    markdown_formatter.h
     patch_transaction.cpp
+    patch_transaction.h
     resume_manager.cpp
+    resume_manager.h
     runtime_event_logger.cpp
+    runtime_event_logger.h
     runtime_trace_store.cpp
+    runtime_trace_store.h
     session_manager.cpp
+    session_manager.h
     stream_formatter.cpp
+    stream_formatter.h
     skill_catalog.cpp
+    skill_catalog.h
     skill_loader.cpp
+    skill_loader.h
     subagent_manager.cpp
+    subagent_manager.h
     task_graph.cpp
+    task_graph.h
     terminal_style.cpp
+    terminal_style.h
 )
 
 target_include_directories(act_framework

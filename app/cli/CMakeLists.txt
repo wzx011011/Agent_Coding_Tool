@@ -1,8 +1,7 @@
-find_package(ftxui CONFIG REQUIRED)
-
 add_executable(aictl
     main.cpp
     tui_app.cpp
+    tui_app.h
 )
 
 target_include_directories(aictl
@@ -12,13 +11,10 @@ target_include_directories(aictl
 
 target_link_libraries(aictl
     PRIVATE
-        act_core
         act_framework
-        act_services
-    ftxui::component
-    ftxui::dom
-    ftxui::screen
-        Qt6::Core
+        ftxui::component
+        ftxui::dom
+        ftxui::screen
 )
 
 target_compile_features(aictl PRIVATE cxx_std_20)

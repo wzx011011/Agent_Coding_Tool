@@ -1,12 +1,16 @@
-find_package(httplib CONFIG REQUIRED)
-
 add_library(act_infrastructure STATIC
     feishu_protocol.cpp
+    feishu_protocol.h
     feishu_rest_client.cpp
+    feishu_rest_client.h
     feishu_ws_client.cpp
+    feishu_ws_client.h
     infrastructure.cpp
     http_network.cpp
+    http_network.h
     sse_parser.cpp
+    sse_parser.h
+    interfaces.h
 )
 
 target_include_directories(act_infrastructure

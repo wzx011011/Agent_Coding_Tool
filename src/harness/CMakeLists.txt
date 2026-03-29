@@ -1,27 +1,50 @@
 add_library(act_harness STATIC
     harness.cpp
+    interfaces.h
     tool_registry.cpp
+    tool_registry.h
     permission_manager.cpp
+    permission_manager.h
     context_manager.cpp
+    context_manager.h
     tools/file_read_tool.cpp
+    tools/file_read_tool.h
     tools/file_write_tool.cpp
+    tools/file_write_tool.h
     tools/file_edit_tool.cpp
+    tools/file_edit_tool.h
     tools/grep_tool.cpp
+    tools/grep_tool.h
     tools/glob_tool.cpp
+    tools/glob_tool.h
     tools/shell_exec_tool.cpp
+    tools/shell_exec_tool.h
     tools/git_status_tool.cpp
+    tools/git_status_tool.h
     tools/git_diff_tool.cpp
+    tools/git_diff_tool.h
     tools/git_commit_tool.cpp
+    tools/git_commit_tool.h
     tools/git_log_tool.cpp
+    tools/git_log_tool.h
     tools/git_branch_tool.cpp
+    tools/git_branch_tool.h
     tools/diff_view_tool.cpp
+    tools/diff_view_tool.h
     tools/repo_map_tool.cpp
+    tools/repo_map_tool.h
     tools/file_delete_tool.cpp
+    tools/file_delete_tool.h
     tools/directory_tool.cpp
+    tools/directory_tool.h
     tools/build_tool.cpp
+    tools/build_tool.h
     tools/test_runner_tool.cpp
+    tools/test_runner_tool.h
     tools/ask_user_tool.cpp
+    tools/ask_user_tool.h
     tools/diagnostic_tool.cpp
+    tools/diagnostic_tool.h
 )
 
 target_include_directories(act_harness
