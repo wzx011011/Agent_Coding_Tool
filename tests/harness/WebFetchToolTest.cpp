@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <QJsonArray>
+
 #include "harness/tools/web_fetch_tool.h"
 #include "infrastructure/http_network.h"
 
@@ -57,8 +59,8 @@ TEST(WebFetchToolTest, SchemaHasUrlProperty)
     ASSERT_TRUE(schema.contains(QStringLiteral("properties")));
     auto props = schema.value(QStringLiteral("properties")).toObject();
     ASSERT_TRUE(props.contains(QStringLiteral("url")));
-    EXPECT_EQ(props.value(QStringLiteral("url"))
-                  .value(QStringLiteral("type"))
+    EXPECT_EQ(props[QStringLiteral("url")]
+                  [QStringLiteral("type")]
                   .toString()
                   .toStdString(),
               "string");
@@ -72,8 +74,8 @@ TEST(WebFetchToolTest, SchemaHasOptionalHeadersProperty)
 
     auto props = schema.value(QStringLiteral("properties")).toObject();
     ASSERT_TRUE(props.contains(QStringLiteral("headers")));
-    EXPECT_EQ(props.value(QStringLiteral("headers"))
-                  .value(QStringLiteral("type"))
+    EXPECT_EQ(props[QStringLiteral("headers")]
+                  [QStringLiteral("type")]
                   .toString()
                   .toStdString(),
               "object");

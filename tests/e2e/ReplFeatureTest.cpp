@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "core/error_codes.h"
+#include "core/types.h"
 #include "framework/cli_repl.h"
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
@@ -143,6 +144,23 @@ public:
     }
     [[nodiscard]] PermissionLevel permissionLevel() const override { return PermissionLevel::Read; }
     [[nodiscard]] bool isThreadSafe() const override { return true; }
+};
+
+class StubExecTool : public ITool
+{
+public:
+    explicit StubExecTool(QString n = QStringLiteral("stub_exec"),
+                          PermissionLevel lvl = PermissionLevel::Exec)
+        : m_name(std::move(n)), m_level(lvl) {}
+    [[nodiscard]] QString name() const override { return m_name; }
+    [[nodiscard]] QString description() const override { return QStringLiteral("Stub"); }
+    [[nodiscard]] QJsonObject schema() const override { return QJsonObject{}; }
+    ToolResult execute(const QJsonObject &) override { return ToolResult::ok(QStringLiteral("ok")); }
+    [[nodiscard]] PermissionLevel permissionLevel() const override { return m_level; }
+    [[nodiscard]] bool isThreadSafe() const override { return true; }
+private:
+    QString m_name;
+    PermissionLevel m_level;
 };
 
 // ============================================================
@@ -317,7 +335,7 @@ TEST_F(ReplFeatureTest, StatusReportsTurnCount)
     repl->processInput(QStringLiteral("hi"));
 
     capturedLines.clear();
-    repl->processInput(QStringLiteral("/status"));
+    auto state = repl->processInput(QStringLiteral("/status"));
     EXPECT_EQ(state, TaskState::Idle);
 
     // Should show turn count in status
@@ -379,7 +397,7 @@ TEST_F(ReplFeatureTest, ContextPersistsAcrossTurns)
 TEST_F(ReplFeatureTest, PermissionRequestedEventEmitted)
 {
     // Shell tool requires Exec permission (not auto-approved by default)
-    auto *shellTool = new StubTool(QStringLiteral("shell"), PermissionLevel::Exec);
+    auto *shellTool = new StubExecTool(QStringLiteral("shell"), PermissionLevel::Exec);
     registry->registerTool(std::unique_ptr<ITool>(shellTool));
     permissions->setPermissionCallback([](const PermissionRequest &) {
         return true;

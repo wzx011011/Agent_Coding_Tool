@@ -3,6 +3,7 @@
 #include "core/error_codes.h"
 
 #include <QJsonArray>
+#include <algorithm>
 #include <spdlog/spdlog.h>
 
 namespace act::harness
@@ -107,7 +108,7 @@ act::core::ToolResult WebFetchTool::execute(const QJsonObject &params)
     // Check for non-text content types by examining the response body
     // If the body contains null bytes, it is likely binary
     bool isBinary = false;
-    for (int i = 0; i < std::min(responseBody.size(), 8192); ++i)
+    for (qsizetype i = 0; i < std::min(responseBody.size(), qsizetype(8192)); ++i)
     {
         if (static_cast<unsigned char>(responseBody[i]) == 0)
         {

@@ -124,7 +124,7 @@ add_executable(act_harness_tests
     harness/TodoWriteToolTest.cpp
     harness/SubagentToolTest.cpp
 )
-target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
+target_link_libraries(act_harness_tests PRIVATE act_harness act_framework GTest::gtest_main)
 gtest_discover_tests(act_harness_tests
     PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}

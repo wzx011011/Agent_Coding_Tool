@@ -18,10 +18,11 @@ TEST(PermissionLevelTest, HasExpectedValues) {
 
 TEST(TaskStateTest, HasExpectedValues) {
     EXPECT_EQ(static_cast<int>(TaskState::Idle), 0);
-    EXPECT_EQ(static_cast<int>(TaskState::Running), 1);
-    EXPECT_EQ(static_cast<int>(TaskState::WaitingUserInput), 4);
-    EXPECT_EQ(static_cast<int>(TaskState::Completed), 8);
-    EXPECT_EQ(static_cast<int>(TaskState::Failed), 7);
+    EXPECT_EQ(static_cast<int>(TaskState::Planning), 1);
+    EXPECT_EQ(static_cast<int>(TaskState::Running), 2);
+    EXPECT_EQ(static_cast<int>(TaskState::WaitingUserInput), 5);
+    EXPECT_EQ(static_cast<int>(TaskState::Completed), 9);
+    EXPECT_EQ(static_cast<int>(TaskState::Failed), 8);
 }
 
 TEST(MessageRoleTest, HasExpectedValues) {

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <QJsonArray>
 #include <QJsonObject>
 
 #include "core/error_codes.h"
@@ -100,7 +101,7 @@ TEST_F(SubagentToolTest, MissingType)
     auto result = tool.execute(params);
     EXPECT_FALSE(result.success);
     EXPECT_EQ(result.errorCode, INVALID_PARAMS);
-    EXPECT_NE(result.output.indexOf(QStringLiteral("type")), -1);
+    EXPECT_NE(result.error.indexOf(QStringLiteral("type")), -1);
 }
 
 TEST_F(SubagentToolTest, MissingTask)
@@ -111,7 +112,7 @@ TEST_F(SubagentToolTest, MissingTask)
     auto result = tool.execute(params);
     EXPECT_FALSE(result.success);
     EXPECT_EQ(result.errorCode, INVALID_PARAMS);
-    EXPECT_NE(result.output.indexOf(QStringLiteral("task")), -1);
+    EXPECT_NE(result.error.indexOf(QStringLiteral("task")), -1);
 }
 
 TEST_F(SubagentToolTest, InvalidType)
@@ -123,7 +124,7 @@ TEST_F(SubagentToolTest, InvalidType)
     auto result = tool.execute(params);
     EXPECT_FALSE(result.success);
     EXPECT_EQ(result.errorCode, INVALID_PARAMS);
-    EXPECT_NE(result.output.indexOf(QStringLiteral("Invalid sub-agent type")), -1);
+    EXPECT_NE(result.error.indexOf(QStringLiteral("Invalid sub-agent type")), -1);
 }
 
 TEST_F(SubagentToolTest, EmptyParams)

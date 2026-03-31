@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <QJsonArray>
 #include <QJsonObject>
 
 #include "core/error_codes.h"
