@@ -75,4 +75,32 @@ RuntimeEvent RuntimeEvent::error(const QString &code, const QString &message)
             {{QStringLiteral("code"), code}, {QStringLiteral("message"), message}}};
 }
 
+RuntimeEvent RuntimeEvent::modelRequest(const QString &model,
+                                         int inputTokens,
+                                         int outputTokens,
+                                         int latencyMs,
+                                         int turn)
+{
+    return {EventType::ModelRequest,
+            {{QStringLiteral("model"), model},
+             {QStringLiteral("input_tokens"), inputTokens},
+             {QStringLiteral("output_tokens"), outputTokens},
+             {QStringLiteral("latency_ms"), latencyMs},
+             {QStringLiteral("turn"), turn}}};
+}
+
+RuntimeEvent RuntimeEvent::permissionAudit(const QString &toolName,
+                                            const QString &level,
+                                            PermissionAuditResult result,
+                                            const QString &reason)
+{
+    QJsonObject data;
+    data[QStringLiteral("tool_name")] = toolName;
+    data[QStringLiteral("permission_level")] = level;
+    data[QStringLiteral("result")] = static_cast<int>(result);
+    if (!reason.isEmpty())
+        data[QStringLiteral("reason")] = reason;
+    return {EventType::PermissionAudit, data};
+}
+
 } // namespace act::core
