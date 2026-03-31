@@ -29,11 +29,12 @@ void AgentLoop::setSystemPrompt(const QString &prompt)
 void AgentLoop::submitUserMessage(const QString &message)
 {
     // Allow re-entry from terminal states (Completed/Failed/Cancelled)
-    // so conversation history is preserved across turns.
+    // and from Planning state so the agent can still process messages.
     if (m_state != act::core::TaskState::Idle &&
         m_state != act::core::TaskState::Completed &&
         m_state != act::core::TaskState::Failed &&
-        m_state != act::core::TaskState::Cancelled)
+        m_state != act::core::TaskState::Cancelled &&
+        m_state != act::core::TaskState::Planning)
     {
         spdlog::warn("AgentLoop::submitUserMessage called in state {}",
                      static_cast<int>(m_state));
@@ -333,6 +334,25 @@ void AgentLoop::dispatchNextPendingToolCall()
         return;
     }
 
+    // Plan Mode enforcement: only Read and Network level tools allowed
+    if (m_planMode)
+    {
+        auto level = tool->permissionLevel();
+        if (level != act::core::PermissionLevel::Read &&
+            level != act::core::PermissionLevel::Network)
+        {
+            act::core::ToolResult blockedResult = act::core::ToolResult::err(
+                act::core::errors::PERMISSION_DENIED,
+                QStringLiteral("Tool '%1' is blocked in Plan Mode "
+                               "(only Read/Network tools allowed)")
+                    .arg(call.name));
+            appendToolResult(call, blockedResult);
+            ++m_pendingToolCallIndex;
+            dispatchNextPendingToolCall();
+            return;
+        }
+    }
+
     // Check permission
     auto decision = m_permissions.checkPermission(
         tool->permissionLevel(),
@@ -406,6 +426,43 @@ void AgentLoop::maybeCompactContext()
         spdlog::info("Context compacted: {}",
                       m_context.lastCompactSummary().toStdString());
     }
+}
+
+void AgentLoop::enterPlanMode()
+{
+    if (m_planMode)
+        return;
+
+    m_planMode = true;
+    spdlog::info("AgentLoop: Plan Mode enabled (Read/Network tools only)");
+
+    // Transition to Planning state if currently idle or completed
+    if (m_state == act::core::TaskState::Idle ||
+        m_state == act::core::TaskState::Completed ||
+        m_state == act::core::TaskState::Failed ||
+        m_state == act::core::TaskState::Cancelled)
+    {
+        transitionTo(act::core::TaskState::Planning);
+    }
+
+    emitEvent(act::core::RuntimeEvent::taskState(m_state));
+}
+
+void AgentLoop::exitPlanMode()
+{
+    if (!m_planMode)
+        return;
+
+    m_planMode = false;
+    spdlog::info("AgentLoop: Plan Mode disabled (all tools available)");
+
+    // Return to Idle from Planning state
+    if (m_state == act::core::TaskState::Planning)
+    {
+        transitionTo(act::core::TaskState::Idle);
+    }
+
+    emitEvent(act::core::RuntimeEvent::taskState(m_state));
 }
 
 void AgentLoop::transitionTo(act::core::TaskState newState)

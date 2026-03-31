@@ -53,6 +53,10 @@ add_library(act_harness STATIC
     tools/subagent_tool.h
     tools/skill_tool.cpp
     tools/skill_tool.h
+    tools/enter_plan_mode_tool.cpp
+    tools/enter_plan_mode_tool.h
+    tools/exit_plan_mode_tool.cpp
+    tools/exit_plan_mode_tool.h
 )
 
 target_include_directories(act_harness

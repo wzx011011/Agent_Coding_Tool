@@ -36,6 +36,7 @@ add_executable(act_framework_tests
     framework/SkillCatalogTest.cpp
     framework/RuntimeTraceTest.cpp
     framework/TerminalStyleTest.cpp
+    framework/PlanModeTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
 gtest_discover_tests(act_framework_tests

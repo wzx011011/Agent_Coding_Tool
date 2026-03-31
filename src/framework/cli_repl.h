@@ -77,6 +77,10 @@ public:
     /// Set the system prompt to inject before the first user message.
     void setSystemPrompt(const QString &prompt) { m_loop.setSystemPrompt(prompt); }
 
+    /// Access the underlying agent loop (for tool registration that needs loop reference).
+    [[nodiscard]] AgentLoop &agentLoop() { return m_loop; }
+    [[nodiscard]] const AgentLoop &agentLoop() const { return m_loop; }
+
 signals:
     /// Emitted when a line of output is ready to display.
     void outputLine(const QString &line);

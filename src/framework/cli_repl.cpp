@@ -186,6 +186,45 @@ CliRepl::CliRepl(services::IAIEngine &engine,
             return handlePermissionsCommand(args);
         });
 
+    (void)m_commands.registerCommand(
+        QStringLiteral("plan"),
+        QStringLiteral("Toggle Plan Mode (read-only tools) or /plan on|off"),
+        [this](const QStringList &args) -> bool {
+            if (!args.isEmpty())
+            {
+                if (args.at(0) == QLatin1String("on"))
+                {
+                    m_loop.enterPlanMode();
+                    emitOutput(TerminalStyle::systemMessage(
+                        QStringLiteral("Plan Mode ON. Only Read/Network tools allowed. "
+                                       "Use /plan off to exit.")));
+                    return true;
+                }
+                if (args.at(0) == QLatin1String("off"))
+                {
+                    m_loop.exitPlanMode();
+                    emitOutput(TerminalStyle::systemMessage(
+                        QStringLiteral("Plan Mode OFF. All tools available.")));
+                    return true;
+                }
+            }
+            // No args: toggle
+            if (m_loop.isPlanMode())
+            {
+                m_loop.exitPlanMode();
+                emitOutput(TerminalStyle::systemMessage(
+                    QStringLiteral("Plan Mode OFF. All tools available.")));
+            }
+            else
+            {
+                m_loop.enterPlanMode();
+                emitOutput(TerminalStyle::systemMessage(
+                    QStringLiteral("Plan Mode ON. Only Read/Network tools allowed. "
+                                   "Use /plan off to exit.")));
+            }
+            return true;
+        });
+
     // Wire up event callback — handle events in both Human and JSON modes
     m_loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
         // Capture user input prompt for CLI integration
