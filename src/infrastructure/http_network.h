@@ -37,6 +37,14 @@ public:
         int &statusCode,
         QByteArray &responseBody);
 
+    /// Synchronous HTTP GET request.
+    /// Returns true on success, false on network error.
+    bool httpGet(
+        const QString &url,
+        const QMap<QString, QString> &headers,
+        int &statusCode,
+        QByteArray &responseBody);
+
     /// SSE streaming POST request.
     /// onEvent is called for each parsed SSE event.
     /// onComplete is called when the stream ends.

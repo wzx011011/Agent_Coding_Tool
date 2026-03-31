@@ -50,7 +50,9 @@
 #include "harness/tools/grep_tool.h"
 #include "harness/tools/repo_map_tool.h"
 #include "harness/tools/shell_exec_tool.h"
+#include "harness/tools/web_fetch_tool.h"
 #include "infrastructure/interfaces.h"
+#include "infrastructure/http_network.h"
 #include "services/ai_engine.h"
 #include "services/config_manager.h"
 #include "tui_app.h"
@@ -476,6 +478,17 @@ int main(int argc, char *argv[]) {
     registry->registerTool(std::make_unique<act::harness::TestRunnerTool>(*process, QDir::currentPath()));
     registry->registerTool(std::make_unique<act::harness::AskUserTool>());
     registry->registerTool(std::make_unique<act::harness::DiagnosticTool>());
+
+    // WebFetchTool needs its own HttpNetwork instance for arbitrary URL fetching
+    auto webFetchNetwork = std::make_unique<act::infrastructure::HttpNetwork>();
+    if (!config->proxy().isEmpty()) {
+        int colon = config->proxy().lastIndexOf(QLatin1Char(':'));
+        if (colon >= 0) {
+            webFetchNetwork->setProxy(config->proxy().left(colon),
+                                      config->proxy().mid(colon + 1).toInt());
+        }
+    }
+    registry->registerTool(std::make_unique<act::harness::WebFetchTool>(*webFetchNetwork));
 
     permissions->setAutoApproved(act::core::PermissionLevel::Read, true);
     permissions->setAutoApproved(act::core::PermissionLevel::Write, true);
