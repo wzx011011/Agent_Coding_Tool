@@ -45,6 +45,12 @@ add_library(act_harness STATIC
     tools/ask_user_tool.h
     tools/diagnostic_tool.cpp
     tools/diagnostic_tool.h
+    tools/todo_write_tool.cpp
+    tools/todo_write_tool.h
+    tools/subagent_tool.cpp
+    tools/subagent_tool.h
+    tools/skill_tool.cpp
+    tools/skill_tool.h
 )
 
 target_include_directories(act_harness
