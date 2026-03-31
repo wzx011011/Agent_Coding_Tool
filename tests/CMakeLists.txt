@@ -216,6 +216,18 @@ gtest_discover_tests(act_integration_tests
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
 )
 
+# E2E integration tests v2 — cross-component collaboration tests
+add_executable(act_e2e_tests
+    e2e/ToolRegistrationTest.cpp
+    e2e/PermissionFlowTest.cpp
+    e2e/ReplFeatureTest.cpp
+)
+target_link_libraries(act_e2e_tests PRIVATE act_framework GTest::gtest_main)
+gtest_discover_tests(act_e2e_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
+
 # Live provider integration tests (needs real API keys)
 add_executable(act_live_provider_tests
     integration/LiveProviderTest.cpp
