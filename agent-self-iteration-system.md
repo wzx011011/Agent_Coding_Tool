@@ -1,0 +1,941 @@
+# LLM Agent 自我迭代系统技术方案
+
+## 概述
+
+本文档描述一个完整的 LLM Agent 自我迭代系统，包含三个核心层次：
+
+1. **多用户洞察收集** - 聚合所有用户的使用数据，生成群体级洞察
+2. **自我迭代 Agent** - 基于 prompt/策略的自动优化
+3. **监督者 Agent** - 基于代码的自动修复与改进
+
+---
+
+## 系统架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        用户交互层                                │
+│  User A ────┐                                                   │
+│  User B ────┼───► Agent Runtime ────► Langfuse 追踪             │
+│  User C ────┘                                                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    多用户洞察层 (新增)                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │ 数据聚合    │→ │ 洞察分析    │→ │ 进化建议    │             │
+│  │ Aggregator  │  │ Engine      │  │ Generator   │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│  类似 /insights，但跨用户聚合分析                                │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     迭代优化层                                   │
+│  ┌─────────────────────┐    ┌─────────────────────┐            │
+│  │  方案一：自我迭代    │ OR │  方案二：监督者Agent │            │
+│  │  (Self-Improvement) │    │  (Supervisor Agent) │            │
+│  └─────────────────────┘    └─────────────────────┘            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 闭环目标与成立条件
+
+这套系统的最终目标，不是“让 Agent 无监督地自己变聪明”，而是建立一个**可验证、可回滚、可持续优化**的进化闭环：
+
+```
+真实使用数据 → 问题识别 → 选择干预手段 → 小范围验证 → 逐步放量 → 效果复盘 → 保留/回滚
+```
+
+只有同时满足以下条件，系统才算真正实现“自我迭代”：
+
+1. 能稳定收集反馈，而不是只依赖零散案例。
+2. 能区分相关性和因果性，而不是看见模式就直接改。
+3. 能选择合适的干预层，而不是把所有问题都归因到 prompt 或代码。
+4. 能在改动后验证收益，并在收益不成立时回滚。
+5. 能防止近期样本过拟合、规则膨胀和策略冲突。
+
+---
+
+## 核心治理补充
+
+以下章节补充三层方案落地所必需的治理、验证与安全设计。它们不替代原有三层结构，而是作为所有实现的前置约束。
+
+### 1. 数据契约（Data Contract）
+
+多用户洞察层、自我迭代 Agent、监督者 Agent 要共享同一套最小数据契约。建议至少定义以下实体：
+
+| 实体 | 必填字段 | 用途 | 说明 |
+|------|----------|------|------|
+| `User` | `user_id_hash`, `tenant_id`, `segment_tags` | 多用户聚合、权限隔离 | 必须脱敏，禁止直接存储原始身份标识 |
+| `Session` | `session_id`, `user_id_hash`, `start_time`, `end_time`, `channel` | 会话级趋势与留存分析 | 会话是聚合与归因的基础边界 |
+| `Task` | `task_id`, `session_id`, `task_type`, `input_summary`, `final_status` | 任务完成率、任务级评估 | 一个会话中可包含多个任务 |
+| `ToolCall` | `tool_call_id`, `task_id`, `tool_name`, `args_summary`, `success`, `duration_ms` | 工具成功率、效率分析 | 参数应做摘要或脱敏后存储 |
+| `Score` | `task_id`, `metric_name`, `value`, `source`, `scored_at` | 质量评估与对比实验 | `source` 区分人工、规则、模型评估 |
+| `Feedback` | `task_id`, `feedback_type`, `content`, `severity` | 补充结构化评分之外的信号 | 包括用户投诉、人工审查意见 |
+| `Change` | `change_id`, `change_type`, `target`, `version`, `reason`, `applied_at` | 跟踪每次进化动作 | 便于因果分析与回滚 |
+
+#### 数据契约要求
+
+1. 每个字段必须定义采集时机、是否必填、允许空值语义。
+2. 所有评分必须带上 `source`，避免把模型自评与人工评分混为一谈。
+3. 所有可触发修改的数据都必须可追溯到具体 `task_id` 或 `change_id`。
+4. 用户级和租户级字段必须先脱敏再进入洞察层。
+5. 契约需要版本号，避免埋点字段演进后破坏旧分析逻辑。
+
+### 2. 指标体系（Metrics Hierarchy）
+
+系统不能只看“完成率有没有变高”，必须将指标分层，否则容易为追求单一指标而牺牲整体体验。
+
+| 指标层级 | 代表指标 | 用途 | 是否可直接驱动自动修改 |
+|----------|----------|------|------------------------|
+| 主指标 | `task_completion`, `user_satisfaction`, `goal_achievement_rate` | 判断是否达成核心目标 | 否，需结合护栏指标 |
+| 护栏指标 | `error_rate`, `rollback_rate`, `unsafe_action_rate`, `hallucination_rate` | 防止“优化主指标但系统变危险” | 是，用于阻止放量 |
+| 运营指标 | `latency_ms`, `avg_iterations`, `tool_calls_per_task`, `cost_per_task` | 控制效率与成本 | 可辅助排序，不可单独驱动 |
+
+#### 指标使用规则
+
+1. 主指标提升但护栏指标恶化，视为无效优化。
+2. 运营指标只能做优化排序，不能单独作为进化依据。
+3. 所有自动应用前，必须先看护栏指标是否越界。
+4. 不同用户群体应分别评估，避免总体平均掩盖分群退化。
+
+### 3. 干预对象模型（What Can Evolve）
+
+“自我迭代”不应只理解为改一个 prompt 文件，而应将可进化对象拆成多个可版本化组件：
+
+| 对象 | 典型内容 | 适合解决的问题 | 风险 |
+|------|----------|----------------|------|
+| 系统 Prompt | 全局行为约束、身份、优先级 | 通用行为偏差 | 中 |
+| 任务策略模板 | 任务分解步骤、完成条件、检查清单 | 常见任务类型执行不稳 | 低 |
+| 工具选择策略 | 工具优先级、回退顺序、工具组合模式 | 选错工具、工具使用低效 | 中 |
+| 停止策略 | 何时认为任务完成、何时 ask_user、何时回滚 | 中途停止、无意义迭代 | 中 |
+| Few-shot 示例 | 高价值任务的示例轨迹 | 某类任务稳定性不足 | 低 |
+| 安全阈值 | 自动应用阈值、审批阈值、回滚阈值 | 风险控制 | 高 |
+| 代码实现 | 工具实现、调度逻辑、异常处理 | 真正的系统缺陷 | 高 |
+
+结论：
+
+1. 行为层问题优先修改策略对象，而不是直接动代码。
+2. 系统缺陷优先进入监督者 Agent，而不是继续给 Prompt 打补丁。
+3. 每类对象都应独立版本化，避免所有改动都堆在单一 prompt 中。
+
+### 4. 问题分流矩阵（Routing Matrix）
+
+洞察层发现问题后，必须先判断问题属于哪一类，再决定进入哪条干预路径。
+
+| 问题类型 | 典型症状 | 首选处理层 | 是否允许自动应用 |
+|----------|----------|------------|------------------|
+| 数据噪声/评分异常 | 同类案例波动大、标注不一致 | 洞察层清洗 | 否 |
+| 任务分解不清 | 中途停止、漏步骤、完成条件模糊 | 自我迭代 Agent | 可小流量 |
+| 工具选择不佳 | 选错工具、重复调用、顺序不佳 | 自我迭代 Agent | 可小流量 |
+| 工具实现缺陷 | 稳定报错、参数处理错误、边界条件缺失 | 监督者 Agent | 默认否 |
+| 架构性问题 | 跨模块逻辑冲突、状态管理不一致 | 人工主导 + 监督者辅助 | 否 |
+| 安全问题 | 越权、敏感信息泄露、危险操作失控 | 人工紧急处理 | 否 |
+
+#### 分流原则
+
+1. 洞察层只负责发现与聚类，不直接做高风险修改。
+2. 自我迭代 Agent 只处理“模型本来能做，但行为不稳定”的问题。
+3. 监督者 Agent 只处理“必须改实现才能修复”的问题。
+4. 任何涉及安全、权限、租户隔离的问题必须升级到人工审批。
+
+### 5. 因果保护机制（Causal Guardrails）
+
+多用户洞察天然擅长发现相关性，不天然擅长证明因果性。因此系统必须引入证据强度分级。
+
+| 证据级别 | 说明 | 允许动作 |
+|----------|------|----------|
+| E0 观察性线索 | 仅看到模式或个例 | 生成建议，不自动修改 |
+| E1 重复性模式 | 同类问题多次出现，跨会话重复 | 允许进入小流量验证 |
+| E2 对照验证 | 新旧版本在回放或实验中有显著差异 | 允许逐步放量 |
+| E3 稳定收益 | 多轮验证、护栏指标稳定 | 允许成为默认策略 |
+
+#### 因果保护规则
+
+1. 洞察报告默认只有 E0 或 E1 证据级别。
+2. 任意高风险动作必须至少达到 E2。
+3. 自动写规则或自动改 prompt 也需要可追溯的 `change_id` 与验证结果。
+4. 证据不足时，系统输出建议而不是执行修改。
+
+### 6. 验证与发布机制（Validation and Rollout）
+
+系统必须把“提出改进”与“接受改进”拆成两个阶段，中间用实验和回归验证做隔离。
+
+#### 验证层次
+
+1. 离线验证：使用历史任务回放、基准任务集、失败案例集对新策略做快速筛查。
+2. 沙盒验证：在隔离环境中执行工具调用、补丁应用、测试验证。
+3. 小流量验证：对少量会话或特定用户群体放量。
+4. 正式放量：只有在主指标改善且护栏指标稳定时才扩大比例。
+
+#### 推荐发布流程
+
+```
+洞察发现 → 生成候选改动 → 离线回放 → 护栏检查 → canary 小流量 → 复盘 → 全量/回滚
+```
+
+#### 实验设计要求
+
+1. 每次改动必须记录基线版本与候选版本。
+2. 每次实验必须明确样本范围、观察周期、成功阈值。
+3. 主指标、护栏指标、运营指标必须同时对比。
+4. 如果收益不显著或收益伴随风险上升，默认不晋级。
+
+### 7. 反过拟合与版本治理（Anti-Overfitting）
+
+自我迭代系统最大的长期风险之一，不是“不改进”，而是“过拟合最近的问题”。因此必须补充版本治理机制。
+
+#### 主要风险
+
+1. 为修复近期高频问题而损害长尾任务表现。
+2. Prompt 不断堆积规则，导致冲突、冗长和优先级混乱。
+3. 某个用户群体的反馈放大，掩盖其他用户群体退化。
+
+#### 防护机制
+
+1. 建立长期基准任务集，任何版本发布前必须跑长期回归。
+2. 定期合并或淘汰低价值规则，防止 prompt 膨胀。
+3. 将“近期样本验证”和“长期样本验证”分开看。
+4. 对不同用户分群分别出报告，防止平均值掩盖退化。
+5. 每次迭代后保留可回滚版本，不允许覆盖式更新唯一版本。
+
+### 8. 机器规则与人工规则边界（Policy Layering）
+
+机器生成规则不能与人工规则混成同一个不可区分的来源，建议采用双层策略：
+
+| 策略层 | 来源 | 特点 | 修改方式 |
+|--------|------|------|----------|
+| Human Policy Layer | 人工编写 | 高权威、低频修改、包含安全与业务硬约束 | 人工审核后修改 |
+| Machine Policy Layer | 洞察与实验系统生成 | 高频迭代、可回滚、允许淘汰 | 机器生成 + 人工审批或实验晋级 |
+
+#### 边界规则
+
+1. 安全、合规、权限、租户隔离相关规则只能存在于 Human Policy Layer。
+2. 机器层不能覆盖人工层的硬约束。
+3. 机器层所有规则必须带来源、版本、证据等级和失效条件。
+4. 机器层应支持自动过期或定期复审，避免历史规则永久累积。
+
+### 9. 监督者 Agent 的安全分级
+
+监督者 Agent 不应只有“自动修复”与“手工修复”两种状态，建议至少分成四级：
+
+| 级别 | 能力 | 允许动作 | 默认审批要求 |
+|------|------|----------|--------------|
+| L0 | 只读分析 | 定位问题、生成报告 | 不需要 |
+| L1 | 补丁建议 | 输出 diff、解释修复方案 | 人工确认 |
+| L2 | 受控应用 | 在沙盒中应用补丁并运行测试 | 人工确认 + 测试通过 |
+| L3 | 自动晋级 | 自动合并到默认版本或自动部署 | 高级审批 + 多轮验证 |
+
+建议默认只启用 L0 和 L1，L2 仅在受控环境中启用，L3 只适用于高置信、低风险、强回归覆盖的受限场景。
+
+### 10. 失败模式与幂等性设计
+
+系统需要显式考虑失败模式，否则迭代链路本身会成为新的不稳定来源。
+
+| 失败模式 | 可能后果 | 建议处理方式 |
+|----------|----------|--------------|
+| 重复消费同一 trace | 指标偏斜、重复触发修改 | 使用 `trace_id` / `change_id` 去重 |
+| 评分延迟到达 | 过早下结论 | 支持延迟聚合窗口 |
+| 补丁部分成功 | 代码库进入不一致状态 | 事务化应用与逐文件回滚 |
+| 测试漏检 | 错误版本被放量 | 引入长期基准、护栏指标和 canary |
+| LLM 误分类问题 | 错误分流到 prompt 或 code | 保留人工复核入口 |
+| Prompt 规则冲突 | 行为震荡、响应质量下降 | 规则优先级、冲突检测、版本对比 |
+| 观察到相关性即自动修改 | 错误优化方向 | 强制走证据分级和实验验证 |
+
+#### 幂等性要求
+
+1. 每次进化动作必须有唯一 `change_id`。
+2. 同一 `change_id` 重放时，不应重复修改系统。
+3. 回滚动作必须可重复执行，并在多次执行后保持同一状态。
+4. 聚合任务、评分任务、发布任务都应可重试而不产生重复副作用。
+
+---
+
+## 示例代码与治理章节对齐说明
+
+下文的 Python 示例代码主要用于说明三层方案的职责拆分与实现方向。为了避免与前文新增的治理章节脱节，实际实现时应按以下原则升级，而不应直接将示例代码原样投入生产。
+
+### 对齐原则
+
+1. 示例代码默认是 PoC 级写法，治理章节定义的是生产级约束。
+2. 任意自动修改能力都要先经过“数据契约 → 证据分级 → 验证发布 → 回滚”的链路。
+3. 示例中的 `metadata`、`score`、`trace` 字段在正式实现中都应替换为明确版本化的数据契约。
+4. 示例中的直接自动应用逻辑，应默认降级为“生成候选改动”，再进入验证与发布机制。
+
+### 各模块对齐要求
+
+| 示例模块 | 当前作用 | 需要补齐的治理能力 | 对齐后的定位 |
+|----------|----------|--------------------|--------------|
+| `MultiUserAggregator` | 聚合 traces、识别模式 | 数据契约版本、去重、租户隔离、评分来源、延迟窗口 | 只读洞察入口 |
+| `InsightsAnalyzer` | 总结模式、生成建议 | 指标分层、分群对比、证据等级、护栏指标检查 | 决策前分析层 |
+| `EvolutionEngine` | 将问题映射为修改动作 | 问题分流矩阵、因果保护、auto-apply 门槛、变更版本化 | 候选变更编排器 |
+| `PromptUpdater` | 写入新 prompt | Human/Machine policy 分层、规则过期、版本淘汰、长期回归绑定 | 机器策略层更新器 |
+| `SelfImprovementLoop` | 自动收集反馈并改 prompt | baseline/candidate 对照、canary、样本门槛、回滚触发 | 行为层小流量优化器 |
+| `CodeAnalyzer` | 根据反馈定位代码问题 | 问题证据归档、人工复核入口、安全分级 | L0/L1 分析器 |
+| `PatchGenerator` | 生成代码补丁 | `change_id`、事务化变更、补丁置信度、影响范围估计 | 候选补丁生成器 |
+| `TestValidator` | 构建与测试 | 长期基准回归、护栏指标、沙盒环境、覆盖范围说明 | 变更验证器 |
+| `SupervisorLoop` | 自动分析并应用补丁 | L0-L3 分级、审批流、灰度放量、幂等与回滚 | 受控修复编排器 |
+
+### 第零层示例代码应如何升级
+
+`MultiUserAggregator`、`InsightsAnalyzer`、`MultiUserInsightsLoop` 在正式实现中应增加以下能力：
+
+1. 为 `User`、`Session`、`Task`、`ToolCall`、`Score`、`Change` 建立显式 schema，而不是依赖自由结构的 `metadata`。
+2. 对输入数据做租户隔离、去重和延迟聚合，避免重复 trace 或迟到评分污染结论。
+3. 在输出结果中加入证据等级，不把观察性模式直接当成可执行动作。
+4. 将“洞察质量评分”从单值打分升级为主指标、护栏指标、运营指标三层报告。
+
+### 方案一示例代码应如何升级
+
+`FeedbackCollector`、`AnalysisEngine`、`PromptUpdater`、`SelfImprovementLoop` 在正式实现中应增加以下能力：
+
+1. 将 prompt 更新对象从单文件扩展为“系统 Prompt + 任务策略模板 + 工具选择策略 + 停止策略 + few-shot 示例”。
+2. 每次改动必须生成 `candidate_version`，不能直接覆盖默认版本。
+3. 默认流程应为“候选生成 → 离线回放 → canary → 晋级/回滚”，而不是“分析后立即自动应用”。
+4. Machine Policy Layer 生成的规则必须带来源、证据等级、失效条件和复审时间。
+5. 长期基准回归必须与近期样本验证同时存在，防止对近期问题过拟合。
+
+### 方案二示例代码应如何升级
+
+`CodeAnalyzer`、`PatchGenerator`、`TestValidator`、`SupervisorLoop` 在正式实现中应增加以下能力：
+
+1. 先输出问题报告和补丁建议，再根据安全等级决定是否进入受控应用。
+2. 所有补丁必须带 `change_id`、影响文件范围、风险等级和置信度。
+3. 补丁应用应是事务化的，支持部分失败回滚与重复执行幂等。
+4. 构建测试之外，还需要长期基准回归、护栏指标检查和灰度验证。
+5. 默认只开启 L0/L1，L2/L3 必须显式配置并进入审批与验证链路。
+
+### 推荐阅读顺序
+
+为了正确理解后续代码示例，建议按以下顺序阅读本文：
+
+1. 先阅读“闭环目标与成立条件”和“核心治理补充”。
+2. 再阅读三层方案的职责拆分。
+3. 最后把代码示例视为 PoC 骨架，而不是最终生产实现。
+
+---
+
+## 第零层：多用户洞察收集
+
+### 设计理念
+
+类似 Claude Code 的 `/insights` 命令，但扩展到多用户场景。聚合所有用户的使用数据，生成群体级洞察，为 Agent 自我进化提供数据支持。
+
+### 与单用户 `/insights` 的对比
+
+| 维度 | `/insights` (单用户) | 多用户洞察系统 |
+|------|---------------------|----------------|
+| 数据来源 | 单用户本地会话 | 所有用户的使用数据 |
+| 分析粒度 | 个人习惯 | 群体模式 + 个体差异 |
+| 目标 | 改善个人使用效率 | 驱动 Agent 产品迭代 |
+| 隐私处理 | 本地处理 | 需要脱敏和权限管理 |
+| 输出 | HTML 报告 | 进化建议 + 规则更新 |
+
+### 核心流程
+
+```
+用户数据 → 数据清洗脱敏 → 模式检测 → 洞察聚合 → 进化建议
+```
+
+### 架构设计
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                  Multi-User Insights Engine                  │
+│                                                              │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐          │
+│  │   Data     │ → │  Privacy   │ → │  Pattern   │          │
+│  │ Aggregator │   │  Filter    │   │  Detector  │          │
+│  └────────────┘   └────────────┘   └────────────┘          │
+│         │                │                │                  │
+│         ▼                ▼                ▼                  │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐          │
+│  │   User     │   │  Friction  │   │  Evolution │          │
+│  │  Segments  │   │  Analyzer  │   │  Advisor   │          │
+│  └────────────┘   └────────────┘   └────────────┘          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 接口设计与伪代码
+
+#### 1. 核心接口
+
+| 模块 | 输入 | 输出 | 职责 |
+|------|------|------|------|
+| `TraceSource` | 时间窗口、租户范围、过滤条件 | 原始事件流 | 读取埋点与评分数据 |
+| `PrivacyFilter` | 原始事件流 | 脱敏后的标准化事件 | 做脱敏、去重、租户隔离 |
+| `MultiUserAggregator` | 标准化事件、聚合窗口 | `AggregatedInsights` | 聚合会话、任务、分群、模式 |
+| `InsightsAnalyzer` | `AggregatedInsights` | `InsightReport` | 总结成功模式、摩擦点、快速收益 |
+| `EvolutionEngine` | `InsightReport`、当前策略状态 | `EvolutionDecision[]` | 依据分流矩阵生成候选动作 |
+| `InsightsLoop` | 运行配置 | 洞察迭代结果 | 编排整条只读洞察链路 |
+
+#### 2. 聚合层最小对象
+
+建议保留以下对象模型，而不在主文档展开具体语言实现：
+
+1. `UserSession`: 用户、会话、任务摘要、工具摘要、评分摘要。
+2. `AggregatedInsights`: 聚合窗口、用户规模、会话规模、模式列表、建议列表。
+3. `InsightReport`: 执行摘要、主指标、护栏指标、摩擦点、建议动作。
+4. `EvolutionDecision`: 动作类型、目标对象、证据等级、风险等级、是否允许进入验证。
+
+#### 3. 第零层主流程伪代码
+
+```text
+loop every aggregation_interval:
+  raw_events = TraceSource.fetch(time_window, tenant_scope)
+  clean_events = PrivacyFilter.normalize_and_deduplicate(raw_events)
+  insights = MultiUserAggregator.aggregate(clean_events)
+  report = InsightsAnalyzer.analyze(insights)
+  decisions = EvolutionEngine.plan(report, current_policy_state)
+
+  emit report
+  emit candidate decisions
+
+  if any decision reaches auto-eligible threshold:
+    send to validation pipeline
+  else:
+    keep as advisory output only
+```
+
+#### 4. 关键约束
+
+1. 第零层默认只读，不直接写规则或改代码。
+2. 所有模式都必须带证据等级与受影响分群。
+3. 低风险动作也应先进入验证管线，而不是直接成为默认策略。
+4. 所有报告都必须区分主指标、护栏指标、运营指标。
+
+### 与迭代优化层的集成
+
+多用户洞察层作为数据源，为下游的自我迭代 Agent 和监督者 Agent 提供输入：
+
+```text
+洞察层输出高优先级摩擦点后：
+
+1. 行为层问题进入 Self-Improvement pipeline
+2. 实现层问题进入 Supervisor pipeline
+3. 成功模式进入 Best Practice library
+4. 任意动作在进入自动应用前，先经过证据分级和验证发布机制
+```
+
+---
+
+## 方案一：自我迭代 Agent
+
+### 设计理念
+
+Agent 根据用户反馈数据自动分析问题、生成改进建议，并应用于自身 prompt 或策略。
+
+### 核心流程
+
+```
+反馈收集 → 问题分析 → 生成改进 → 应用变更 → 验证效果 → 持续循环
+```
+
+### 架构设计
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Self-Improvement Agent                    │
+│                                                              │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐          │
+│  │ Feedback   │ → │  Analysis  │ → │ Generation │          │
+│  │ Collector  │   │  Engine    │   │  Engine    │          │
+│  └────────────┘   └────────────┘   └────────────┘          │
+│         │                │                │                  │
+│         ▼                ▼                ▼                  │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐          │
+│  │   Langfuse │   │  Pattern   │   │  Prompt    │          │
+│  │   Client   │   │  Detector  │   │  Updater   │          │
+│  └────────────┘   └────────────┘   └────────────┘          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 接口设计与伪代码
+
+#### 1. 核心接口
+
+| 模块 | 输入 | 输出 | 职责 |
+|------|------|------|------|
+| `FeedbackCollector` | 指标名、时间窗口、过滤条件 | `FeedbackCase[]` | 收集低分案例和特定模式案例 |
+| `AnalysisEngine` | `FeedbackCase[]` | `FailureAnalysis` | 识别失败模式与候选改进 |
+| `StrategyUpdater` | 候选改进、当前策略版本 | `CandidateStrategyVersion` | 生成新版本的策略对象 |
+| `ExperimentRunner` | baseline、candidate、验证配置 | `ExperimentResult` | 做离线回放、canary、护栏校验 |
+| `SelfImprovementLoop` | 调度配置 | 迭代结果 | 编排行为层优化闭环 |
+
+#### 2. 行为层最小对象
+
+1. `FeedbackCase`: 任务摘要、评分、评论、问题标签、证据来源。
+2. `FailureAnalysis`: 已知模式、新模式、候选改进、风险说明。
+3. `CandidateStrategyVersion`: 新旧版本差异、适用对象、变更原因、失效条件。
+4. `ExperimentResult`: 主指标变化、护栏指标变化、是否允许晋级。
+
+#### 3. 方案一主流程伪代码
+
+```text
+loop every check_interval:
+  cases = FeedbackCollector.collect(low_score_metrics, time_window)
+  if cases < min_cases_threshold:
+    emit skipped
+    continue
+
+  analysis = AnalysisEngine.analyze(cases)
+  candidate = StrategyUpdater.build_candidate(analysis, current_policy_state)
+
+  experiment = ExperimentRunner.compare(
+    baseline=current_default_version,
+    candidate=candidate,
+    validation_set=recent_failures + long_term_benchmark
+  )
+
+  if experiment passes guardrails:
+    promote candidate to canary
+  else:
+    keep candidate as advisory output or discard
+```
+
+#### 4. 关键约束
+
+1. 不直接覆盖默认 prompt，而是生成候选版本。
+2. 不只改一个 prompt 文件，而是允许修改任务模板、工具选择、停止策略等对象。
+3. 实验必须同时比较近期失败样本与长期基准样本。
+4. 若主指标提升但护栏指标退化，候选版本不得晋级。
+
+---
+
+## 方案二：监督者 Agent
+
+### 设计理念
+
+独立的监督者 Agent 负责分析反馈、生成代码改进，并可自动或半自动地修改项目代码。
+
+### 核心流程
+
+```
+反馈收集 → 代码分析 → 生成修复 → 测试验证 → 部署更新
+```
+
+### 架构设计
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     Supervisor Agent                         │
+│                                                              │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐          │
+│  │  Feedback  │ → │    Code    │ → │   Patch    │          │
+│  │  Analyzer  │   │  Analyzer │   │  Generator │          │
+│  └────────────┘   └────────────┘   └────────────┘          │
+│         │                │                │                  │
+│         ▼                ▼                ▼                  │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐          │
+│  │  Problem   │   │   File     │   │   Test     │          │
+│  │  Locator   │   │  Modifier  │   │  Runner    │          │
+│  └────────────┘   └────────────┘   └────────────┘          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 接口设计与伪代码
+
+#### 1. 核心接口
+
+| 模块 | 输入 | 输出 | 职责 |
+|------|------|------|------|
+| `CodeAnalyzer` | 反馈案例、失败分析、代码索引 | `ProblemReport[]` | 识别实现层问题与潜在定位 |
+| `PatchGenerator` | `ProblemReport[]`、代码上下文 | `PatchCandidate[]` | 生成受控补丁建议 |
+| `ValidationRunner` | `PatchCandidate`、验证配置 | `ValidationResult` | 构建、测试、回归、护栏检查 |
+| `ApprovalGate` | 风险等级、证据等级、审批策略 | 审批结果 | 决定是否允许进入 L1/L2/L3 |
+| `SupervisorLoop` | 调度配置 | 监督迭代结果 | 编排分析、补丁、验证、回滚 |
+
+#### 2. 实现层最小对象
+
+1. `ProblemReport`: 问题类型、位置、证据、严重程度、建议修复方向。
+2. `PatchCandidate`: 变更文件、变更摘要、风险等级、置信度、`change_id`。
+3. `ValidationResult`: 构建结果、测试结果、长期回归、护栏指标、是否允许晋级。
+4. `SupervisorIterationResult`: 本轮分析量、建议量、应用量、回滚量。
+
+#### 3. 方案二主流程伪代码
+
+```text
+loop every supervisor_interval:
+  cases = FeedbackCollector.collect(implementation_related_failures)
+  reports = CodeAnalyzer.locate(cases)
+
+  for each report:
+    candidate = PatchGenerator.build(report, current_codebase_snapshot)
+    approval = ApprovalGate.evaluate(candidate.risk_level, candidate.evidence_level)
+
+    if approval < required_level:
+      emit advisory patch only
+      continue
+
+    validation = ValidationRunner.run(candidate, sandbox_environment)
+
+    if validation passes build, tests, guardrails:
+      keep candidate for controlled promotion
+    else:
+      rollback candidate
+      record failure reason
+```
+
+#### 4. 关键约束
+
+1. 默认只输出问题报告和补丁建议，不直接写入生产代码。
+2. 补丁应用必须事务化，并支持部分失败回滚。
+3. 构建通过不是唯一条件，还必须通过护栏指标与长期基准回归。
+4. 监督者能力应按 L0/L1/L2/L3 分级启用，不应默认开启高等级自动应用。
+
+---
+
+## 三层方案对比
+
+| 维度 | 多用户洞察层 | 自我迭代 Agent | 监督者 Agent |
+|------|-------------|---------------|--------------|
+| **核心功能** | 数据聚合与洞察生成 | Prompt/策略优化 | 代码修复与改进 |
+| **改进范围** | 进化建议生成 | Prompt、策略、配置 | 代码、架构、工具实现 |
+| **数据来源** | 所有用户会话 | 低分反馈案例 | 问题报告 |
+| **风险等级** | 无（只读分析） | 低（prompt 可回滚） | 中高（代码修改需测试） |
+| **适用场景** | 产品级洞察、趋势分析 | LLM 行为优化 | 代码 bug 修复、功能改进 |
+| **人工介入** | 不需要 | 可选 | 建议 |
+| **技术复杂度** | 中等 | 中等 | 较高 |
+| **效果验证** | 洞察质量评分 | 对比前后评分 | 构建测试通过 |
+| **输出** | 洞察报告 + 进化建议 | 更新后的 Prompt | 代码补丁 |
+
+### 协同工作流
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        完整进化流程                              │
+│                                                                  │
+│  用户使用 ──► Langfuse 追踪 ──► 多用户洞察层                     │
+│       │                              │                           │
+│       │                              ├──► 摩擦点分析             │
+│       │                              ├──► 成功模式提取           │
+│       │                              └──► 进化建议生成           │
+│       │                                      │                   │
+│       ▼                                      ▼                   │
+│  低分案例 ────────────────► 自我迭代 Agent (Prompt优化)          │
+│       │                                      │                   │
+│       │                                      ▼                   │
+│       └───────────────────► 监督者 Agent (代码修复)              │
+│                                              │                   │
+│                                              ▼                   │
+│                                       Agent 版本更新             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 原有方案对比（自我迭代 vs 监督者）
+
+| 维度 | 自我迭代 Agent | 监督者 Agent |
+|------|---------------|--------------|
+| **改进范围** | Prompt、策略、配置 | 代码、架构、工具实现 |
+| **风险等级** | 低（prompt 可回滚） | 中高（代码修改需测试） |
+| **适用场景** | LLM 行为优化 | 代码 bug 修复、功能改进 |
+| **人工介入** | 可选 | 建议 |
+| **技术复杂度** | 中等 | 较高 |
+| **效果验证** | 对比前后评分 | 构建测试通过 |
+
+---
+
+## 推荐实施路线图
+
+为了降低风险，建议不要从“三层全开”起步，而是按能力成熟度逐阶段推进。推荐路线如下：
+
+### Phase 0：数据与评分基线
+
+目标：先把“看见问题”建立起来。
+
+交付物：
+
+1. 统一的数据契约与埋点 schema。
+2. `User`、`Session`、`Task`、`ToolCall`、`Score`、`Feedback`、`Change` 的最小事件模型。
+3. 主指标、护栏指标、运营指标的初版定义。
+4. 基础去重、脱敏、租户隔离与审计方案。
+
+完成标准：
+
+1. 能稳定产出跨用户、跨会话、跨任务的结构化数据。
+2. 任意评分都能追溯来源与时间。
+3. 任意变更都能关联到 `change_id`。
+
+### Phase 1：只读洞察系统
+
+目标：上线第零层，但不触发任何自动修改。
+
+交付物：
+
+1. 聚合器、洞察分析器、用户分群、成功/失败模式识别。
+2. 可读的洞察报告和建议列表。
+3. 证据等级 E0/E1 的初版标注逻辑。
+
+完成标准：
+
+1. 能识别高频摩擦点、成功模式和重点用户群体。
+2. 洞察结果可复盘、可解释、可追溯。
+3. 洞察层仍然保持只读，不直接改系统。
+
+### Phase 2：半自动 Prompt / 策略优化
+
+目标：先让系统具备“生成候选行为改动”的能力，但不默认自动生效。
+
+交付物：
+
+1. Machine Policy Layer 的候选规则生成。
+2. Prompt / 任务模板 / 工具选择策略 / 停止策略的版本化。
+3. baseline 与 candidate 的对照存储。
+4. 人工审批入口与候选版本回滚机制。
+
+完成标准：
+
+1. 能从高频行为问题生成候选策略改动。
+2. 候选改动与人工规则边界清晰。
+3. 任意候选改动都可单独启用、禁用、回滚。
+
+### Phase 3：离线验证与 canary 机制
+
+目标：建立“是否应该采纳改动”的实验层。
+
+交付物：
+
+1. 历史任务回放集、失败案例集、长期基准任务集。
+2. 主指标、护栏指标、运营指标的对照实验框架。
+3. canary 小流量发布与自动回滚机制。
+4. 证据等级 E2/E3 的晋级规则。
+
+完成标准：
+
+1. 任意候选改动必须先通过离线验证。
+2. canary 期间若护栏指标恶化，能自动停止晋级。
+3. 实验结果可支持“保留 / 回滚 / 继续观察”三种决策。
+
+### Phase 4：监督者 Agent 的 L0/L1 能力
+
+目标：先让监督者具备分析和建议补丁的能力，而不是直接改代码。
+
+交付物：
+
+1. 问题定位报告。
+2. 代码补丁建议与 diff 预览。
+3. 风险等级、置信度、影响范围说明。
+4. 人工复核与拒绝机制。
+
+完成标准：
+
+1. 能从反馈案例中定位可能的实现层问题。
+2. 能生成受控的补丁建议，但默认不自动应用。
+3. 所有建议都能追溯到证据与问题报告。
+
+### Phase 5：监督者 Agent 的 L2 受控应用
+
+目标：在隔离环境里尝试自动应用低风险补丁，并验证其有效性。
+
+交付物：
+
+1. 事务化补丁应用。
+2. 构建、测试、长期基准回归、护栏检查。
+3. 沙盒环境与部分失败回滚机制。
+4. 幂等的 `change_id` 执行与补丁去重。
+
+完成标准：
+
+1. 补丁可在沙盒中自动应用并验证。
+2. 测试失败或护栏越界时能自动回滚。
+3. 重试不会引入重复副作用。
+
+### Phase 6：生产级持续进化
+
+目标：让三层方案形成长期运行的可控闭环。
+
+交付物：
+
+1. 自动化复盘与版本淘汰策略。
+2. 长期基准回归、规则合并、过拟合治理。
+3. 多租户、审计、审批、策略层治理面板。
+4. 进化历史与效果归因报表。
+
+完成标准：
+
+1. 系统能稳定迭代而不产生明显规则膨胀。
+2. 任意版本都能回答“为什么发布、证据是什么、效果如何”。
+3. 人工团队只处理高风险决策，不再人工推动所有低风险优化。
+
+### 阶段依赖关系
+
+```
+Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
+```
+
+说明：
+
+1. Phase 0 到 Phase 3 是全系统的共同前置条件。
+2. 监督者 Agent 不建议早于 Phase 3 进入自动应用阶段。
+3. 如果 Phase 2 和 Phase 3 还不稳定，不应推进高等级代码自动修复。
+
+### 推荐优先级
+
+如果资源有限，建议按如下优先级推进：
+
+1. 先做 Phase 0 和 Phase 1，建立可靠观测。
+2. 再做 Phase 2 和 Phase 3，形成低风险行为层优化闭环。
+3. 最后再投入 Phase 4 和 Phase 5，把监督者 Agent 从分析器升级为受控修复器。
+
+---
+
+## 部署建议
+
+### 完整部署（三层协同）
+
+```yaml
+# docker-compose.evolution.yml
+services:
+  # 第零层：多用户洞察
+  insights-engine:
+    build: ./insights
+    environment:
+      - LANGFUSE_HOST=http://langfuse-web:3000
+      - LANGFUSE_PUBLIC_KEY=pk-lf-local-dev
+      - LANGFUSE_SECRET_KEY=sk-lf-local-dev
+      - AGGREGATION_INTERVAL_HOURS=24
+      - TIME_WINDOW_DAYS=30
+      - AUTO_APPLY_LOW_RISK=true
+    depends_on:
+      - langfuse-web
+
+  # 方案一：自我迭代 Agent
+  self-improvement-agent:
+    build: ./self-improvement
+    environment:
+      - LANGFUSE_HOST=http://langfuse-web:3000
+      - LANGFUSE_PUBLIC_KEY=pk-lf-local-dev
+      - LANGFUSE_SECRET_KEY=sk-lf-local-dev
+      - CHECK_INTERVAL=3600
+      - AUTO_APPLY=false
+    volumes:
+      - ./.act:/app/.act:rw
+    depends_on:
+      - langfuse-web
+      - insights-engine
+
+  # 方案二：监督者 Agent
+  supervisor-agent:
+    build: ./supervisor
+    environment:
+      - LANGFUSE_HOST=http://langfuse-web:3000
+      - LANGFUSE_PUBLIC_KEY=pk-lf-local-dev
+      - LANGFUSE_SECRET_KEY=sk-lf-local-dev
+      - PROJECT_PATH=/app
+      - REQUIRE_TEST_PASS=true
+    volumes:
+      - ./:/app:rw
+    depends_on:
+      - langfuse-web
+      - insights-engine
+```
+
+### 分层部署
+
+#### 第零层部署（多用户洞察）
+
+```yaml
+# docker-compose.insights.yml
+services:
+  insights-engine:
+    build: ./insights
+    environment:
+      - LANGFUSE_HOST=http://langfuse-web:3000
+      - LANGFUSE_PUBLIC_KEY=pk-lf-local-dev
+      - LANGFUSE_SECRET_KEY=sk-lf-local-dev
+      - AGGREGATION_INTERVAL_HOURS=24
+      - TIME_WINDOW_DAYS=30
+    ports:
+      - "8081:8081"  # API 端口
+    depends_on:
+      - langfuse-web
+```
+
+#### 方案一部署（推荐新手）
+
+```yaml
+# docker-compose.self-improve.yml
+services:
+  self-improvement-agent:
+    build: ./self-improvement
+    environment:
+      - LANGFUSE_HOST=http://langfuse-web:3000
+      - LANGFUSE_PUBLIC_KEY=pk-lf-local-dev
+      - LANGFUSE_SECRET_KEY=sk-lf-local-dev
+      - CHECK_INTERVAL=3600
+      - AUTO_APPLY=false
+    volumes:
+      - ./.act:/app/.act:rw
+    depends_on:
+      - langfuse-web
+```
+
+### 方案二部署（推荐成熟项目）
+
+```yaml
+# docker-compose.supervisor.yml
+services:
+  supervisor-agent:
+    build: ./supervisor
+    environment:
+      - LANGFUSE_HOST=http://langfuse-web:3000
+      - LANGFUSE_PUBLIC_KEY=pk-lf-local-dev
+      - LANGFUSE_SECRET_KEY=sk-lf-local-dev
+      - PROJECT_PATH=/app
+      - REQUIRE_TEST_PASS=true
+    volumes:
+      - ./:/app:rw
+    depends_on:
+      - langfuse-web
+```
+
+---
+
+## 注意事项
+
+### 安全考虑
+
+1. **代码修改风险**
+   - 始终要求测试通过
+   - 保留版本备份
+   - 支持快速回滚
+
+2. **权限控制**
+   - 敏感文件排除
+   - 危险操作需确认
+   - 审计日志完整
+
+3. **资源限制**
+   - 限制单次修改文件数
+   - 控制迭代频率
+   - 监控系统资源
+
+### 最佳实践
+
+1. **逐步启用**
+   - 先用 dry_run 预览
+   - 观察改进建议质量
+   - 再启用自动应用
+
+2. **人机协同**
+   - 高风险改动需人工确认
+   - 定期审核改进历史
+   - 保留人工干预入口
+
+3. **效果监控**
+   - 对比改进前后评分
+   - 追踪长期趋势
+   - 识别无效改进
+
+---
+
+## 参考资源
+
+- [Langfuse 官方文档](https://langfuse.com/docs)
+- [Langfuse 自动 Prompt 改进](https://langfuse.com/blog/2026-02-16-prompt-improvement-claude-skills)
+- [Agent-in-the-Loop 论文](https://arxiv.org/pdf/2510.06674)
+- [Self-Correction LLM Papers](https://github.com/teacherpeterpan/self-correction-llm-papers)

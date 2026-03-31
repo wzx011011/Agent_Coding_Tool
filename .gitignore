@@ -44,3 +44,4 @@ Desktop.ini
 
 # ACT config (contains API keys)
 .act/
+act.log
