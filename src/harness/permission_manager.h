@@ -50,7 +50,9 @@ public:
 
     /// Deny list - tools/operations that are always denied
     void addToDenyList(const QString &toolName);
+    void removeFromDenyList(const QString &toolName);
     [[nodiscard]] bool isDenied(const QString &toolName) const;
+    [[nodiscard]] QStringList denyList() const;
 
 signals:
     void permissionRequested(const act::core::PermissionRequest &request,

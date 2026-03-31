@@ -115,4 +115,17 @@ bool PermissionManager::isDenied(const QString &toolName) const
     return m_denyList.contains(toolName);
 }
 
+void PermissionManager::removeFromDenyList(const QString &toolName)
+{
+    if (m_denyList.removeOne(toolName))
+    {
+        spdlog::info("Tool removed from deny list: {}", toolName.toStdString());
+    }
+}
+
+QStringList PermissionManager::denyList() const
+{
+    return m_denyList;
+}
+
 } // namespace act::harness

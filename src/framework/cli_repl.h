@@ -54,6 +54,14 @@ public:
     /// Process a batch of inputs (e.g. from file or args).
     void processBatch(const QStringList &inputs);
 
+    /// Check if the line ends with a backslash, indicating continuation.
+    /// If so, strips the trailing backslash and returns the stripped line.
+    /// Otherwise returns the line unchanged.
+    [[nodiscard]] static QString stripTrailingBackslash(const QString &line);
+
+    /// Check if a line should trigger continuation (ends with single backslash).
+    [[nodiscard]] static bool isContinuationLine(const QString &line);
+
     /// Check if exit was requested via /exit or /quit command.
     [[nodiscard]] bool isExitRequested() const { return m_exitRequested; }
 
@@ -97,6 +105,7 @@ private:
     bool handleCompactCommand(const QStringList &args);
     bool handleConfigCommand(const QStringList &args);
     bool handleResumeCommand(const QStringList &args);
+    bool handlePermissionsCommand(const QStringList &args);
 
     services::IAIEngine &m_engine;
     harness::ToolRegistry &m_tools;
