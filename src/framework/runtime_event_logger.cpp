@@ -48,6 +48,12 @@ void RuntimeEventLogger::log(const act::core::RuntimeEvent &event)
     case act::core::EventType::ErrorOccurred:
         entry[QStringLiteral("type")] = QStringLiteral("error_occurred");
         break;
+    case act::core::EventType::ModelRequest:
+        entry[QStringLiteral("type")] = QStringLiteral("model_request");
+        break;
+    case act::core::EventType::PermissionAudit:
+        entry[QStringLiteral("type")] = QStringLiteral("permission_audit");
+        break;
     }
 
     entry[QStringLiteral("data")] = event.data;

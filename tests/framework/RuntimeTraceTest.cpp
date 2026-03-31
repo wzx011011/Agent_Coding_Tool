@@ -125,3 +125,164 @@ TEST(RuntimeTraceStoreTest, TraceJsonForNonexistentTaskIsEmpty)
     auto json = store.traceJson(QStringLiteral("no_such_task"));
     EXPECT_TRUE(json.isEmpty());
 }
+
+// ============================================================
+// RuntimeEvent ModelRequest Tests
+// ============================================================
+
+TEST(RuntimeEventTest, ModelRequestCreatesCorrectEvent)
+{
+    auto evt = RuntimeEvent::modelRequest(
+        QStringLiteral("claude-3-opus"), 150, 320, 1200, 1);
+
+    EXPECT_EQ(evt.type, EventType::ModelRequest);
+    EXPECT_EQ(evt.data.value(QStringLiteral("model")).toString(),
+              QStringLiteral("claude-3-opus"));
+    EXPECT_EQ(evt.data.value(QStringLiteral("input_tokens")).toInt(), 150);
+    EXPECT_EQ(evt.data.value(QStringLiteral("output_tokens")).toInt(), 320);
+    EXPECT_EQ(evt.data.value(QStringLiteral("latency_ms")).toInt(), 1200);
+    EXPECT_EQ(evt.data.value(QStringLiteral("turn")).toInt(), 1);
+}
+
+TEST(RuntimeEventTest, ModelRequestWithZeroValues)
+{
+    auto evt = RuntimeEvent::modelRequest(
+        QStringLiteral("gpt-4"), 0, 0, 0, 0);
+
+    EXPECT_EQ(evt.type, EventType::ModelRequest);
+    EXPECT_EQ(evt.data.value(QStringLiteral("input_tokens")).toInt(), 0);
+    EXPECT_EQ(evt.data.value(QStringLiteral("output_tokens")).toInt(), 0);
+    EXPECT_EQ(evt.data.value(QStringLiteral("latency_ms")).toInt(), 0);
+    EXPECT_EQ(evt.data.value(QStringLiteral("turn")).toInt(), 0);
+}
+
+TEST(RuntimeEventLoggerTest, LogModelRequestDoesNotCrash)
+{
+    RuntimeEventLogger logger;
+    auto evt = RuntimeEvent::modelRequest(
+        QStringLiteral("claude-3-opus"), 100, 200, 500, 1);
+    logger.log(evt);
+}
+
+TEST(RuntimeTraceStoreTest, RecordModelRequestUnderCurrentTask)
+{
+    RuntimeTraceStore store;
+    auto taskId = store.beginTask(QStringLiteral("Model request task"));
+    store.record(RuntimeEvent::modelRequest(
+        QStringLiteral("claude-3-opus"), 50, 100, 300, 1));
+
+    auto events = store.events(taskId);
+    ASSERT_EQ(events.size(), 1);
+    EXPECT_EQ(events.first().type, EventType::ModelRequest);
+    EXPECT_EQ(events.first().data.value(QStringLiteral("model")).toString(),
+              QStringLiteral("claude-3-opus"));
+}
+
+// ============================================================
+// RuntimeEvent PermissionAudit Tests
+// ============================================================
+
+TEST(RuntimeEventTest, PermissionAuditApprovedCreatesCorrectEvent)
+{
+    auto evt = RuntimeEvent::permissionAudit(
+        QStringLiteral("file_write"),
+        QStringLiteral("Write"),
+        PermissionAuditResult::Approved,
+        QStringLiteral("User approved"));
+
+    EXPECT_EQ(evt.type, EventType::PermissionAudit);
+    EXPECT_EQ(evt.data.value(QStringLiteral("tool_name")).toString(),
+              QStringLiteral("file_write"));
+    EXPECT_EQ(evt.data.value(QStringLiteral("permission_level")).toString(),
+              QStringLiteral("Write"));
+    EXPECT_EQ(evt.data.value(QStringLiteral("result")).toInt(),
+              static_cast<int>(PermissionAuditResult::Approved));
+    EXPECT_EQ(evt.data.value(QStringLiteral("reason")).toString(),
+              QStringLiteral("User approved"));
+}
+
+TEST(RuntimeEventTest, PermissionAuditDenied)
+{
+    auto evt = RuntimeEvent::permissionAudit(
+        QStringLiteral("shell_exec"),
+        QStringLiteral("Exec"),
+        PermissionAuditResult::Denied,
+        QStringLiteral("Security policy"));
+
+    EXPECT_EQ(evt.type, EventType::PermissionAudit);
+    EXPECT_EQ(evt.data.value(QStringLiteral("result")).toInt(),
+              static_cast<int>(PermissionAuditResult::Denied));
+}
+
+TEST(RuntimeEventTest, PermissionAuditAutoApproved)
+{
+    auto evt = RuntimeEvent::permissionAudit(
+        QStringLiteral("file_read"),
+        QStringLiteral("Read"),
+        PermissionAuditResult::AutoApproved);
+
+    EXPECT_EQ(evt.type, EventType::PermissionAudit);
+    EXPECT_EQ(evt.data.value(QStringLiteral("result")).toInt(),
+              static_cast<int>(PermissionAuditResult::AutoApproved));
+    EXPECT_FALSE(evt.data.contains(QStringLiteral("reason")));
+}
+
+TEST(RuntimeEventTest, PermissionAuditOmitsEmptyReason)
+{
+    auto evt = RuntimeEvent::permissionAudit(
+        QStringLiteral("dir_list"),
+        QStringLiteral("Read"),
+        PermissionAuditResult::AutoApproved);
+
+    EXPECT_FALSE(evt.data.contains(QStringLiteral("reason")));
+}
+
+TEST(RuntimeEventLoggerTest, LogPermissionAuditDoesNotCrash)
+{
+    RuntimeEventLogger logger;
+    auto evt = RuntimeEvent::permissionAudit(
+        QStringLiteral("shell_exec"),
+        QStringLiteral("Exec"),
+        PermissionAuditResult::Denied,
+        QStringLiteral("Risk too high"));
+    logger.log(evt);
+}
+
+TEST(RuntimeTraceStoreTest, RecordPermissionAuditUnderCurrentTask)
+{
+    RuntimeTraceStore store;
+    auto taskId = store.beginTask(QStringLiteral("Permission audit task"));
+    store.record(RuntimeEvent::permissionAudit(
+        QStringLiteral("file_write"),
+        QStringLiteral("Write"),
+        PermissionAuditResult::Approved,
+        QStringLiteral("User approved")));
+
+    auto events = store.events(taskId);
+    ASSERT_EQ(events.size(), 1);
+    EXPECT_EQ(events.first().type, EventType::PermissionAudit);
+    EXPECT_EQ(events.first().data.value(QStringLiteral("tool_name")).toString(),
+              QStringLiteral("file_write"));
+}
+
+TEST(RuntimeTraceStoreTest, TraceJsonWithNewEventTypes)
+{
+    RuntimeTraceStore store;
+    auto taskId = store.beginTask(QStringLiteral("Mixed events"));
+    store.record(RuntimeEvent::modelRequest(
+        QStringLiteral("gpt-4"), 100, 200, 500, 1));
+    store.record(RuntimeEvent::permissionAudit(
+        QStringLiteral("shell_exec"),
+        QStringLiteral("Exec"),
+        PermissionAuditResult::AutoApproved));
+    store.endTask();
+
+    auto json = store.traceJson(taskId);
+    auto eventsArr = json.value(QStringLiteral("events")).toArray();
+    ASSERT_EQ(eventsArr.size(), 2);
+
+    EXPECT_EQ(eventsArr.at(0).toObject().value(QStringLiteral("type")).toInt(),
+              static_cast<int>(EventType::ModelRequest));
+    EXPECT_EQ(eventsArr.at(1).toObject().value(QStringLiteral("type")).toInt(),
+              static_cast<int>(EventType::PermissionAudit));
+}

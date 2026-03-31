@@ -19,7 +19,16 @@ enum class EventType
     UserInputProvided,
     TaskStateChanged,
     ToolExecutionProgress,
-    ErrorOccurred
+    ErrorOccurred,
+    ModelRequest,
+    PermissionAudit
+};
+
+enum class PermissionAuditResult
+{
+    Approved,
+    Denied,
+    AutoApproved
 };
 
 struct RuntimeEvent
@@ -47,6 +56,16 @@ struct RuntimeEvent
                                                 const QString &summary = {});
     [[nodiscard]] static RuntimeEvent error(const QString &code,
                                             const QString &message);
+    [[nodiscard]] static RuntimeEvent modelRequest(const QString &model,
+                                                   int inputTokens,
+                                                   int outputTokens,
+                                                   int latencyMs,
+                                                   int turn);
+    [[nodiscard]] static RuntimeEvent permissionAudit(
+        const QString &toolName,
+        const QString &level,
+        PermissionAuditResult result,
+        const QString &reason = {});
 };
 
 } // namespace act::core
