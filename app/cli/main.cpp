@@ -25,6 +25,7 @@
 #include "framework/resume_manager.h"
 #include "framework/skill_catalog.h"
 #include "framework/skill_loader.h"
+#include "framework/subagent_manager.h"
 #include "framework/stream_formatter.h"
 #include "framework/system_prompt.h"
 #include "framework/terminal_style.h"
@@ -33,6 +34,9 @@
 #include "harness/tool_registry.h"
 #include "harness/tools/ask_user_tool.h"
 #include "harness/tools/diagnostic_tool.h"
+#include "harness/tools/todo_write_tool.h"
+#include "harness/tools/subagent_tool.h"
+#include "harness/tools/skill_tool.h"
 #include "harness/tools/diff_view_tool.h"
 #include "harness/tools/file_edit_tool.h"
 #include "harness/tools/file_delete_tool.h"
@@ -454,6 +458,10 @@ int main(int argc, char *argv[]) {
     auto permissions = std::make_unique<act::harness::PermissionManager>();
     auto context = std::make_unique<act::harness::ContextManager>();
 
+    // --- Create framework managers ---
+    auto skillCatalog = std::make_unique<act::framework::SkillCatalog>();
+    auto subagentManager = std::make_unique<act::framework::SubagentManager>();
+
     // --- Create infrastructure implementations ---
     auto fileSystem = std::make_unique<LocalFileSystem>(QDir::currentPath());
     auto process = std::make_unique<LocalProcess>();
@@ -478,6 +486,9 @@ int main(int argc, char *argv[]) {
     registry->registerTool(std::make_unique<act::harness::TestRunnerTool>(*process, QDir::currentPath()));
     registry->registerTool(std::make_unique<act::harness::AskUserTool>());
     registry->registerTool(std::make_unique<act::harness::DiagnosticTool>());
+    registry->registerTool(std::make_unique<act::harness::TodoWriteTool>());
+    registry->registerTool(std::make_unique<act::harness::SubagentTool>(*subagentManager));
+    registry->registerTool(std::make_unique<act::harness::SkillTool>(*skillCatalog));
 
     // WebFetchTool needs its own HttpNetwork instance for arbitrary URL fetching
     auto webFetchNetwork = std::make_unique<act::infrastructure::HttpNetwork>();
@@ -593,12 +604,11 @@ int main(int argc, char *argv[]) {
         }
 
         // 3) TOML skills from .act/skills/
-        act::framework::SkillCatalog catalog;
         act::framework::SkillLoader loader;
         int loaded = loader.loadFromDirectory(
-            QDir::currentPath() + QStringLiteral("/.act/skills"), catalog);
+            QDir::currentPath() + QStringLiteral("/.act/skills"), *skillCatalog);
         if (loaded > 0) {
-            QString skillPrompt = catalog.buildSystemPrompt();
+            QString skillPrompt = skillCatalog->buildSystemPrompt();
             if (!skillPrompt.isEmpty()) {
                 systemPrompt += QStringLiteral("\n\n") + skillPrompt;
             }

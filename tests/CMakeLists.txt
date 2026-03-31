@@ -120,6 +120,8 @@ add_executable(act_harness_tests
     harness/AskUserToolTest.cpp
     harness/DiagnosticToolTest.cpp
     harness/WebFetchToolTest.cpp
+    harness/TodoWriteToolTest.cpp
+    harness/SubagentToolTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
 gtest_discover_tests(act_harness_tests
