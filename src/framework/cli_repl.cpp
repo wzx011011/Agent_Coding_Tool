@@ -179,6 +179,13 @@ CliRepl::CliRepl(services::IAIEngine &engine,
             });
     }
 
+    (void)m_commands.registerCommand(
+        QStringLiteral("permissions"),
+        QStringLiteral("Show or manage permission settings"),
+        [this](const QStringList &args) -> bool {
+            return handlePermissionsCommand(args);
+        });
+
     // Wire up event callback — handle events in both Human and JSON modes
     m_loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
         // Capture user input prompt for CLI integration
@@ -830,6 +837,132 @@ bool CliRepl::handleResumeCommand(const QStringList &args)
             .arg(cp->messages.size())
             .arg(cp->turnCount)));
     return true;
+}
+
+bool CliRepl::handlePermissionsCommand(const QStringList &args)
+{
+    // /permissions -- no args: show all permission levels
+    if (args.isEmpty())
+    {
+        emitOutput(TerminalStyle::systemMessage(QStringLiteral("Permission levels:")));
+
+        static const QList<QPair<act::core::PermissionLevel, QString>> levels = {
+            {act::core::PermissionLevel::Read, QStringLiteral("Read")},
+            {act::core::PermissionLevel::Write, QStringLiteral("Write")},
+            {act::core::PermissionLevel::Exec, QStringLiteral("Exec")},
+            {act::core::PermissionLevel::Network, QStringLiteral("Network")},
+            {act::core::PermissionLevel::Destructive, QStringLiteral("Destructive")},
+        };
+
+        for (const auto &[level, name] : levels)
+        {
+            QString status = m_permissions.isAutoApproved(level)
+                ? QStringLiteral("auto")
+                : QStringLiteral("manual");
+            emitOutput(QStringLiteral("  %-12s %1").arg(name, status));
+        }
+
+        // Show deny list
+        QStringList denied = m_permissions.denyList();
+        if (!denied.isEmpty())
+        {
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("Deny list: %1").arg(denied.join(QStringLiteral(", ")))));
+        }
+        else
+        {
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("Deny list: (empty)")));
+        }
+        return true;
+    }
+
+    // /permissions auto on|off
+    if (args.at(0) == QLatin1String("auto"))
+    {
+        if (args.size() < 2)
+        {
+            emitOutput(TerminalStyle::errorMessage(
+                QStringLiteral("INVALID_ARGS"),
+                QStringLiteral("Usage: /permissions auto on|off")));
+            return true;
+        }
+
+        bool enable = (args.at(1) == QLatin1String("on"));
+        for (int i = 0; i < 5; ++i)
+        {
+            m_permissions.setAutoApproved(
+                static_cast<act::core::PermissionLevel>(i), enable);
+        }
+        emitOutput(TerminalStyle::systemMessage(
+            enable ? QStringLiteral("Auto-approve enabled for all levels.")
+                   : QStringLiteral("Auto-approve disabled for all levels.")));
+        return true;
+    }
+
+    // /permissions deny <tool>
+    if (args.at(0) == QLatin1String("deny"))
+    {
+        if (args.size() < 2)
+        {
+            emitOutput(TerminalStyle::errorMessage(
+                QStringLiteral("INVALID_ARGS"),
+                QStringLiteral("Usage: /permissions deny <tool>")));
+            return true;
+        }
+        QString tool = args.at(1);
+        m_permissions.addToDenyList(tool);
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Added '%1' to deny list.").arg(tool)));
+        return true;
+    }
+
+    // /permissions allow <tool>
+    if (args.at(0) == QLatin1String("allow"))
+    {
+        if (args.size() < 2)
+        {
+            emitOutput(TerminalStyle::errorMessage(
+                QStringLiteral("INVALID_ARGS"),
+                QStringLiteral("Usage: /permissions allow <tool>")));
+            return true;
+        }
+        QString tool = args.at(1);
+        m_permissions.removeFromDenyList(tool);
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Removed '%1' from deny list.").arg(tool)));
+        return true;
+    }
+
+    emitOutput(TerminalStyle::errorMessage(
+        QStringLiteral("INVALID_ARGS"),
+        QStringLiteral("Usage: /permissions [auto on|off] [deny <tool>] [allow <tool>]")));
+    return true;
+}
+
+bool CliRepl::isContinuationLine(const QString &line)
+{
+    // A line ending with a single backslash indicates continuation.
+    // Double backslash (\\) is an escaped literal, not continuation.
+    if (line.isEmpty())
+        return false;
+
+    int pos = line.size() - 1;
+    int backslashCount = 0;
+    while (pos >= 0 && line.at(pos) == QLatin1Char('\\'))
+    {
+        ++backslashCount;
+        --pos;
+    }
+    // Odd number of trailing backslashes = continuation
+    return (backslashCount % 2) == 1;
+}
+
+QString CliRepl::stripTrailingBackslash(const QString &line)
+{
+    if (!isContinuationLine(line))
+        return line;
+    return line.left(line.size() - 1);
 }
 
 } // namespace act::framework

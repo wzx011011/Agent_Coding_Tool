@@ -394,6 +394,11 @@ int main(int argc, char *argv[]) {
                                    QStringLiteral("Use the streaming line-based interactive CLI."));
     parser.addOption(plainOption);
 
+    QCommandLineOption modelOption(QStringList{QStringLiteral("model")},
+                                  QStringLiteral("Override the AI model (takes priority over config)."),
+                                  QStringLiteral("model"));
+    parser.addOption(modelOption);
+
     parser.addPositionalArgument(QStringLiteral("inputs"),
                                  QStringLiteral("Task description or input lines (batch mode)."));
     parser.process(app);
@@ -457,6 +462,19 @@ int main(int argc, char *argv[]) {
     auto registry = std::make_unique<act::harness::ToolRegistry>();
     auto permissions = std::make_unique<act::harness::PermissionManager>();
     auto context = std::make_unique<act::harness::ContextManager>();
+
+    // --- Apply --model override (takes priority over config file) ---
+    QString modelOverride = parser.value(modelOption);
+    if (!modelOverride.isEmpty()) {
+        config->setModel(modelOverride);
+        if (!engine->reinitializeProvider()) {
+            out << act::framework::TerminalStyle::fgRed(
+                       QStringLiteral("Failed to apply --model '%1'.").arg(modelOverride))
+                << Qt::endl;
+            return 1;
+        }
+        spdlog::info("Applied --model override: {}", modelOverride.toStdString());
+    }
 
     // --- Create framework managers ---
     auto skillCatalog = std::make_unique<act::framework::SkillCatalog>();
@@ -842,6 +860,32 @@ int main(int argc, char *argv[]) {
                 break;
 #endif
             continue;
+        }
+
+        // N20: Multiline input support (backslash continuation)
+        // Non-TTY (pipe) mode: single-line only, no continuation
+#ifdef _WIN32
+        bool isTty = _isatty(_fileno(stdin));
+#else
+        bool isTty = isatty(STDIN_FILENO);
+#endif
+        if (isTty && act::framework::CliRepl::isContinuationLine(line)) {
+            // Accumulate continuation lines
+            QString fullLine = act::framework::CliRepl::stripTrailingBackslash(line);
+            while (true) {
+                out << TS::dim(QStringLiteral("... ")) << Qt::flush;
+                QString contLine = readConsoleLine(in);
+                if (contLine.isNull())
+                    break;  // EOF
+                if (act::framework::CliRepl::isContinuationLine(contLine)) {
+                    fullLine += QLatin1Char('\n')
+                        + act::framework::CliRepl::stripTrailingBackslash(contLine);
+                } else {
+                    fullLine += QLatin1Char('\n') + contLine;
+                    break;
+                }
+            }
+            line = fullLine;
         }
 
         (void)repl.processInput(line);
