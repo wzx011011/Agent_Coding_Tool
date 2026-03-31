@@ -21,6 +21,10 @@ namespace act::framework
 namespace
 {
 
+// Layout constants
+constexpr int PANEL_WIDTH = 50;
+constexpr int LABEL_WIDTH = 20;
+
 /// Ensure VTP (Virtual Terminal Processing) is enabled on stdout.
 /// This is required for ANSI escape sequences (colors, cursor movement, clear).
 void ensureVtpEnabled()
@@ -48,6 +52,9 @@ const QString LEAVE_ALT_BUF = QStringLiteral("\x1b[?1049l");
 
 /// Move cursor to home position (top-left).
 const QString CURSOR_HOME = QStringLiteral("\x1b[H");
+
+/// Reset all text attributes to default.
+const QString RESET_ATTRS = QStringLiteral("\x1b[0m");
 
 /// Show cursor.
 const QString SHOW_CURSOR = QStringLiteral("\x1b[?25h");
@@ -156,13 +163,13 @@ void render(const QList<ConfigPanel::Item> &items, int selectedIndex)
 
     // Header
     out += TerminalStyle::bold(QStringLiteral("  Settings"))
-         + TerminalStyle::dim(QString(50, ' '))
+         + TerminalStyle::dim(QString(PANEL_WIDTH, ' '))
          + TerminalStyle::dim(QStringLiteral("[Esc] close"))
          + QStringLiteral("\n");
 
     // Separator
     const QChar HORZ(0x2500);
-    out += QStringLiteral("  ") + QString(50, HORZ) + QStringLiteral("\n\n");
+    out += QStringLiteral("  ") + QString(PANEL_WIDTH, HORZ) + QStringLiteral("\n\n");
 
     // Items
     for (int i = 0; i < items.size(); ++i)
@@ -197,21 +204,20 @@ void render(const QList<ConfigPanel::Item> &items, int selectedIndex)
             label = TerminalStyle::bold(item.label);
         }
 
-        // Pad label to 20 chars for alignment
-        QString paddedLabel = label + QString(20 - item.label.length(), ' ');
+        QString paddedLabel = label + QString(LABEL_WIDTH - item.label.length(), ' ');
         out += marker + QStringLiteral(" ") + paddedLabel + value + QStringLiteral("\n");
     }
 
     out += QStringLiteral("\n");
 
     // Footer separator
-    out += QStringLiteral("  ") + QString(50, HORZ) + QStringLiteral("\n");
+    out += QStringLiteral("  ") + QString(PANEL_WIDTH, HORZ) + QStringLiteral("\n");
 
     // Key hints
     out += TerminalStyle::dim(
         QStringLiteral("  up/down navigate  Enter toggle/select  Esc close"));
     // Reset attributes and clear any leftover lines from previous taller render
-    out += QStringLiteral("\x1b[0m\n\x1b[J");
+    out += RESET_ATTRS + QStringLiteral("\n\x1b[J");
 
     // Write to stdout
     fputs(out.toUtf8().constData(), stdout);
@@ -306,7 +312,7 @@ bool ConfigPanel::run(services::ConfigManager &config)
 
         case Key::Escape:
             // Reset attributes, leave alternate buffer, restore cursor
-            fputs("\x1b[0m", stdout);
+            fputs(RESET_ATTRS.toUtf8().constData(), stdout);
             fputs(LEAVE_ALT_BUF.toUtf8().constData(), stdout);
             fflush(stdout);
             return modified;

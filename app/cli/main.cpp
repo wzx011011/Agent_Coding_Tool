@@ -22,6 +22,7 @@
 #include "framework/feishu_channel.h"
 #include "framework/interactive_session_controller.h"
 #include "framework/input_dispatcher.h"
+#include "framework/resume_manager.h"
 #include "framework/skill_catalog.h"
 #include "framework/skill_loader.h"
 #include "framework/stream_formatter.h"
@@ -559,7 +560,9 @@ int main(int argc, char *argv[]) {
     }
 
     // --- Create CLI REPL ---
-    act::framework::CliRepl repl(*engine, *registry, *permissions, *context, switcher.get());
+    act::framework::ResumeManager resumeManager;
+    act::framework::CliRepl repl(*engine, *registry, *permissions, *context,
+                                  switcher.get(), config.get(), &resumeManager);
 
     // --- Build system prompt ---
     QString systemPrompt;

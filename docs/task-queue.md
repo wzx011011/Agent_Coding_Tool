@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 41/43 + 20/33 (T11 skipped; T16 deferred; N1~N18, N30 completed)
+- Completed: 41/43 + 21/33 (T11 skipped; T16 deferred; N1~N18, N19, N30 completed)
 
 ## Planning Notes
 
@@ -96,7 +96,7 @@
 | 44 | N16 | 实现 CommandRegistry 与 /help 命令              | frontend    | T10     | [x]    | build + CliReplTest.HelpCommand pass             | 新建 src/framework/command_registry.h/cpp：struct CommandInfo { QString name, description; std::function\<bool(const QStringList&)\> handler; }; registerCommand(name, desc, handler), unregisterCommand(name), execute(input) → bool, listCommands() → QList\<CommandInfo\>; 修改 src/framework/cli_repl.cpp 将硬编码命令分发替换为 CommandRegistry; 注册 /help、/reset、/quit 等已有命令 | commit: e6bfc9c |
 | 45 | N17 | 实现交互式权限确认后端                           | backend     | T6      | [x]    | build + PermissionPromptTest pass                 | 修改 src/harness/permission_manager.h/cpp：新增 std::function\<bool(const PermissionRequest&)\> m_userCallback; setPermissionCallback(callback) 供外部注入确认逻辑; 请求 PermissionLevel 不可自动批准时调用 m_userCallback; 回调返回 true=允许 false=拒绝; 回调在 AgentLoop 线程同步调用; 单元测试用 mock callback 验证不依赖真实 stdin | commit: e053dcf |
 | 46 | N18 | 实现交互式权限确认 REPL 集成                     | frontend    | N16,N17 | [x]    | build + E2E test pass                             | REPL 循环检测 WaitingApproval，y/N/always 三种应答           | commit: cc464cb |
-| 47 | N19 | 实现 /compact /model /config /clear /resume 命令 | frontend    | N16     | [ ]    | build + test pass                                 | 基于 CommandRegistry 注册，各调用已有 API                    |
+| 47 | N19 | 实现 /compact /model /config /clear /resume 命令 | frontend    | N16     | [x]    | build + test pass                                 | /compact 调 AgentLoop.compact()；/config show/set/save/reload；/clear 为 /reset 别名；/resume 列出/恢复 checkpoint；/model 已有 | commit: pending |
 | 48 | N20 | 实现多行输入支持                                 | frontend    | T10     | [ ]    | build + CliReplTest.MultilineInput pass           | 行尾 \ 续行，... 提示符；非TTY保持单行                      |
 | 49 | N21 | 实现 --model 启动参数                            | frontend    | LLM-T11 | [ ]    | build + test pass                                 | CLI arg 优先级高于 config file                              |
 | 50 | N22 | 实现 /permissions 权限管理命令                   | frontend    | N17,N19 | [ ]    | build + test pass                                 | 显示5级权限状态；auto on/off；deny/allow tool                |
@@ -162,8 +162,8 @@
 |------|----------------------|-----------------------------------------|
 | B6-1 | N16, N20, N21       | N16 是命令基础；N20/N21 独立           |
 | B6-2 | N17                  | 权限确认后端，独立                      |
-| B6-3 | N18, N19             | N18 接入 N17；N19 使用 N16 registry     |
-| B6-4 | N22, N30, N31        | N22 依赖 N17+N19；N30/N31 已完成       |
+| B6-3 | N18, N19             | N18 接入 N17；N19 已完成               |
+| B6-4 | N22, N30, N31        | N22 依赖 N17（N19 已完成）；N30/N31 已完成       |
 
 ### Batch 7: P2 Agent 能力激活与工具扩展
 

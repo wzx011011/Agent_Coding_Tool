@@ -151,6 +151,19 @@ void AgentLoop::reset()
     transitionTo(act::core::TaskState::Idle);
 }
 
+int AgentLoop::compact()
+{
+    int before = m_messages.size();
+    m_messages = m_context.manualCompact(m_messages);
+    int removed = before - m_messages.size();
+    if (removed > 0)
+    {
+        spdlog::info("AgentLoop: manual compact removed {} messages, {} remaining",
+                     removed, m_messages.size());
+    }
+    return removed;
+}
+
 void AgentLoop::runLoop()
 {
     if (m_cancelled)

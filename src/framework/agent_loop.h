@@ -63,6 +63,11 @@ public:
     /// Reset to idle state, clearing all messages.
     void reset();
 
+    /// Manually compact the conversation context.
+    /// Aggressively summarizes old messages, keeping system prompt and recent context.
+    /// Returns the number of messages removed.
+    [[nodiscard]] int compact();
+
     /// Safety limit for maximum turns per user message.
     void setMaxTurns(int maxTurns) { m_maxTurns = maxTurns; }
     [[nodiscard]] int maxTurns() const { return m_maxTurns; }

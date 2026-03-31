@@ -17,7 +17,7 @@ RawTerminal::RawTerminal()
     if (m_stdinHandle == INVALID_HANDLE_VALUE || m_stdinHandle == nullptr)
         return;
 
-    if (!GetConsoleMode(m_stdinHandle, reinterpret_cast<LPDWORD>(&m_originalMode)))
+    if (!GetConsoleMode(m_stdinHandle, &m_originalMode))
         return;
 
     // Enable mouse input for wheel scrolling, disable line/echo/processed.
