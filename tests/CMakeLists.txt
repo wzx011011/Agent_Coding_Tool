@@ -119,6 +119,7 @@ add_executable(act_harness_tests
     harness/TestRunnerToolTest.cpp
     harness/AskUserToolTest.cpp
     harness/DiagnosticToolTest.cpp
+    harness/WebFetchToolTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness GTest::gtest_main)
 gtest_discover_tests(act_harness_tests

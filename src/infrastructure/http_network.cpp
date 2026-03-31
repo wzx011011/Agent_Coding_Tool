@@ -119,6 +119,53 @@ bool HttpNetwork::httpRequest(
     return true;
 }
 
+bool HttpNetwork::httpGet(
+    const QString &url,
+    const QMap<QString, QString> &headers,
+    int &statusCode,
+    QByteArray &responseBody)
+{
+    m_cancelled = false;
+
+    QString schemeHost = toSchemeHost(url);
+    QString path = toPath(url);
+
+    httplib::Client client(schemeHost.toStdString());
+    client.set_connection_timeout(m_timeoutSeconds);
+    client.set_read_timeout(m_timeoutSeconds);
+    client.set_write_timeout(m_timeoutSeconds);
+
+#ifdef CPPHTTPLIB_SSL_ENABLED
+    client.enable_server_certificate_verification(false);
+#endif
+
+    if (!m_proxyHost.isEmpty() && m_proxyPort > 0)
+        client.set_proxy(m_proxyHost.toStdString(), m_proxyPort);
+
+    httplib::Headers reqHeaders;
+    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
+        reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
+    for (auto it = m_defaultHeaders.constBegin(); it != m_defaultHeaders.constEnd(); ++it)
+    {
+        if (!reqHeaders.contains(it.key().toStdString()))
+            reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
+    }
+
+    auto result = client.Get(path.toStdString(), reqHeaders);
+
+    if (!result)
+    {
+        spdlog::error("HttpNetwork: GET request failed: {}",
+                      static_cast<int>(result.error()));
+        return false;
+    }
+
+    statusCode = result->status;
+    responseBody = QByteArray(result->body.data(),
+                              static_cast<int>(result->body.size()));
+    return true;
+}
+
 bool HttpNetwork::sseRequest(
     const QByteArray &body,
     const QMap<QString, QString> &headers,
