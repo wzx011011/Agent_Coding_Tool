@@ -33,6 +33,8 @@
 #include "harness/tool_registry.h"
 #include "harness/tools/ask_user_tool.h"
 #include "harness/tools/diagnostic_tool.h"
+#include "harness/tools/enter_plan_mode_tool.h"
+#include "harness/tools/exit_plan_mode_tool.h"
 #include "harness/tools/diff_view_tool.h"
 #include "harness/tools/file_edit_tool.h"
 #include "harness/tools/file_delete_tool.h"
@@ -563,6 +565,12 @@ int main(int argc, char *argv[]) {
     act::framework::ResumeManager resumeManager;
     act::framework::CliRepl repl(*engine, *registry, *permissions, *context,
                                   switcher.get(), config.get(), &resumeManager);
+
+    // Register plan mode tools (need AgentLoop reference from repl)
+    registry->registerTool(
+        std::make_unique<act::harness::EnterPlanModeTool>(repl.agentLoop()));
+    registry->registerTool(
+        std::make_unique<act::harness::ExitPlanModeTool>(repl.agentLoop()));
 
     // --- Build system prompt ---
     QString systemPrompt;

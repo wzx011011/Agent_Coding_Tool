@@ -45,6 +45,10 @@ add_library(act_harness STATIC
     tools/ask_user_tool.h
     tools/diagnostic_tool.cpp
     tools/diagnostic_tool.h
+    tools/enter_plan_mode_tool.cpp
+    tools/enter_plan_mode_tool.h
+    tools/exit_plan_mode_tool.cpp
+    tools/exit_plan_mode_tool.h
 )
 
 target_include_directories(act_harness

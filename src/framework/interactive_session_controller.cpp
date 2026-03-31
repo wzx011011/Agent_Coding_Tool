@@ -28,6 +28,8 @@ QString taskStateToString(act::core::TaskState state) {
     switch (state) {
     case act::core::TaskState::Idle:
         return QStringLiteral("Idle");
+    case act::core::TaskState::Planning:
+        return QStringLiteral("Planning");
     case act::core::TaskState::Running:
         return QStringLiteral("Running");
     case act::core::TaskState::WaitingApproval:
@@ -40,6 +42,10 @@ QString taskStateToString(act::core::TaskState state) {
         return QStringLiteral("Failed");
     case act::core::TaskState::Cancelled:
         return QStringLiteral("Cancelled");
+    case act::core::TaskState::Paused:
+        return QStringLiteral("Paused");
+    case act::core::TaskState::WaitingUserInput:
+        return QStringLiteral("Waiting User Input");
     }
 
     return QStringLiteral("Unknown");

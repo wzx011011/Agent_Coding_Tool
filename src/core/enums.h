@@ -15,6 +15,7 @@ enum class PermissionLevel
 enum class TaskState
 {
     Idle,
+    Planning,
     Running,
     ToolRunning,
     WaitingApproval,

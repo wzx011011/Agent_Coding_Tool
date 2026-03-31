@@ -48,6 +48,15 @@ public:
     /// Current state of the agent loop.
     [[nodiscard]] act::core::TaskState state() const { return m_state; }
 
+    /// Enter Plan Mode: only Read/Network level tools are allowed.
+    void enterPlanMode();
+
+    /// Exit Plan Mode: restore all tool access.
+    void exitPlanMode();
+
+    /// Check if Plan Mode is currently active.
+    [[nodiscard]] bool isPlanMode() const { return m_planMode; }
+
     /// The full conversation history.
     [[nodiscard]] const QList<act::core::LLMMessage> &messages() const
     {
@@ -140,6 +149,7 @@ private:
     bool m_running = false;
     QString m_systemPrompt;
     bool m_systemPromptApplied = false;
+    bool m_planMode = false;
 
     /// Pending tool calls during permission check (multiple tool_call support).
     std::optional<act::core::ToolCall> m_pendingToolCall;
