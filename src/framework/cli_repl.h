@@ -6,10 +6,15 @@
 
 #include "framework/agent_loop.h"
 #include "framework/command_registry.h"
+#include "framework/config_panel.h"
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
 #include "services/interfaces.h"
+
+namespace act::services { class ConfigManager; }
+
+namespace act::framework { class ResumeManager; }
 
 namespace act::framework
 {
@@ -31,6 +36,8 @@ public:
                        harness::PermissionManager &permissions,
                        harness::ContextManager &context,
                        services::IModelSwitcher *modelSwitcher = nullptr,
+                       services::ConfigManager *configManager = nullptr,
+                       ResumeManager *resumeManager = nullptr,
                        QObject *parent = nullptr);
 
     /// Get the command registry for registering custom commands.
@@ -87,6 +94,9 @@ private:
     bool handleModelCommand(const QStringList &args);
     bool finalizeTurn();
     void handleVerboseCommand(const QStringList &args);
+    bool handleCompactCommand(const QStringList &args);
+    bool handleConfigCommand(const QStringList &args);
+    bool handleResumeCommand(const QStringList &args);
 
     services::IAIEngine &m_engine;
     harness::ToolRegistry &m_tools;
@@ -96,6 +106,8 @@ private:
     OutputMode m_outputMode = OutputMode::Human;
     CommandRegistry m_commands;
     services::IModelSwitcher *m_modelSwitcher = nullptr;
+    services::ConfigManager *m_configManager = nullptr;
+    ResumeManager *m_resumeManager = nullptr;
     bool m_exitRequested = false;
     int m_turnCount = 0;
 

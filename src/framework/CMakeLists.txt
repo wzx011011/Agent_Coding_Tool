@@ -7,6 +7,8 @@ add_library(act_framework STATIC
     channel.h
     cli_repl.cpp
     cli_repl.h
+    config_panel.cpp
+    config_panel.h
     command_registry.cpp
     command_registry.h
     eval_runner.cpp
@@ -46,6 +48,8 @@ add_library(act_framework STATIC
     subagent_manager.h
     task_graph.cpp
     task_graph.h
+    raw_terminal.cpp
+    raw_terminal.h
     terminal_style.cpp
     terminal_style.h
 )

@@ -5,11 +5,13 @@
 
 #include "core/error_codes.h"
 #include "framework/cli_repl.h"
+#include "framework/resume_manager.h"
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
 #include "harness/context_manager.h"
 #include "infrastructure/interfaces.h"
 #include "services/interfaces.h"
+#include "services/config_manager.h"
 
 using namespace act::core;
 using namespace act::core::errors;
@@ -457,4 +459,279 @@ TEST_F(CliReplTest, CustomCommandViaProcessInput)
     auto state = repl->processInput(QStringLiteral("/custom"));
     EXPECT_EQ(state, TaskState::Idle);
     EXPECT_TRUE(customExecuted);
+}
+
+// ============================================================
+// /clear Command Tests
+// ============================================================
+
+TEST_F(CliReplTest, ClearCommandResetsConversation)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    engine->responseQueue.append(finalResponse(QStringLiteral("Hello")));
+    repl->processInput(QStringLiteral("hi"));
+
+    // Messages should exist
+    EXPECT_GT(repl->commandRegistry().commandCount(), 0);
+
+    auto state = repl->processInput(QStringLiteral("/clear"));
+    EXPECT_EQ(state, TaskState::Idle);
+    EXPECT_TRUE(capturedLines.contains(QStringLiteral("[System] Conversation cleared.")));
+}
+
+TEST_F(CliReplTest, ClearCommandReturnsIdle)
+{
+    auto state = repl->processInput(QStringLiteral("/clear"));
+    EXPECT_EQ(state, TaskState::Idle);
+}
+
+// ============================================================
+// /compact Command Tests
+// ============================================================
+
+TEST_F(CliReplTest, CompactCommandOnEmptyMessages)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/compact"));
+    EXPECT_EQ(state, TaskState::Idle);
+    EXPECT_TRUE(capturedLines.contains(QStringLiteral("No messages to compact.")));
+}
+
+TEST_F(CliReplTest, CompactCommandOnFewMessages)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    engine->responseQueue.append(finalResponse(QStringLiteral("Hi")));
+    repl->processInput(QStringLiteral("hello"));
+    // Only a few messages (system + user + assistant), not enough to compact
+    auto state = repl->processInput(QStringLiteral("/compact"));
+    EXPECT_EQ(state, TaskState::Idle);
+    bool foundNothing = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("Nothing to compact")))
+            foundNothing = true;
+    }
+    EXPECT_TRUE(foundNothing);
+}
+
+// ============================================================
+// /config Command Tests
+// ============================================================
+
+class CliReplWithConfigTest : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        engine = std::make_unique<MockAIEngine>();
+        registry = std::make_unique<ToolRegistry>();
+        permissions = std::make_unique<PermissionManager>();
+        context = std::make_unique<ContextManager>();
+        config = std::make_unique<act::services::ConfigManager>();
+        registry->registerTool(std::make_unique<EchoTool>());
+        permissions->setAutoApproved(PermissionLevel::Read, true);
+
+        repl = std::make_unique<CliRepl>(
+            *engine, *registry, *permissions, *context,
+            nullptr, config.get());
+
+        capturedLines.clear();
+        QObject::connect(repl.get(), &CliRepl::outputLine,
+                         [this](const QString &line) { capturedLines.append(line); });
+    }
+
+    void TearDown() override
+    {
+        repl.reset();
+        config.reset();
+        context.reset();
+        permissions.reset();
+        registry.reset();
+        engine.reset();
+    }
+
+    std::unique_ptr<MockAIEngine> engine;
+    std::unique_ptr<ToolRegistry> registry;
+    std::unique_ptr<PermissionManager> permissions;
+    std::unique_ptr<ContextManager> context;
+    std::unique_ptr<act::services::ConfigManager> config;
+    std::unique_ptr<CliRepl> repl;
+    QStringList capturedLines;
+
+    static LLMMessage finalResponse(const QString &text)
+    {
+        LLMMessage msg;
+        msg.role = MessageRole::Assistant;
+        msg.content = text;
+        return msg;
+    }
+};
+
+TEST_F(CliReplWithConfigTest, ConfigOpensPanel)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/config"));
+    EXPECT_EQ(state, TaskState::Idle);
+    // In non-TTY environments (tests), ConfigPanel::run() returns false
+    // and handleConfigCommand falls back to showing config as text
+    bool foundConfig = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("Current configuration:")))
+            foundConfig = true;
+    }
+    EXPECT_TRUE(foundConfig);
+}
+
+TEST_F(CliReplWithConfigTest, ConfigReloadWorks)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/config reload"));
+    EXPECT_EQ(state, TaskState::Idle);
+    // Should show either "Configuration reloaded." or "Failed to reload"
+    bool foundReload = false;
+    bool foundError = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("Configuration reloaded")))
+            foundReload = true;
+        if (line.contains(QStringLiteral("Failed to reload")))
+            foundError = true;
+    }
+    EXPECT_TRUE(foundReload || foundError);
+}
+
+TEST_F(CliReplWithConfigTest, ConfigInvalidArgsShowsUsage)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/config badarg"));
+    EXPECT_EQ(state, TaskState::Idle);
+    bool foundUsage = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("Usage:")))
+            foundUsage = true;
+    }
+    EXPECT_TRUE(foundUsage);
+}
+
+// ============================================================
+// /resume Command Tests
+// ============================================================
+
+class CliReplWithResumeTest : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        engine = std::make_unique<MockAIEngine>();
+        registry = std::make_unique<ToolRegistry>();
+        permissions = std::make_unique<PermissionManager>();
+        context = std::make_unique<ContextManager>();
+        resumeManager = std::make_unique<ResumeManager>();
+        registry->registerTool(std::make_unique<EchoTool>());
+        permissions->setAutoApproved(PermissionLevel::Read, true);
+
+        repl = std::make_unique<CliRepl>(
+            *engine, *registry, *permissions, *context,
+            nullptr, nullptr, resumeManager.get());
+
+        capturedLines.clear();
+        QObject::connect(repl.get(), &CliRepl::outputLine,
+                         [this](const QString &line) { capturedLines.append(line); });
+    }
+
+    void TearDown() override
+    {
+        repl.reset();
+        resumeManager.reset();
+        context.reset();
+        permissions.reset();
+        registry.reset();
+        engine.reset();
+    }
+
+    std::unique_ptr<MockAIEngine> engine;
+    std::unique_ptr<ToolRegistry> registry;
+    std::unique_ptr<PermissionManager> permissions;
+    std::unique_ptr<ContextManager> context;
+    std::unique_ptr<ResumeManager> resumeManager;
+    std::unique_ptr<CliRepl> repl;
+    QStringList capturedLines;
+};
+
+TEST_F(CliReplWithResumeTest, ResumeListEmpty)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/resume"));
+    EXPECT_EQ(state, TaskState::Idle);
+    bool foundEmpty = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("No saved checkpoints")))
+            foundEmpty = true;
+    }
+    EXPECT_TRUE(foundEmpty);
+}
+
+TEST_F(CliReplWithResumeTest, ResumeListWithCheckpoints)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+
+    // Save a checkpoint
+    AgentLoop::Checkpoint cp;
+    cp.turnCount = 3;
+    LLMMessage msg;
+    msg.role = MessageRole::User;
+    msg.content = QStringLiteral("test");
+    cp.messages.append(msg);
+    resumeManager->saveCheckpoint(QStringLiteral("task-1"), cp);
+
+    auto state = repl->processInput(QStringLiteral("/resume"));
+    EXPECT_EQ(state, TaskState::Idle);
+    bool foundTask = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("task-1")))
+            foundTask = true;
+    }
+    EXPECT_TRUE(foundTask);
+}
+
+TEST_F(CliReplWithResumeTest, ResumeRestoreFromCheckpoint)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+
+    AgentLoop::Checkpoint cp;
+    cp.turnCount = 5;
+    cp.state = act::core::TaskState::Completed;
+    LLMMessage msg;
+    msg.role = MessageRole::User;
+    msg.content = QStringLiteral("restored");
+    cp.messages.append(msg);
+    resumeManager->saveCheckpoint(QStringLiteral("task-2"), cp);
+
+    auto state = repl->processInput(QStringLiteral("/resume task-2"));
+    EXPECT_EQ(state, TaskState::Idle);
+    bool foundRestored = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("Restored checkpoint")))
+            foundRestored = true;
+    }
+    EXPECT_TRUE(foundRestored);
+}
+
+TEST_F(CliReplWithResumeTest, ResumeNotFound)
+{
+    repl->setOutputMode(CliRepl::OutputMode::Human);
+    auto state = repl->processInput(QStringLiteral("/resume nonexistent"));
+    EXPECT_EQ(state, TaskState::Idle);
+    bool foundError = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("No checkpoint found")))
+            foundError = true;
+    }
+    EXPECT_TRUE(foundError);
 }

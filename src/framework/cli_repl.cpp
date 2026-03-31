@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTextStream>
@@ -9,8 +10,10 @@
 #include <spdlog/spdlog.h>
 
 #include "framework/markdown_formatter.h"
+#include "framework/resume_manager.h"
 #include "framework/system_prompt.h"
 #include "framework/terminal_style.h"
+#include "services/config_manager.h"
 
 namespace act::framework
 {
@@ -20,6 +23,8 @@ CliRepl::CliRepl(services::IAIEngine &engine,
                  harness::PermissionManager &permissions,
                  harness::ContextManager &context,
                  services::IModelSwitcher *modelSwitcher,
+                 services::ConfigManager *configManager,
+                 ResumeManager *resumeManager,
                  QObject *parent)
     : QObject(parent)
     , m_engine(engine)
@@ -27,6 +32,8 @@ CliRepl::CliRepl(services::IAIEngine &engine,
     , m_permissions(permissions)
     , m_context(context)
     , m_modelSwitcher(modelSwitcher)
+    , m_configManager(configManager)
+    , m_resumeManager(resumeManager)
     , m_loop(engine, tools, permissions, context, this)
 {
     // Register built-in commands
@@ -135,6 +142,42 @@ CliRepl::CliRepl(services::IAIEngine &engine,
                 "Created .act/system_prompt.md. Edit it to add project-specific instructions."));
             return true;
         });
+
+    (void)m_commands.registerCommand(
+        QStringLiteral("clear"),
+        QStringLiteral("Clear conversation context (alias for /reset)"),
+        [this](const QStringList & /*args*/) -> bool {
+            m_loop.reset();
+            m_turnCount = 0;
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("Conversation cleared.")));
+            return true;
+        });
+
+    (void)m_commands.registerCommand(
+        QStringLiteral("compact"),
+        QStringLiteral("Compact conversation context (summarize old messages)"),
+        [this](const QStringList &args) -> bool {
+            return handleCompactCommand(args);
+        });
+
+    if (m_configManager) {
+        (void)m_commands.registerCommand(
+            QStringLiteral("config"),
+            QStringLiteral("Show or modify configuration"),
+            [this](const QStringList &args) -> bool {
+                return handleConfigCommand(args);
+            });
+    }
+
+    if (m_resumeManager) {
+        (void)m_commands.registerCommand(
+            QStringLiteral("resume"),
+            QStringLiteral("Resume from a saved checkpoint"),
+            [this](const QStringList &args) -> bool {
+                return handleResumeCommand(args);
+            });
+    }
 
     // Wire up event callback — handle events in both Human and JSON modes
     m_loop.setEventCallback([this](const act::core::RuntimeEvent &event) {
@@ -647,6 +690,146 @@ void CliRepl::handleVerboseCommand(const QStringList &args)
             emitOutput(TerminalStyle::resultBox(section.name, lines));
         }
     }
+}
+
+bool CliRepl::handleCompactCommand(const QStringList &args)
+{
+    int msgCount = m_loop.messages().size();
+    if (msgCount == 0)
+    {
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("No messages to compact.")));
+        return true;
+    }
+
+    int removed = m_loop.compact();
+    int after = m_loop.messages().size();
+
+    if (removed > 0)
+    {
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Context compacted: %1 messages removed, %2 remaining.")
+                .arg(removed)
+                .arg(after)));
+    }
+    else
+    {
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Nothing to compact (only %1 messages).")
+                .arg(msgCount)));
+    }
+    return true;
+}
+
+bool CliRepl::handleConfigCommand(const QStringList &args)
+{
+    if (!m_configManager)
+        return false;
+
+    // /config reload — reload config from disk
+    if (!args.isEmpty() && args.at(0) == QLatin1String("reload"))
+    {
+        if (m_configManager->load())
+        {
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("Configuration reloaded.")));
+        }
+        else
+        {
+            emitOutput(TerminalStyle::errorMessage(
+                QStringLiteral("RELOAD_FAILED"),
+                QStringLiteral("Failed to reload configuration.")));
+        }
+        return true;
+    }
+
+    if (!args.isEmpty())
+    {
+        emitOutput(TerminalStyle::errorMessage(
+            QStringLiteral("INVALID_ARGS"),
+            QStringLiteral("Usage: /config [reload]")));
+        return true;
+    }
+
+    // /config (no args) — interactive settings panel
+    if (ConfigPanel::run(*m_configManager))
+    {
+        m_configManager->save();
+        emitOutput(TerminalStyle::systemMessage(QStringLiteral("Configuration saved.")));
+    }
+    else
+    {
+        // Non-TTY fallback: show current config as text
+        emitOutput(TerminalStyle::systemMessage(QStringLiteral("Current configuration:")));
+        emitOutput(QStringLiteral("  Provider:       %1")
+            .arg(m_configManager->provider()));
+        emitOutput(QStringLiteral("  Model:          %1")
+            .arg(m_configManager->currentModel()));
+        emitOutput(QStringLiteral("  Wire API:       %1")
+            .arg(m_configManager->wireApi()));
+        QString url = m_configManager->baseUrl();
+        emitOutput(QStringLiteral("  Base URL:       %1")
+            .arg(url.isEmpty() ? QStringLiteral("(default)") : url));
+        QString proxy = m_configManager->proxy();
+        emitOutput(QStringLiteral("  Proxy:          %1")
+            .arg(proxy.isEmpty() ? QStringLiteral("(none)") : proxy));
+        QString profile = m_configManager->activeProfile();
+        emitOutput(QStringLiteral("  Active Profile: %1")
+            .arg(profile.isEmpty() ? QStringLiteral("(none)") : profile));
+    }
+
+    return true;
+}
+
+bool CliRepl::handleResumeCommand(const QStringList &args)
+{
+    if (!m_resumeManager)
+        return false;
+
+    if (args.isEmpty())
+    {
+        // List available checkpoints
+        QStringList ids = m_resumeManager->savedTaskIds();
+        if (ids.isEmpty())
+        {
+            emitOutput(TerminalStyle::systemMessage(
+                QStringLiteral("No saved checkpoints.")));
+            return true;
+        }
+        emitOutput(TerminalStyle::systemMessage(
+            QStringLiteral("Saved checkpoints:")));
+        for (const auto &id : ids)
+        {
+            auto cp = m_resumeManager->loadCheckpoint(id);
+            if (cp)
+            {
+                emitOutput(QStringLiteral("  %1 - %2 messages, %3 turns")
+                    .arg(id)
+                    .arg(cp->messages.size())
+                    .arg(cp->turnCount));
+            }
+        }
+        return true;
+    }
+
+    // Restore from named checkpoint
+    QString taskId = args.at(0);
+    auto cp = m_resumeManager->loadCheckpoint(taskId);
+    if (!cp)
+    {
+        emitOutput(TerminalStyle::errorMessage(
+            QStringLiteral("NOT_FOUND"),
+            QStringLiteral("No checkpoint found for '%1'").arg(taskId)));
+        return true;
+    }
+
+    m_loop.restoreCheckpoint(*cp);
+    emitOutput(TerminalStyle::systemMessage(
+        QStringLiteral("Restored checkpoint '%1' (%2 messages, %3 turns)")
+            .arg(taskId)
+            .arg(cp->messages.size())
+            .arg(cp->turnCount)));
+    return true;
 }
 
 } // namespace act::framework
