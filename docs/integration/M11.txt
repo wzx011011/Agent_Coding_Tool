@@ -1,0 +1,32 @@
+M11 Integration — NotebookEdit Tool
+====================================
+
+This file lists all changes required to integrate the NotebookEditTool into
+the build and runtime. These changes should be applied after the M11 code is
+approved.
+
+1. src/harness/CMakeLists.txt
+   -------------------------
+   Add the following files to the act_harness library sources:
+
+     tools/notebook_edit_tool.cpp
+     tools/notebook_edit_tool.h
+
+2. tests/CMakeLists.txt
+   ---------------------
+   Add the following test source file to act_harness_tests:
+
+     harness/NotebookEditToolTest.cpp
+
+3. app/cli/main.cpp (or wherever tools are registered)
+   ----------------------------------------------------
+   Register the tool alongside other file tools:
+
+     registry.registerTool(
+         std::make_unique<act::harness::NotebookEditTool>(fs, workspaceRoot));
+
+   The tool requires an IFileSystem reference and the workspace root path,
+   the same dependencies used by FileReadTool and FileEditTool.
+
+4. No other files need modification. The NotebookEditTool is self-contained
+   and follows the standard ITool pattern.
