@@ -8,6 +8,8 @@ namespace act::framework
 
 QString RuntimeTraceStore::beginTask(const QString &description)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
     TaskTrace trace;
     trace.id = generateTaskId();
     trace.description = description;
@@ -18,11 +20,14 @@ QString RuntimeTraceStore::beginTask(const QString &description)
 
 void RuntimeTraceStore::endTask()
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_currentTaskId.clear();
 }
 
 void RuntimeTraceStore::record(const act::core::RuntimeEvent &event)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
     if (m_currentTaskId.isEmpty())
         return;
 
@@ -39,6 +44,8 @@ void RuntimeTraceStore::record(const act::core::RuntimeEvent &event)
 QList<act::core::RuntimeEvent> RuntimeTraceStore::events(
     const QString &taskId) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
     for (const auto &task : m_tasks)
     {
         if (task.id == taskId)
@@ -49,6 +56,8 @@ QList<act::core::RuntimeEvent> RuntimeTraceStore::events(
 
 QJsonObject RuntimeTraceStore::traceJson(const QString &taskId) const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
     for (const auto &task : m_tasks)
     {
         if (task.id == taskId)
@@ -76,11 +85,13 @@ QJsonObject RuntimeTraceStore::traceJson(const QString &taskId) const
 
 QString RuntimeTraceStore::currentTaskId() const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_currentTaskId;
 }
 
 int RuntimeTraceStore::taskCount() const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_tasks.size();
 }
 

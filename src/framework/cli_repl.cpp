@@ -898,7 +898,7 @@ bool CliRepl::handlePermissionsCommand(const QStringList &args)
             QString status = m_permissions.isAutoApproved(level)
                 ? QStringLiteral("auto")
                 : QStringLiteral("manual");
-            emitOutput(QStringLiteral("  %-12s %1").arg(name, status));
+            emitOutput(QStringLiteral("  %1  %2").arg(name.leftJustified(12), status));
         }
 
         // Show deny list
@@ -928,14 +928,18 @@ bool CliRepl::handlePermissionsCommand(const QStringList &args)
         }
 
         bool enable = (args.at(1) == QLatin1String("on"));
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < act::harness::PermissionManager::kPermissionLevelCount; ++i)
         {
             m_permissions.setAutoApproved(
                 static_cast<act::core::PermissionLevel>(i), enable);
         }
         emitOutput(TerminalStyle::systemMessage(
-            enable ? QStringLiteral("Auto-approve enabled for all levels.")
-                   : QStringLiteral("Auto-approve disabled for all levels.")));
+            enable
+                ? QStringLiteral(
+                      "Auto-approve enabled for all levels (including "
+                      "Destructive). Be cautious — this bypasses all "
+                      "safety guardrails.")
+                : QStringLiteral("Auto-approve disabled for all levels.")));
         return true;
     }
 

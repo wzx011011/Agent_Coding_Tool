@@ -94,9 +94,10 @@ void AgentLoop::onPermissionApproved()
     appendToolResult(*m_pendingToolCall, result);
     m_pendingToolCall = std::nullopt;
 
-    // Continue with next pending tool call or proceed to next loop
+    // Continue with next pending tool call or proceed to next loop.
+    // transitionTo(Running) not ToolRunning — the tool already executed above.
     ++m_pendingToolCallIndex;
-    transitionTo(act::core::TaskState::ToolRunning);
+    transitionTo(act::core::TaskState::Running);
     dispatchNextPendingToolCall();
 }
 
@@ -276,25 +277,6 @@ void AgentLoop::onAIError(const QString &errorCode, const QString &errorMessage)
         m_finishCallback();
 }
 
-void AgentLoop::dispatchToolCall(const act::core::ToolCall &call)
-{
-    transitionTo(act::core::TaskState::ToolRunning);
-    emitEvent(act::core::RuntimeEvent::toolCall(call.name, call.params));
-
-    auto result = m_tools.execute(call.name, call.params);
-    appendToolResult(call, result);
-
-    if (!result.success)
-    {
-        spdlog::warn("Tool '{}' failed: {}", call.name.toStdString(),
-                      result.error.toStdString());
-    }
-
-    // Continue the loop after tool execution
-    transitionTo(act::core::TaskState::Running);
-    runLoop();
-}
-
 void AgentLoop::dispatchToolCalls(const QList<act::core::ToolCall> &calls)
 {
     m_pendingToolCalls = calls;
@@ -354,6 +336,7 @@ void AgentLoop::dispatchNextPendingToolCall()
     }
 
     // Check permission
+    QString permId = QUuid::createUuid().toString(QUuid::WithoutBraces);
     auto decision = m_permissions.checkPermission(
         tool->permissionLevel(),
         call.name,
@@ -394,7 +377,7 @@ void AgentLoop::dispatchNextPendingToolCall()
         m_pendingToolCall = call;
         transitionTo(act::core::TaskState::WaitingApproval);
         emitEvent(act::core::RuntimeEvent::permissionRequest(
-            QStringLiteral("pending"),
+            permId,
             call.name,
             tool->permissionLevel()));
     }

@@ -13,53 +13,12 @@
 #include "harness/tools/exit_plan_mode_tool.h"
 #include "infrastructure/interfaces.h"
 #include "services/interfaces.h"
+#include "test_helpers/MockAIEngine.h"
 
 using namespace act::core;
 using namespace act::core::errors;
 using namespace act::harness;
 using namespace act::framework;
-
-// ============================================================
-// Mock IAIEngine
-// ============================================================
-
-class MockAIEngine : public act::services::IAIEngine
-{
-public:
-    QList<LLMMessage> responseQueue;
-    QString lastError = QStringLiteral("INTERNAL_ERROR");
-    int callCount = 0;
-
-    void chat(const QList<LLMMessage> & /*messages*/,
-              std::function<void(LLMMessage)> onMessage,
-              std::function<void()> onComplete,
-              std::function<void(QString, QString)> onError) override
-    {
-        ++callCount;
-
-        if (!responseQueue.isEmpty())
-        {
-            onMessage(responseQueue.takeFirst());
-            onComplete();
-        }
-        else
-        {
-            onError(lastError, QStringLiteral("mock error"));
-        }
-    }
-
-    void cancel() override {}
-    void setToolDefinitions(const QList<QJsonObject> & /*tools*/) override {}
-
-    [[nodiscard]] int estimateTokens(
-        const QList<LLMMessage> &messages) const override
-    {
-        int total = 0;
-        for (const auto &m : messages)
-            total += m.content.length();
-        return static_cast<int>(total / 3.0);
-    }
-};
 
 // ============================================================
 // Mock tools with different permission levels

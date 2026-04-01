@@ -5,10 +5,9 @@
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
 #include "services/ai_engine.h"
-#include <QMutex>
 #include <QObject>
-#include <QWaitCondition>
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -67,8 +66,8 @@ class InteractiveSessionController : public QObject {
     mutable std::mutex m_stateMutex;
     InteractiveSessionState m_state;
 
-    QMutex m_permissionMutex;
-    QWaitCondition m_permissionWaitCondition;
+    std::mutex m_permissionMutex;
+    std::condition_variable m_permissionCv;
     bool m_permissionWaiting = false;
     bool m_permissionResolved = false;
     bool m_permissionApproved = false;

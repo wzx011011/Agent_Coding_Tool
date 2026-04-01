@@ -4,12 +4,15 @@
 #include <QList>
 #include <QString>
 
+#include <mutex>
+
 #include "core/runtime_event.h"
 
 namespace act::framework
 {
 
 /// Stores runtime events aggregated by task ID.
+/// Thread-safe: all public methods acquire an internal mutex.
 class RuntimeTraceStore
 {
 public:
@@ -43,8 +46,9 @@ private:
         QList<act::core::RuntimeEvent> events;
     };
 
-    QString generateTaskId();
+    [[nodiscard]] QString generateTaskId();
 
+    mutable std::mutex m_mutex;
     QList<TaskTrace> m_tasks;
     QString m_currentTaskId;
     int m_taskCounter = 0;

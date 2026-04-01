@@ -120,9 +120,6 @@ private:
     /// Called when AIEngine reports an error.
     void onAIError(const QString &errorCode, const QString &errorMessage);
 
-    /// Dispatch a tool call after permission is granted.
-    void dispatchToolCall(const act::core::ToolCall &call);
-
     /// Dispatch multiple tool calls sequentially.
     void dispatchToolCalls(const QList<act::core::ToolCall> &calls);
 

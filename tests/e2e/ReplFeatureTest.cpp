@@ -11,51 +11,11 @@
 #include "harness/tool_registry.h"
 #include "harness/interfaces.h"
 #include "services/interfaces.h"
+#include "test_helpers/MockAIEngine.h"
 
 using namespace act::core;
 using namespace act::harness;
 using namespace act::framework;
-
-// ============================================================
-// Mock AIEngine
-// ============================================================
-
-class MockAIEngine : public act::services::IAIEngine
-{
-public:
-    QList<LLMMessage> responseQueue;
-    int callCount = 0;
-    QString lastError = QStringLiteral("INTERNAL_ERROR");
-
-    void chat(const QList<LLMMessage> & /*messages*/,
-              std::function<void(LLMMessage)> onMessage,
-              std::function<void()> onComplete,
-              std::function<void(QString, QString)> onError) override
-    {
-        ++callCount;
-        if (!responseQueue.isEmpty())
-        {
-            onMessage(responseQueue.takeFirst());
-            onComplete();
-        }
-        else
-        {
-            onError(lastError, QStringLiteral("mock error"));
-        }
-    }
-
-    void cancel() override {}
-    void setToolDefinitions(const QList<QJsonObject> & /*tools*/) override {}
-
-    [[nodiscard]] int estimateTokens(
-        const QList<LLMMessage> &messages) const override
-    {
-        int total = 0;
-        for (const auto &m : messages)
-            total += m.content.length();
-        return static_cast<int>(total / 3.0);
-    }
-};
 
 // ============================================================
 // Mock IModelSwitcher
@@ -310,10 +270,9 @@ TEST_F(ReplFeatureTest, ModelCommandSwitchFailsWhenSwitcherReturnsFalse)
 // /permissions command tests (via captured output)
 // ============================================================
 
-TEST_F(ReplFeatureTest, PermissionsCommandIsRegistered)
+TEST_F(ReplFeatureTest, StatusReportsState)
 {
-    // /permissions is not a built-in command in CliRepl currently.
-    // Verify that /status reports permission-related info.
+    // Verify that /status reports current state info.
     repl->setOutputMode(CliRepl::OutputMode::Human);
     auto state = repl->processInput(QStringLiteral("/status"));
     EXPECT_EQ(state, TaskState::Idle);

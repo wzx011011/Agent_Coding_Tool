@@ -8,11 +8,6 @@
 namespace act::framework
 {
 
-RuntimeEventLogger::RuntimeEventLogger(QString logFilePath)
-    : m_logFilePath(std::move(logFilePath))
-{
-}
-
 void RuntimeEventLogger::log(const act::core::RuntimeEvent &event)
 {
     if (!m_enabled)
@@ -59,16 +54,6 @@ void RuntimeEventLogger::log(const act::core::RuntimeEvent &event)
     entry[QStringLiteral("data")] = event.data;
     spdlog::info("[event] {}",
                  QJsonDocument(entry).toJson(QJsonDocument::Compact).toStdString());
-}
-
-void RuntimeEventLogger::setLogFilePath(const QString &path)
-{
-    m_logFilePath = path;
-}
-
-QString RuntimeEventLogger::logFilePath() const
-{
-    return m_logFilePath;
 }
 
 void RuntimeEventLogger::setEnabled(bool enabled)

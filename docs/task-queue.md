@@ -6,7 +6,7 @@
 - Source: ACT-PRD-产品需求文档.md + ACT-系统架构设计.md + ACT-开发计划与进度.md + ACT-技术选型报告.md
 - Scope: P1a / P1b / P2 / P3 implementation planning
 - Status: pending approval
-- Completed: 41/43 + 21/33 (T11 skipped; T16 deferred; N1~N18, N19, N30 completed)
+- Completed: 43/43 + 33/33 (T11 skipped; T16 deferred; all Batch 6-7 tasks completed)
 
 ## Planning Notes
 
@@ -97,24 +97,24 @@
 | 45 | N17 | 实现交互式权限确认后端                           | backend     | T6      | [x]    | build + PermissionPromptTest pass                 | 修改 src/harness/permission_manager.h/cpp：新增 std::function\<bool(const PermissionRequest&)\> m_userCallback; setPermissionCallback(callback) 供外部注入确认逻辑; 请求 PermissionLevel 不可自动批准时调用 m_userCallback; 回调返回 true=允许 false=拒绝; 回调在 AgentLoop 线程同步调用; 单元测试用 mock callback 验证不依赖真实 stdin | commit: e053dcf |
 | 46 | N18 | 实现交互式权限确认 REPL 集成                     | frontend    | N16,N17 | [x]    | build + E2E test pass                             | REPL 循环检测 WaitingApproval，y/N/always 三种应答           | commit: cc464cb |
 | 47 | N19 | 实现 /compact /model /config /clear /resume 命令 | frontend    | N16     | [x]    | build + test pass                                 | /compact 调 AgentLoop.compact()；/config show/set/save/reload；/clear 为 /reset 别名；/resume 列出/恢复 checkpoint；/model 已有 | commit: pending |
-| 48 | N20 | 实现多行输入支持                                 | frontend    | T10     | [ ]    | build + CliReplTest.MultilineInput pass           | 行尾 \ 续行，... 提示符；非TTY保持单行                      |
-| 49 | N21 | 实现 --model 启动参数                            | frontend    | LLM-T11 | [ ]    | build + test pass                                 | CLI arg 优先级高于 config file                              |
-| 50 | N22 | 实现 /permissions 权限管理命令                   | frontend    | N17,N19 | [ ]    | build + test pass                                 | 显示5级权限状态；auto on/off；deny/allow tool                |
+| 48 | N20 | 实现多行输入支持                                 | frontend    | T10     | [x]    | build + CliReplTest.MultilineInput pass           | 行尾 \ 续行，... 提示符；非TTY保持单行                      | commit: 8c4df3f |
+| 49 | N21 | 实现 --model 启动参数                            | frontend    | LLM-T11 | [x]    | build + test pass                                 | CLI arg 优先级高于 config file                              | commit: 8c4df3f |
+| 50 | N22 | 实现 /permissions 权限管理命令                   | frontend    | N17,N19 | [x]    | build + test pass                                 | 显示5级权限状态；auto on/off；deny/allow tool                | commit: 8c4df3f |
 | 51 | N30 | 实现 System Prompt 注入 + /init 命令            | integration | T9,T12   | [x]    | build + AgentLoopTest 4 项新测试 pass             | AgentLoop.setSystemPrompt() 注入 System 消息；三层 prompt 拼接（base + .act/system_prompt.md + skills/*.toml）；/init 生成项目 prompt 模板；转发到 CliRepl / InteractiveSessionController / SessionManager / FeishuChannel / TuiApp；system_prompt.h/cpp 新文件 | commit: pending |
-| 52 | N31 | Base prompt 增强（反吹捧 + 注入防御指令）       | backend     | N30      | [ ]    | build + test pass                                 | 在 system_prompt.cpp "Tone and style" 段添加反 sycophancy 指令；添加 prompt injection 防御提示；两处均为 prompt 文本修改，无代码逻辑变更 |
+| 52 | N31 | Base prompt 增强（反吹捧 + 注入防御指令）       | backend     | N30      | [x]    | build + test pass                                 | 在 system_prompt.cpp "Tone and style" 段添加反 sycophancy 指令；添加 prompt injection 防御提示；两处均为 prompt 文本修改，无代码逻辑变更 | commit: fdbc227 |
 
 ### Batch 7: P2 Agent 能力激活与工具扩展
 
 | #  | ID  | Title                                        | Scope       | Depends | Status | Verification                                    | Notes                                                        |
 |----|-----|----------------------------------------------|-------------|---------|--------|-------------------------------------------------|--------------------------------------------------------------|
-| 51 | N23 | 实现 HttpNetwork GET 方法                     | infra       | LLM-T3  | [ ]    | build + HttpNetworkTest pass                    | 为 WebFetchTool 提供基础设施                               |
-| 52 | N24 | 实现 WebFetchTool                             | backend     | N23     | [ ]    | build + test pass                               | 新建 src/harness/web_fetch_tool.h/cpp：依赖 N23 新增的 HttpNetwork::get(url) → QByteArray; ITool 实现 name=web_fetch input schema { url: string }; PermissionLevel::Network; 响应截断 50KB content-type 过滤 text/* only; 返回 ToolResult 包含 status_code content truncated 标记; 在 tests/harness/ 新增 WebFetchToolTest.cpp |
-| 53 | N25 | 实现 TodoWriteTool（内存任务列表）            | backend     | T5      | [ ]    | build + test pass                               | add/remove/complete/list/clear；PermissionLevel::Read        |
-| 54 | N26 | 实现 SubagentTool（run_subagent）             | integration | T13     | [ ]    | build + test pass                               | 新建 src/harness/subagent_tool.h/cpp：封装 act::framework::SubagentManager 为 ITool; name=run_subagent input schema { type: explore\|code task: string }; 持有 SubagentManager& 引用调用 runSubagent(type, task); 将 SubagentResult 转为 ToolResult 格式; PermissionLevel::Exec; 构造时从外部注入 SubagentManager 避免循环依赖 |
-| 55 | N27 | 实现 SkillTool（load_skill）                  | integration | T12     | [ ]    | build + test pass                               | 封装 SkillCatalog 为 ITool；PermissionLevel::Read           |
-| 56 | N28 | 实现 RuntimeTrace 完善与 Model Request 日志    | backend     | T14     | [ ]    | build + test pass                               | 补充 Model Request、Permission Audit 事件类型               |
-| 57 | N29 | 端到端集成测试 v2（新命令与工具）              | testing     | N17,N24 | [ ]    | build + test pass (无key GTEST_SKIP)            | 权限确认、WebFetch、Subagent、/compact、/model、多行输入    |
-| 58 | N32 | 实现 Plan Mode（规划模式）                     | integration | N26      | [ ]    | build + test pass                                | TaskState 新增 Planning 状态；AgentLoop.enterPlanMode() 进入只读规划，限制为 Read 级工具（file_read/glob/grep/git_status/git_diff/repo_map）；exitPlanMode() 恢复全部工具；Planning 状态下 LLM 可自由探索代码库并设计实现方案，完成后由用户审批才进入执行；参考 Claude EnterPlanMode/ExitPlanMode 双工具模式 |
+| 51 | N23 | 实现 HttpNetwork GET 方法                     | infra       | LLM-T3  | [x]    | build + HttpNetworkTest pass                    | 为 WebFetchTool 提供基础设施                               | commit: 6cc88c4 |
+| 52 | N24 | 实现 WebFetchTool                             | backend     | N23     | [x]    | build + test pass                               | 新建 src/harness/web_fetch_tool.h/cpp：依赖 N23 新增的 HttpNetwork::get(url) → QByteArray; ITool 实现 name=web_fetch input schema { url: string }; PermissionLevel::Network; 响应截断 50KB content-type 过滤 text/* only; 返回 ToolResult 包含 status_code content truncated 标记; 在 tests/harness/ 新增 WebFetchToolTest.cpp | commit: 6cc88c4 |
+| 53 | N25 | 实现 TodoWriteTool（内存任务列表）            | backend     | T5      | [x]    | build + test pass                               | add/remove/complete/list/clear；PermissionLevel::Read        | commit: 48c5873 |
+| 54 | N26 | 实现 SubagentTool（run_subagent）             | integration | T13     | [x]    | build + test pass                               | 新建 src/harness/subagent_tool.h/cpp：封装 act::framework::SubagentManager 为 ITool; name=run_subagent input schema { type: explore\|code task: string }; 持有 SubagentManager& 引用调用 runSubagent(type, task); 将 SubagentResult 转为 ToolResult 格式; PermissionLevel::Exec; 构造时从外部注入 SubagentManager 避免循环依赖 | commit: 48c5873 |
+| 55 | N27 | 实现 SkillTool（load_skill）                  | integration | T12     | [x]    | build + test pass                               | 封装 SkillCatalog 为 ITool；PermissionLevel::Read           | commit: 48c5873 |
+| 56 | N28 | 实现 RuntimeTrace 完善与 Model Request 日志    | backend     | T14     | [x]    | build + test pass                               | 补充 Model Request、Permission Audit 事件类型               | commit: c965073 |
+| 57 | N29 | 端到端集成测试 v2（新命令与工具）              | testing     | N17,N24 | [x]    | build + test pass (无key GTEST_SKIP)            | 权限确认、WebFetch、Subagent、/compact、/model、多行输入    | commit: bd038af |
+| 58 | N32 | 实现 Plan Mode（规划模式）                     | integration | N26      | [x]    | build + test pass                                | TaskState 新增 Planning 状态；AgentLoop.enterPlanMode() 进入只读规划，限制为 Read 级工具（file_read/glob/grep/git_status/git_diff/repo_map）；exitPlanMode() 恢复全部工具；Planning 状态下 LLM 可自由探索代码库并设计实现方案，完成后由用户审批才进入执行；参考 Claude EnterPlanMode/ExitPlanMode 双工具模式 | commit: 876eaf3 |
 
 ## Dependency Waves
 

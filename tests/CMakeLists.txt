@@ -2,6 +2,7 @@ include(GoogleTest)
 
 # All tests need access to src/ for core headers
 set(ACT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
+set(ACT_TEST_HELPERS_DIR ${PROJECT_SOURCE_DIR}/tests)
 
 # Default per-test timeout to prevent hangs (e.g. QEventLoop without QCoreApplication)
 set(ACT_TEST_TIMEOUT 10 CACHE STRING "Per-test timeout in seconds")
@@ -39,6 +40,7 @@ add_executable(act_framework_tests
     framework/PlanModeTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
+target_include_directories(act_framework_tests PRIVATE ${ACT_TEST_HELPERS_DIR})
 gtest_discover_tests(act_framework_tests
     PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
@@ -227,6 +229,7 @@ add_executable(act_e2e_tests
     e2e/ReplFeatureTest.cpp
 )
 target_link_libraries(act_e2e_tests PRIVATE act_framework GTest::gtest_main)
+target_include_directories(act_e2e_tests PRIVATE ${ACT_TEST_HELPERS_DIR})
 gtest_discover_tests(act_e2e_tests
     PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}

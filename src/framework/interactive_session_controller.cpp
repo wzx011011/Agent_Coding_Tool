@@ -99,6 +99,10 @@ void InteractiveSessionController::submitInput(const QString &message) {
     if (message.trimmed().isEmpty() || isBusy())
         return;
 
+    // Don't submit if a shutdown is in progress
+    if (m_shuttingDown.load())
+        return;
+
     applyState([&](InteractiveSessionState &state) {
         state.appendUserMessage(message);
         state.setBusy(true);
@@ -134,7 +138,7 @@ void InteractiveSessionController::denyPermission() {
 
 bool InteractiveSessionController::requestPermission(const act::core::PermissionRequest &request) {
     {
-        QMutexLocker locker(&m_permissionMutex);
+        std::lock_guard<std::mutex> lock(m_permissionMutex);
         m_permissionWaiting = true;
         m_permissionResolved = false;
         m_permissionApproved = false;
@@ -146,13 +150,16 @@ bool InteractiveSessionController::requestPermission(const act::core::Permission
         state.setStatus(QStringLiteral("Waiting Approval"));
     });
 
-    QMutexLocker locker(&m_permissionMutex);
-    while (!m_permissionResolved && !m_shuttingDown.load())
-        m_permissionWaitCondition.wait(&m_permissionMutex);
+    bool approved = false;
+    {
+        std::unique_lock<std::mutex> lock(m_permissionMutex);
+        m_permissionCv.wait(lock, [this] {
+            return m_permissionResolved || m_shuttingDown.load();
+        });
 
-    const bool approved = m_permissionResolved && m_permissionApproved;
-    m_permissionWaiting = false;
-    locker.unlock();
+        approved = m_permissionResolved && m_permissionApproved;
+        m_permissionWaiting = false;
+    }
 
     applyState([&](InteractiveSessionState &state) {
         state.clearPermissionPrompt();
@@ -161,17 +168,17 @@ bool InteractiveSessionController::requestPermission(const act::core::Permission
         state.setStatus(QStringLiteral("Running"));
     });
 
-    return approved;
+    return m_permissionApproved;
 }
 
 void InteractiveSessionController::resolvePermission(bool approved) {
-    QMutexLocker locker(&m_permissionMutex);
+    std::lock_guard<std::mutex> lock(m_permissionMutex);
     if (!m_permissionWaiting)
         return;
 
     m_permissionApproved = approved;
     m_permissionResolved = true;
-    m_permissionWaitCondition.wakeAll();
+    m_permissionCv.notify_all();
 }
 
 void InteractiveSessionController::runConversationTurn(const QString &message) {
@@ -261,12 +268,12 @@ void InteractiveSessionController::runConversationTurn(const QString &message) {
 }
 
 void InteractiveSessionController::shutdownWorker() {
-    m_shuttingDown = true;
+    m_shuttingDown.store(true);
     {
-        QMutexLocker locker(&m_permissionMutex);
+        std::lock_guard<std::mutex> lock(m_permissionMutex);
         m_permissionResolved = true;
         m_permissionApproved = false;
-        m_permissionWaitCondition.wakeAll();
+        m_permissionCv.notify_all();
     }
 
     m_engine.cancel();
@@ -277,7 +284,7 @@ void InteractiveSessionController::shutdownWorker() {
         m_workerThread.reset();
     }
 
-    m_shuttingDown = false;
+    m_shuttingDown.store(false);
 }
 
 } // namespace act::framework
