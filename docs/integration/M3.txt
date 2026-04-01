@@ -1,0 +1,52 @@
+M3: WebSearchTool
+=================
+
+Module: act::harness
+Files:
+  - src/harness/tools/web_search_tool.h
+  - src/harness/tools/web_search_tool.cpp
+  - tests/harness/WebSearchToolTest.cpp
+
+Registration:
+  Add to src/harness/CMakeLists.txt sources:
+    tools/web_search_tool.cpp
+    tools/web_search_tool.h
+
+  Register in ToolRegistry (e.g. app/cli/main.cpp or tool_registry.cpp):
+    #include "harness/tools/web_search_tool.h"
+    registry.registerTool(std::make_unique<WebSearchTool>(httpNetwork));
+
+  Add test to tests/CMakeLists.txt act_harness_tests:
+    harness/WebSearchToolTest.cpp
+
+Dependencies:
+  - HttpNetwork (src/infrastructure/http_network.h)
+  - QtCore (QJsonObject, QUrl, QUrlQuery)
+
+Configuration:
+  Environment variables:
+    ACT_SEARCH_API_KEY   — API key for search provider (required)
+    ACT_SEARCH_PROVIDER  — "bing" (default) or "serpapi"
+
+  Bing provider:
+    URL: https://api.bing.microsoft.com/v7.0/search?q={query}&count={max}
+    Auth: Ocp-Apim-Subscription-Key header
+
+  SerpAPI provider:
+    URL: https://serpapi.com/search.json?q={query}&num={max}&api_key={key}
+    Auth: api_key in query string
+
+Permission: Network
+Thread-safe: No
+
+Output format:
+  Markdown numbered list:
+    1. **[Title](URL)** — Snippet
+
+Error handling:
+  - Missing query: INVALID_PARAMS
+  - Missing API key: AUTH_ERROR with setup instructions
+  - HTTP 401/403: AUTH_ERROR
+  - HTTP 429: RATE_LIMIT
+  - Other HTTP errors: COMMAND_FAILED
+  - JSON parse failure: COMMAND_FAILED
