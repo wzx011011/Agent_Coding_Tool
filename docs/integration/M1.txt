@@ -1,0 +1,43 @@
+M1 Integration — Task Management v2
+=====================================
+
+This file lists all changes required to integrate the new TaskManager and
+4 task tools (task_create, task_get, task_update, task_list) into the build
+and runtime. These changes should be applied after the M1 code is approved.
+
+1. src/harness/CMakeLists.txt
+   -------------------------
+   Add the following files to the act_harness library sources:
+
+     harness/task_manager.cpp
+     harness/task_manager.h
+     tools/task_create_tool.cpp
+     tools/task_create_tool.h
+     tools/task_get_tool.cpp
+     tools/task_get_tool.h
+     tools/task_update_tool.cpp
+     tools/task_update_tool.h
+     tools/task_list_tool.cpp
+     tools/task_list_tool.h
+
+2. tests/CMakeLists.txt
+   ---------------------
+   Add the following test source files to act_harness_tests:
+
+     harness/TaskManagerTest.cpp
+     harness/TaskCreateToolTest.cpp
+
+3. app/cli/main.cpp (or wherever tools are registered)
+   ----------------------------------------------------
+   Create a TaskManager instance (shared, long-lived) and register the tools:
+
+     auto taskManager = std::make_shared<act::harness::TaskManager>();
+     registry.registerTool(std::make_unique<act::harness::TaskCreateTool>(*taskManager));
+     registry.registerTool(std::make_unique<act::harness::TaskGetTool>(*taskManager));
+     registry.registerTool(std::make_unique<act::harness::TaskUpdateTool>(*taskManager));
+     registry.registerTool(std::make_unique<act::harness::TaskListTool>(*taskManager));
+
+   The TaskManager must outlive all tools that reference it.
+
+4. No other files need modification. The TaskManager is self-contained
+   and the tools follow the standard ITool pattern.
