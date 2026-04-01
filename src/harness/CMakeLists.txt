@@ -57,6 +57,37 @@ add_library(act_harness STATIC
     tools/enter_plan_mode_tool.h
     tools/exit_plan_mode_tool.cpp
     tools/exit_plan_mode_tool.h
+    task_manager.cpp
+    task_manager.h
+    tools/task_create_tool.cpp
+    tools/task_create_tool.h
+    tools/task_get_tool.cpp
+    tools/task_get_tool.h
+    tools/task_update_tool.cpp
+    tools/task_update_tool.h
+    tools/task_list_tool.cpp
+    tools/task_list_tool.h
+    memory_manager.cpp
+    memory_manager.h
+    tools/web_search_tool.cpp
+    tools/web_search_tool.h
+    cost_tracker.cpp
+    cost_tracker.h
+    hook_types.h
+    hook_manager.cpp
+    hook_manager.h
+    tools/brief_tool.cpp
+    tools/brief_tool.h
+    tools/notebook_edit_tool.cpp
+    tools/notebook_edit_tool.h
+    tools/enter_worktree_tool.cpp
+    tools/enter_worktree_tool.h
+    tools/exit_worktree_tool.cpp
+    tools/exit_worktree_tool.h
+    file_checkpoint.cpp
+    file_checkpoint.h
+    mcp_tool_adapter.cpp
+    mcp_tool_adapter.h
 )
 
 target_include_directories(act_harness

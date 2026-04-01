@@ -1,0 +1,54 @@
+M14: File Checkpoint System
+=============================
+
+Auto-backup files before edits and provide /rewind restore capability.
+
+Class: act::harness::FileCheckpoint
+
+Storage Layout:
+  .act/checkpoints/<timestamp>-<short-uuid>/<filename>
+
+API:
+  - checkpoint(filePath, content) -> checkpointId
+    Creates a backup of the file content before modification.
+    Returns a UUID that can be used to restore later.
+
+  - restore(checkpointId) -> bool
+    Restores the file from a previously created checkpoint.
+    Returns true on success.
+
+  - listCheckpoints(filePathFilter = {}) -> QList<CheckpointEntry>
+    Lists all checkpoints, optionally filtered by file path prefix.
+
+  - cleanup(maxCount = 50) -> int
+    Removes oldest checkpoints, keeping at most maxCount most recent.
+    Returns the number of checkpoints removed.
+
+  - checkpointContent(checkpointId) -> QByteArray
+    Reads the backup content for a given checkpoint ID.
+
+CheckpointEntry:
+  - id: UUID
+  - filePath: Original file path (relative to workspace)
+  - backupPath: Path to backup copy
+  - timestamp: When the checkpoint was created
+  - operation: "edit", "write", or "delete"
+
+LRU Cleanup:
+  - Default max: 50 checkpoints
+  - Sorted by timestamp, oldest removed first
+  - Backup files and directories cleaned up
+
+Thread Safety:
+  - All public methods are mutex-protected for thread-safe access
+
+Integration with /rewind command:
+  /rewind           -- Restore most recent file checkpoint
+  /rewind <n>       -- Restore n-th checkpoint (1-indexed)
+  /rewind --list    -- List available checkpoints
+  /rewind --clean   -- Remove all checkpoints
+
+Files:
+  - src/harness/file_checkpoint.h
+  - src/harness/file_checkpoint.cpp
+  - tests/harness/FileCheckpointTest.cpp

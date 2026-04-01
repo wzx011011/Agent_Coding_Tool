@@ -1,0 +1,58 @@
+M8: Git Worktree Tools
+========================
+
+Two ITool implementations for creating and removing isolated git worktrees.
+
+Tools:
+  - enter_worktree  (PermissionLevel::Destructive, not thread-safe)
+  - exit_worktree   (PermissionLevel::Destructive, not thread-safe)
+
+enter_worktree
+--------------
+Creates a new git worktree under .claude/worktrees/<name>/ with a new branch
+at HEAD.
+
+Parameters (all optional):
+  - name (string): Worktree name. Auto-generated as "act-worktree-<random6>" if omitted.
+  - branch (string): Branch name. Defaults to worktree name if omitted.
+
+Returns:
+  - output: Human-readable confirmation with path and branch
+  - metadata: { worktree_path, branch, name }
+
+Side effects:
+  - Creates .claude/worktrees/ directory if needed
+  - Runs: git worktree add <path> -b <branch> HEAD
+
+Validation:
+  - Rejects names containing '/' or '\' or '..'
+  - Rejects branch names containing spaces
+
+
+exit_worktree
+-------------
+Removes or keeps an existing git worktree.
+
+Parameters:
+  - action (string, required): "keep" or "remove"
+  - worktree_path (string, optional): Path to worktree directory.
+    Defaults to workspace root if omitted.
+
+Returns:
+  - output: Human-readable confirmation
+  - metadata: { worktree_path, action }
+
+Behavior:
+  - action="keep": Reports path, no git command executed
+  - action="remove": Runs git worktree remove <path>
+
+Validation:
+  - Rejects paths outside workspace root
+  - Rejects invalid action values
+
+Files:
+  - src/harness/tools/enter_worktree_tool.h
+  - src/harness/tools/enter_worktree_tool.cpp
+  - src/harness/tools/exit_worktree_tool.h
+  - src/harness/tools/exit_worktree_tool.cpp
+  - tests/harness/WorktreeToolTest.cpp

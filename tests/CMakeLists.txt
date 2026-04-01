@@ -125,6 +125,16 @@ add_executable(act_harness_tests
     harness/WebFetchToolTest.cpp
     harness/TodoWriteToolTest.cpp
     harness/SubagentToolTest.cpp
+    harness/MemoryManagerTest.cpp
+    harness/TaskManagerTest.cpp
+    harness/TaskCreateToolTest.cpp
+    harness/WebSearchToolTest.cpp
+    harness/CostTrackerTest.cpp
+    harness/HookManagerTest.cpp
+    harness/BriefToolTest.cpp
+    harness/NotebookEditToolTest.cpp
+    harness/WorktreeToolTest.cpp
+    harness/FileCheckpointTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness act_framework GTest::gtest_main)
 gtest_discover_tests(act_harness_tests
@@ -206,6 +216,19 @@ set_source_files_properties(infrastructure/HttpNetworkTest.cpp PROPERTIES
     CXX_SCAN_FOR_MODULES OFF
 )
 gtest_discover_tests(act_http_network_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
+
+# MCP client tests (M16)
+add_executable(act_mcp_client_tests
+    infrastructure/McpClientTest.cpp
+)
+target_link_libraries(act_mcp_client_tests PRIVATE act_harness act_framework GTest::gtest_main)
+set_source_files_properties(infrastructure/McpClientTest.cpp PROPERTIES
+    CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_mcp_client_tests
     PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
 )
