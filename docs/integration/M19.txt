@@ -1,0 +1,92 @@
+M19: Plugin System v0
+=====================
+
+Status: Implemented
+Date: 2026-04-02
+
+Overview
+--------
+Discovers and loads plugins from a directory (e.g., .act/plugins/).
+Each plugin is a subdirectory containing a plugin.toml manifest.
+Supports four plugin types: Skill, Agent, Hook, MCP.
+
+Architecture
+------------
+PluginSystem scans a plugin directory for subdirectories containing
+plugin.toml files. Each manifest is parsed using toml++ (same parser
+as SkillLoader). The system supports:
+
+- discoverPlugins(): Scan directory and parse all manifests
+- loadPlugin(name): Load a specific plugin into memory
+- getPlugin(name): Retrieve a loaded plugin manifest
+- unloadPlugin(name): Remove a loaded plugin
+- Thread-safe via std::mutex
+
+Plugin directory structure:
+  .act/plugins/
+  +-- code-reviewer/
+  |   +-- plugin.toml     (manifest)
+  |   +-- skill.toml      (skill definition)
+  +-- test-runner/
+      +-- plugin.toml
+
+Plugin manifest (plugin.toml):
+  [plugin]
+  name = "code-reviewer"
+  version = "1.0.0"
+  type = "skill"           # or "agent", "hook", "mcp"
+  description = "..."
+  entry_point = "skill.toml"
+  dependencies = []
+  [plugin.config]
+  key = "value"
+
+Files Created
+-------------
+- src/framework/plugin_types.h
+- src/framework/plugin_system.h
+- src/framework/plugin_system.cpp
+- tests/framework/PluginSystemTest.cpp
+- docs/integration/M19.txt
+
+CMakeLists.txt Changes
+----------------------
+src/framework/CMakeLists.txt:
+  Add plugin_types.h, plugin_system.cpp, plugin_system.h to act_framework sources
+
+tests/CMakeLists.txt:
+  Add act_plugin_system_tests target with SKIP_UNITY_BUILD_INCLUSION ON
+  and CXX_SCAN_FOR_MODULES OFF (toml++ headers cause MSVC C1903)
+
+Registration
+------------
+PluginSystem is constructed with a plugin directory path:
+
+    PluginSystem pluginSystem(QStringLiteral(".act/plugins"));
+    auto discovered = pluginSystem.discoverPlugins();
+    pluginSystem.loadPlugin(QStringLiteral("code-reviewer"));
+
+Integration with SkillCatalog:
+    auto manifest = pluginSystem.getPlugin("code-reviewer");
+    if (manifest && manifest->type == PluginType::Skill) {
+        // Load skill.toml via SkillLoader
+    }
+
+Dependencies
+------------
+- Qt6::Core (QDir, QFile, QString, QMap)
+- toml++ (manifest parsing)
+- spdlog (logging)
+- GTest (testing)
+
+Test Coverage
+-------------
+- Discover from empty/nonexistent directory
+- Discover single and multiple plugins
+- Plugin types (Skill, Agent, Hook, MCP)
+- Default version (0.1.0)
+- Load, get, unload lifecycle
+- Plugin with dependencies and config
+- Skip directories without manifest
+- Skip invalid TOML
+- Skip manifest with missing name

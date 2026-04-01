@@ -1,0 +1,119 @@
+M22: /sleep Command via CronManager
+====================================
+
+Status: Implemented
+Date: 2026-04-02
+
+Overview
+--------
+Implements a /sleep command that schedules a delayed wake-up using
+CronManager. Parses relative durations ("5m", "2 hours") and absolute
+times ("2:30pm", "tomorrow"). Creates a one-shot cron job that fires
+after the specified duration.
+
+Architecture
+------------
+CronManager is a shared component (act::harness) that manages scheduled
+tasks. It is the same task manager pattern used by TodoWriteTool but
+specialized for cron-style scheduling.
+
+Components:
+
+1. CronManager (src/harness/cron_manager.h/.cpp)
+   - Creates, deletes, lists cron jobs
+   - Supports one-shot and recurring jobs
+   - checkDueCrons() returns IDs of jobs that should fire now
+   - markFired() for one-shot job completion
+   - parseDurationToMinutes(): Parses "5m", "2h", "1d", bare numbers
+   - parseAbsoluteTime(): Parses "today", "tomorrow", "HH:mm", "HH:mmAP"
+   - Thread-safe via std::mutex
+
+2. /sleep Command Integration
+   The /sleep command is a command registered via CommandRegistry.
+   It wraps CronManager to create one-shot scheduled tasks.
+
+   Flow:
+   a. User calls /sleep <duration>
+   b. Parse duration string via CronManager::parseDurationToMinutes()
+   c. If valid, create a one-shot cron job via CronManager::createCron()
+   d. When the timer fires (checked via checkDueCrons()), the job
+      executes its prompt and is marked as fired
+   e. Print "Woke up: {timestamp}" confirmation
+
+   If invalid duration, return error message.
+
+CronManager API
+---------------
+    CronManager mgr;
+
+    // Create a one-shot job
+    QString id = mgr.createCron("one-shot", "Wake up task", false);
+
+    // Check for due jobs
+    auto due = mgr.checkDueCrons();
+
+    // Mark one-shot as fired
+    mgr.markFired(id);
+
+    // Duration parsing
+    qint64 minutes = CronManager::parseDurationToMinutes("5m");   // 5
+    qint64 minutes = CronManager::parseDurationToMinutes("2h");   // 120
+    qint64 minutes = CronManager::parseDurationToMinutes("1d");   // 1440
+
+    // Absolute time parsing
+    QDateTime target = CronManager::parseAbsoluteTime("2:30pm");
+    QDateTime target = CronManager::parseAbsoluteTime("tomorrow");
+
+Files Created
+-------------
+- src/harness/cron_manager.h
+- src/harness/cron_manager.cpp
+- tests/harness/CronManagerTest.cpp
+- docs/integration/M22.txt
+
+CMakeLists.txt Changes
+----------------------
+src/harness/CMakeLists.txt:
+  Add cron_manager.cpp, cron_manager.h to act_harness sources
+
+tests/CMakeLists.txt:
+  Add act_cron_manager_tests target
+
+Integration Notes
+-----------------
+CronManager reuses the same task management pattern as TaskManager
+(act::harness::TaskManager) used by TodoWriteTool. The CronManager
+stores cron jobs in a std::map<QString, CronJob> with mutex protection.
+
+To integrate with the command system:
+
+    // In command registration
+    commandRegistry.registerCommand(
+        QStringLiteral("sleep"),
+        [&cronManager](const QString &args) {
+            auto minutes = CronManager::parseDurationToMinutes(args);
+            if (minutes <= 0) {
+                return QStringLiteral("Invalid duration: %1").arg(args);
+            }
+            QString id = cronManager.createCron(
+                QStringLiteral("sleep"), QStringLiteral("Wake up"), false);
+            return QStringLiteral("Sleep scheduled (id=%1, duration=%2m)")
+                .arg(id).arg(minutes);
+        });
+
+Dependencies
+------------
+- Qt6::Core (QDateTime, QRegularExpression, QTime)
+- spdlog (logging)
+- GTest (testing)
+
+Test Coverage
+-------------
+- Create recurring and one-shot cron jobs
+- List and delete cron jobs
+- checkDueCrons() for recurring and one-shot jobs
+- markFired() lifecycle
+- getCron() for existing and non-existing jobs
+- parseDurationToMinutes(): minutes, hours, days, seconds, bare number
+- parseAbsoluteTime(): today, tomorrow, 12h format, 24h format, invalid
+- Sequential job IDs

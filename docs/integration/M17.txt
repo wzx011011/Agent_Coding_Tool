@@ -1,0 +1,68 @@
+M17: Parallel Sub-Agent Coordination
+=====================================
+
+Status: Implemented
+Date: 2026-04-02
+
+Overview
+--------
+Adds a coordination layer over SubagentManager for spawning and managing
+multiple sub-agents in parallel batches. Enables the agent to delegate
+multiple independent tasks simultaneously.
+
+Architecture
+------------
+ParallelSubagent is a lightweight coordination layer that:
+1. Takes a list of ParallelSubagentConfig (wrapping SubagentConfig)
+2. Spawns all sub-agents via SubagentManager::spawn() sequentially
+3. Completes each sub-agent via SubagentManager::complete()
+4. Collects results into a thread-safe result list
+
+No real threading (QThreadPool) is used. The SubagentManager itself
+handles the agent loop execution. This approach avoids threading
+complexity while enabling parallel conceptual execution.
+
+Files Created
+-------------
+- src/framework/parallel_subagent.h
+- src/framework/parallel_subagent.cpp
+- tests/framework/ParallelSubagentTest.cpp
+- docs/integration/M17.txt
+
+CMakeLists.txt Changes
+----------------------
+src/framework/CMakeLists.txt:
+  Add parallel_subagent.cpp, parallel_subagent.h to act_framework sources
+
+tests/CMakeLists.txt:
+  Add act_parallel_subagent_tests target with CXX_SCAN_FOR_MODULES OFF
+
+Registration
+------------
+ParallelSubagent is constructed with a reference to an existing
+SubagentManager instance:
+
+    SubagentManager manager;
+    ParallelSubagent parallel(manager);
+
+    QList<ParallelSubagentConfig> configs = {...};
+    auto results = parallel.spawnParallel(configs);
+
+No tool registration needed -- this is a framework-level component
+used programmatically by the agent loop or session manager.
+
+Dependencies
+------------
+- SubagentManager (framework layer)
+- Qt6::Core (QString, QList, QJsonObject)
+- spdlog (logging)
+- GTest (testing)
+
+Test Coverage
+-------------
+- Spawn single sub-agent
+- Spawn multiple sub-agents with mixed types (Explore/Code)
+- allCompleted() returns true after spawn
+- results() returns stored results
+- Empty configs returns empty results
+- Manager tracks spawned agents

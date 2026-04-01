@@ -1,0 +1,84 @@
+M18: AskUserQuestion V2 Tool
+============================
+
+Status: Implemented
+Date: 2026-04-02
+
+Overview
+--------
+Enhanced AskUserTool with multi-question, options, preview, and
+multi-select support. Validates and structures questions for the LLM.
+The actual user interaction is handled by the interactive permission
+flow, not this tool directly.
+
+Architecture
+------------
+AskUserV2Tool is a READ-ONLY tool (PermissionLevel::Read) that:
+
+1. Accepts a "questions" array (1-4 items)
+2. Each question has: question string, options (2-4), optional header,
+   preview, and multiSelect fields
+3. Validates all inputs
+4. Returns a structured JSON response with formatted questions
+5. Returns "__WAITING_USER_INPUT__" marker for the agent loop
+
+The tool is thread-safe (no mutable state).
+
+Schema
+------
+Input:
+  - questions: array (1-4 items)
+    - question: string (required)
+    - options: array (2-4 items, required)
+      - label: string (required)
+      - description: string (optional)
+    - header: string (optional, max 12 chars)
+    - multiSelect: boolean (optional, default false)
+    - preview: string (optional)
+
+Output:
+  - answers: { Q1: { question, options, selectedOptions, ... } }
+  - pause_agent: true
+  - type: "ask_user_v2"
+
+Files Created
+-------------
+- src/harness/tools/ask_user_v2_tool.h
+- src/harness/tools/ask_user_v2_tool.cpp
+- tests/harness/AskUserV2ToolTest.cpp
+- docs/integration/M18.txt
+
+CMakeLists.txt Changes
+----------------------
+src/harness/CMakeLists.txt:
+  Add tools/ask_user_v2_tool.cpp, tools/ask_user_v2_tool.h to act_harness sources
+
+tests/CMakeLists.txt:
+  Add act_ask_user_v2_tests target
+
+Registration
+------------
+Register with ToolRegistry during tool setup:
+
+    registry.registerTool(std::make_unique<AskUserV2Tool>());
+
+Dependencies
+------------
+- ITool interface (harness layer)
+- Qt6::Core (QJsonObject, QJsonArray, QJsonDocument)
+- spdlog (logging)
+- GTest (testing)
+
+Test Coverage
+-------------
+- Name, description, permission level, thread safety
+- Schema structure validation
+- Single question with options
+- Multiple questions
+- Missing/empty questions parameter
+- Too many questions (>4)
+- Empty question string
+- Too few/too many options
+- Option missing label
+- Header and preview fields
+- MultiSelect field
