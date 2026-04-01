@@ -22,7 +22,7 @@ TEST_F(TodoWriteToolTest, NameAndDescription)
 {
     EXPECT_EQ(tool.name(), QStringLiteral("todo_write"));
     EXPECT_FALSE(tool.description().isEmpty());
-    EXPECT_EQ(tool.permissionLevel(), PermissionLevel::Read);
+    EXPECT_EQ(tool.permissionLevel(), PermissionLevel::Write);
     EXPECT_FALSE(tool.isThreadSafe());
 }
 

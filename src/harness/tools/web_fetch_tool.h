@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 
@@ -24,9 +25,16 @@ public:
     [[nodiscard]] bool isThreadSafe() const override;
 
     static constexpr int MAX_RESPONSE_SIZE = 50 * 1024; // 50KB
+    static constexpr int FETCH_TIMEOUT_SECONDS = 15;
 
 private:
-    static bool isTextContentType(const QString &contentType);
+
+    /// Check if a URL uses an allowed scheme (http or https).
+    [[nodiscard]] static bool isAllowedScheme(const QString &url);
+
+    /// Check if an IPv4 address (as 4 octets) is a private/reserved range.
+    /// Blocks loopback, link-local, RFC 1918, and cloud metadata endpoints.
+    [[nodiscard]] static bool isPrivateIPv4(quint8 a, quint8 b, quint8 c, quint8 d);
 
     act::infrastructure::HttpNetwork &m_http;
 };

@@ -96,7 +96,8 @@ act::core::ToolResult TodoWriteTool::execute(const QJsonObject &params)
 
 act::core::PermissionLevel TodoWriteTool::permissionLevel() const
 {
-    return act::core::PermissionLevel::Read;
+    // Write level: tool mutates in-memory todo list (add/remove/complete/clear)
+    return act::core::PermissionLevel::Write;
 }
 
 bool TodoWriteTool::isThreadSafe() const

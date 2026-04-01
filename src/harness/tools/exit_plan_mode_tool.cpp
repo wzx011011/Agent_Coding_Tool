@@ -66,7 +66,9 @@ act::core::ToolResult ExitPlanModeTool::execute(const QJsonObject &params)
 
 act::core::PermissionLevel ExitPlanModeTool::permissionLevel() const
 {
-    return act::core::PermissionLevel::Read;
+    // Write level: exiting plan mode restores access to Write/Exec/Destructive
+    // tools, which is a privilege escalation that requires user confirmation.
+    return act::core::PermissionLevel::Write;
 }
 
 bool ExitPlanModeTool::isThreadSafe() const

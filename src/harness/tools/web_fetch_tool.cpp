@@ -2,8 +2,6 @@
 
 #include "core/error_codes.h"
 
-#include <QJsonArray>
-#include <algorithm>
 #include <spdlog/spdlog.h>
 
 namespace act::harness
@@ -22,7 +20,8 @@ QString WebFetchTool::name() const
 QString WebFetchTool::description() const
 {
     return QStringLiteral("Fetch content from a URL via HTTP GET. "
-                          "Only text/* content types are accepted. "
+                          "Only http/https schemes and text content are "
+                          "supported. Private/internal IPs are blocked. "
                           "Responses larger than 50KB are truncated.");
 }
 
@@ -34,7 +33,7 @@ QJsonObject WebFetchTool::schema() const
         QJsonObject obj;
         obj[QStringLiteral("type")] = QStringLiteral("string");
         obj[QStringLiteral("description")] =
-            QStringLiteral("The URL to fetch content from");
+            QStringLiteral("The URL to fetch content from (http/https only)");
         return obj;
     }();
 
@@ -54,11 +53,42 @@ QJsonObject WebFetchTool::schema() const
     return schema;
 }
 
+bool WebFetchTool::isAllowedScheme(const QString &url)
+{
+    return url.startsWith(QLatin1String("http://")) ||
+           url.startsWith(QLatin1String("https://"));
+}
+
+bool WebFetchTool::isPrivateIPv4(quint8 a, quint8 b, quint8 c, quint8 d)
+{
+    // 127.0.0.0/8 — loopback
+    if (a == 127)
+        return true;
+    // 10.0.0.0/8
+    if (a == 10)
+        return true;
+    // 172.16.0.0/12
+    if (a == 172 && b >= 16 && b <= 31)
+        return true;
+    // 192.168.0.0/16
+    if (a == 192 && b == 168)
+        return true;
+    // 169.254.169.254 — AWS/GCP/Azure cloud metadata
+    if (a == 169 && b == 254 && c == 169 && d == 254)
+        return true;
+    // 0.0.0.0/8 — current network
+    if (a == 0)
+        return true;
+    // 224.0.0.0/4 — multicast
+    if (a >= 224 && a <= 239)
+        return true;
+    return false;
+}
+
 act::core::ToolResult WebFetchTool::execute(const QJsonObject &params)
 {
-    // Validate url parameter
     auto urlValue = params.value(QStringLiteral("url"));
-    if (!urlValue.isString() || urlValue.toString().isEmpty())
+    if (!urlValue.isString() || urlValue.toString().trimmed().isEmpty())
     {
         return act::core::ToolResult::err(
             act::core::errors::INVALID_PARAMS,
@@ -66,6 +96,75 @@ act::core::ToolResult WebFetchTool::execute(const QJsonObject &params)
     }
 
     const QString url = urlValue.toString().trimmed();
+
+    // SSRF protection: scheme validation
+    if (!isAllowedScheme(url))
+    {
+        return act::core::ToolResult::err(
+            act::core::errors::INVALID_PARAMS,
+            QStringLiteral("URL scheme must be http or https, got: %1")
+                .arg(url.left(10)));
+    }
+
+    // Extract host from URL
+    QString host = url;
+    if (host.startsWith(QLatin1String("https://")))
+        host = host.mid(8);
+    else if (host.startsWith(QLatin1String("http://")))
+        host = host.mid(7);
+
+    int slashPos = host.indexOf(QLatin1Char('/'));
+    if (slashPos >= 0)
+        host = host.left(slashPos);
+
+    // Strip userinfo (user:pass@host)
+    int atPos = host.indexOf(QLatin1Char('@'));
+    if (atPos >= 0)
+        host = host.mid(atPos + 1);
+
+    // Strip port
+    int colonPos = host.indexOf(QLatin1Char(':'));
+    if (colonPos >= 0)
+        host = host.left(colonPos);
+
+    // SSRF protection: check if host is a private IP address
+    // Manual IPv4 parsing to avoid QtNetwork dependency
+    QStringList octets = host.split(QLatin1Char('.'));
+    if (octets.size() == 4)
+    {
+        bool allNumeric = true;
+        quint8 parts[4] = {};
+        for (int i = 0; i < 4; ++i)
+        {
+            bool ok = false;
+            int val = octets[i].toInt(&ok);
+            if (!ok || val < 0 || val > 255)
+            {
+                allNumeric = false;
+                break;
+            }
+            parts[i] = static_cast<quint8>(val);
+        }
+        if (allNumeric && isPrivateIPv4(parts[0], parts[1], parts[2], parts[3]))
+        {
+            return act::core::ToolResult::err(
+                act::core::errors::INVALID_PARAMS,
+                QStringLiteral("URL points to a private/reserved IP address "
+                               "(%1). Only public addresses are allowed.")
+                    .arg(host));
+        }
+    }
+
+    // Also reject well-known private hostnames
+    if (host == QLatin1String("localhost") ||
+        host == QLatin1String("metadata.google.internal"))
+    {
+        return act::core::ToolResult::err(
+            act::core::errors::INVALID_PARAMS,
+            QStringLiteral("URL host '%1' is a private address. "
+                           "Only public hosts are allowed.")
+                .arg(host));
+    }
 
     // Build headers map from optional headers parameter
     QMap<QString, QString> headers;
@@ -80,6 +179,9 @@ act::core::ToolResult WebFetchTool::execute(const QJsonObject &params)
         }
     }
 
+    // Apply shorter timeout for web fetch
+    m_http.setTimeoutSeconds(FETCH_TIMEOUT_SECONDS);
+
     // Perform GET request
     int statusCode = 0;
     QByteArray responseBody;
@@ -92,23 +194,15 @@ act::core::ToolResult WebFetchTool::execute(const QJsonObject &params)
             QStringLiteral("HTTP GET request failed for URL: %1").arg(url));
     }
 
-    // Extract content-type from response (httplib stores it in the headers)
-    // We use the HTTP status code and body as returned
-    // For content-type filtering, we check the HTTP headers via the result
-    // Since HttpNetwork::httpGet does not expose response headers directly,
-    // we check the content-type from a best-effort heuristic: if the URL
-    // contains known binary extensions, reject. Otherwise, attempt UTF-8 decode.
-    // NOTE: A more robust approach would be to add response headers to httpGet.
-    // For now, we do a simple content-type sniff based on status code.
-
     QJsonObject metadata;
     metadata[QStringLiteral("status_code")] = statusCode;
     metadata[QStringLiteral("truncated")] = false;
 
-    // Check for non-text content types by examining the response body
-    // If the body contains null bytes, it is likely binary
+    // Binary content detection via null-byte scanning
     bool isBinary = false;
-    for (qsizetype i = 0; i < std::min(responseBody.size(), qsizetype(8192)); ++i)
+    qsizetype scanLen =
+        std::min(responseBody.size(), static_cast<qsizetype>(8192));
+    for (qsizetype i = 0; i < scanLen; ++i)
     {
         if (static_cast<unsigned char>(responseBody[i]) == 0)
         {
@@ -121,10 +215,9 @@ act::core::ToolResult WebFetchTool::execute(const QJsonObject &params)
     {
         metadata[QStringLiteral("content_type")] = QStringLiteral("binary");
         return act::core::ToolResult::err(
-            act::core::errors::INVALID_PARAMS,
+            act::core::errors::COMMAND_FAILED,
             QStringLiteral(
-                "Response has binary content (content-type is not text/*). "
-                "Only text content is supported."),
+                "Response has binary content. Only text content is supported."),
             metadata);
     }
 
@@ -160,13 +253,6 @@ act::core::PermissionLevel WebFetchTool::permissionLevel() const
 bool WebFetchTool::isThreadSafe() const
 {
     return false;
-}
-
-bool WebFetchTool::isTextContentType(const QString & /*contentType*/)
-{
-    // Placeholder for future content-type header inspection
-    // Currently, binary detection is done via null-byte scanning
-    return true;
 }
 
 } // namespace act::harness

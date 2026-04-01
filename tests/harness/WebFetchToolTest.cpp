@@ -119,36 +119,88 @@ TEST(WebFetchToolTest, ExecuteRejectsInvalidUrlType)
     EXPECT_FALSE(result.errorCode.isEmpty());
 }
 
-TEST(WebFetchToolTest, ExecuteRejectsNetworkFailure)
+// SSRF protection tests
+
+TEST(WebFetchToolTest, RejectsFtpScheme)
 {
     act::infrastructure::HttpNetwork http;
     WebFetchTool tool(http);
 
-    // Use an invalid URL that will fail to connect
     QJsonObject params;
-    params[QStringLiteral("url")] =
-        QStringLiteral("http://127.0.0.1:1");
+    params[QStringLiteral("url")] = QStringLiteral("ftp://example.com/file");
+    auto result = tool.execute(params);
+
+    EXPECT_FALSE(result.success);
+    EXPECT_TRUE(result.error.contains(QLatin1String("http or https")));
+}
+
+TEST(WebFetchToolTest, RejectsFileScheme)
+{
+    act::infrastructure::HttpNetwork http;
+    WebFetchTool tool(http);
+
+    QJsonObject params;
+    params[QStringLiteral("url")] = QStringLiteral("file:///etc/passwd");
     auto result = tool.execute(params);
 
     EXPECT_FALSE(result.success);
 }
 
+TEST(WebFetchToolTest, RejectsLoopbackAddress)
+{
+    act::infrastructure::HttpNetwork http;
+    WebFetchTool tool(http);
+
+    QJsonObject params;
+    params[QStringLiteral("url")] = QStringLiteral("http://127.0.0.1:8080");
+    auto result = tool.execute(params);
+
+    EXPECT_FALSE(result.success);
+    EXPECT_TRUE(result.error.contains(QLatin1String("private")));
+}
+
+TEST(WebFetchToolTest, RejectsCloudMetadataEndpoint)
+{
+    act::infrastructure::HttpNetwork http;
+    WebFetchTool tool(http);
+
+    QJsonObject params;
+    params[QStringLiteral("url")] =
+        QStringLiteral("http://169.254.169.254/latest/meta-data/");
+    auto result = tool.execute(params);
+
+    EXPECT_FALSE(result.success);
+    EXPECT_TRUE(result.error.contains(QLatin1String("private")));
+}
+
+TEST(WebFetchToolTest, RejectsRfc1918Address)
+{
+    act::infrastructure::HttpNetwork http;
+    WebFetchTool tool(http);
+
+    // Test 10.x.x.x
+    QJsonObject params10;
+    params10[QStringLiteral("url")] =
+        QStringLiteral("http://10.0.0.1/admin");
+    auto result10 = tool.execute(params10);
+    EXPECT_FALSE(result10.success);
+
+    // Test 192.168.x.x
+    QJsonObject params192;
+    params192[QStringLiteral("url")] =
+        QStringLiteral("http://192.168.1.1/api");
+    auto result192 = tool.execute(params192);
+    EXPECT_FALSE(result192.success);
+}
+
 TEST(WebFetchToolTest, MaxResponseSizeIs50KB)
 {
-    // Compile-time check: 50KB = 51200 bytes
     static_assert(WebFetchTool::MAX_RESPONSE_SIZE == 50 * 1024,
                   "MAX_RESPONSE_SIZE should be 50KB");
 }
 
-TEST(WebFetchToolTest, BinaryContentDetection)
+TEST(WebFetchToolTest, FetchTimeoutIs15Seconds)
 {
-    // Test that the tool correctly identifies binary responses.
-    // Since we cannot easily make a real HTTP call that returns binary,
-    // we verify the constant is correct and the logic path exists
-    // via the schema validation tests above.
-    // The actual binary detection is tested implicitly through the
-    // content-type filtering in execute().
-    act::infrastructure::HttpNetwork http;
-    WebFetchTool tool(http);
-    EXPECT_EQ(tool.name().toStdString(), "web_fetch");
+    static_assert(WebFetchTool::FETCH_TIMEOUT_SECONDS == 15,
+                  "FETCH_TIMEOUT_SECONDS should be 15");
 }
