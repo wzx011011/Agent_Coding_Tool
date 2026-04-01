@@ -1,0 +1,36 @@
+M20 Integration — /diff Command
+=================================
+
+This file lists all changes required to integrate the /diff command
+into the build and runtime.
+
+1. src/framework/CMakeLists.txt
+   ----------------------------
+   Add the following files to the act_framework library sources:
+
+     commands/diff_command.cpp
+     commands/diff_command.h
+
+2. tests/CMakeLists.txt
+   ---------------------
+   Add the following test source file to act_framework_tests:
+
+     framework/DiffCommandTest.cpp
+
+3. app/cli/main.cpp (or wherever commands are registered)
+   -------------------------------------------------------
+   After CliRepl construction, register the command:
+
+     #include "framework/commands/diff_command.h"
+
+     auto diffOutput = [&repl](const QString &line) {
+         emit repl.outputLine(line);
+     };
+
+     act::framework::commands::DiffCommand::registerTo(
+         repl.commandRegistry(), *process, diffOutput);
+
+   The IProcess reference must outlive the CommandRegistry.
+
+4. No other files need modification. The DiffCommand is self-contained
+   and follows the CommandRegistry handler pattern.

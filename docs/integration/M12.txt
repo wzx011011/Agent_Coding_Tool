@@ -1,0 +1,58 @@
+M12: /commit-and-pr Command
+============================
+
+Module: act::framework::commands
+Files:
+  - src/framework/commands/commit_pr_command.h
+  - src/framework/commands/commit_pr_command.cpp
+  - tests/framework/CommitPrCommandTest.cpp
+
+Registration:
+  Add to src/framework/CMakeLists.txt sources:
+    commands/commit_pr_command.cpp
+    commands/commit_pr_command.h
+
+  Add test to tests/CMakeLists.txt act_framework_tests:
+    framework/CommitPrCommandTest.cpp
+
+Dependencies:
+  - act_framework (CommandRegistry, TerminalStyle)
+  - act_infrastructure (IProcess)
+  - QtCore (QString, QStringList, QRegularExpression)
+  - spdlog
+
+Usage:
+  In cli_repl.cpp or wherever commands are registered:
+
+    #include "framework/commands/commit_pr_command.h"
+
+    commands::CommitPrCommand::registerTo(
+        m_commands,           // CommandRegistry&
+        m_process,            // IProcess&
+        [this](const QString &line) { emitOutput(line); }
+    );
+
+  The /commit-and-pr command supports:
+    /commit-and-pr           -- commit staged changes, attempt PR via gh CLI
+    /commit-and-pr --all     -- stage all changes (git add -A), then commit + PR
+    /commit-and-pr --draft   -- create a draft PR
+
+  Workflow:
+    1. Check git status for changes
+    2. Optionally stage all (--all)
+    3. Show staged diff stat summary
+    4. Generate conventional commit message from diff analysis
+    5. Run git commit -m "<message>"
+    6. Run git push -u origin HEAD
+    7. Check gh CLI availability
+    8. If gh available: create PR, show URL
+    9. If gh unavailable: show manual PR creation instructions
+
+  Commit message generation is heuristic-based:
+    - src/ changes -> feat
+    - tests/ changes only -> test
+    - *.md changes only -> docs
+    - CMakeLists.txt changes only -> chore
+    - Scope extracted from directory structure
+
+  No LLM calls are made. All analysis is regex/heuristic based.

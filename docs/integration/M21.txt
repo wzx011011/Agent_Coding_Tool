@@ -1,0 +1,41 @@
+M21 Integration — /copy Command
+=================================
+
+This file lists all changes required to integrate the /copy command
+into the build and runtime.
+
+1. src/framework/CMakeLists.txt
+   ----------------------------
+   Add the following files to the act_framework library sources:
+
+     commands/copy_command.cpp
+     commands/copy_command.h
+
+2. tests/CMakeLists.txt
+   ---------------------
+   Add the following test source file to act_framework_tests:
+
+     framework/CopyCommandTest.cpp
+
+3. app/cli/main.cpp (or wherever commands are registered)
+   -------------------------------------------------------
+   After CliRepl construction, register the command:
+
+     #include "framework/commands/copy_command.h"
+
+     auto copyOutput = [&repl](const QString &line) {
+         emit repl.outputLine(line);
+     };
+
+     auto historyGetter = [&repl]() -> const QList<act::core::LLMMessage> & {
+         return repl.agentLoop().messages();
+     };
+
+     act::framework::commands::CopyCommand::registerTo(
+         repl.commandRegistry(), *process, copyOutput, historyGetter);
+
+   The IProcess reference, CliRepl, and AgentLoop must all outlive
+   the CommandRegistry.
+
+4. No other files need modification. The CopyCommand is self-contained
+   and follows the CommandRegistry handler pattern.

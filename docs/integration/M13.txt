@@ -1,0 +1,66 @@
+M13: /review Command
+====================
+
+Module: act::framework::commands
+Files:
+  - src/framework/commands/review_command.h
+  - src/framework/commands/review_command.cpp
+  - tests/framework/ReviewCommandTest.cpp
+
+Registration:
+  Add to src/framework/CMakeLists.txt sources:
+    commands/review_command.cpp
+    commands/review_command.h
+
+  Add test to tests/CMakeLists.txt act_framework_tests:
+    framework/ReviewCommandTest.cpp
+
+Dependencies:
+  - act_framework (CommandRegistry, TerminalStyle)
+  - act_infrastructure (IProcess)
+  - QtCore (QString, QStringList, QRegularExpression)
+  - spdlog
+
+Usage:
+  In cli_repl.cpp or wherever commands are registered:
+
+    #include "framework/commands/review_command.h"
+
+    commands::ReviewCommand::registerTo(
+        m_commands,           // CommandRegistry&
+        m_process,            // IProcess&
+        [this](const QString &line) { emitOutput(line); }
+    );
+
+  The /review command supports:
+    /review                  -- review unstaged changes (git diff)
+    /review --staged         -- review staged changes (git diff --staged)
+    /review <path>           -- review changes in a specific file/dir
+
+  The review runs regex-based static analysis on added lines in the diff.
+  Checks include:
+    - Type safety: C-style casts, raw new/delete
+    - Naming: qDebug() in production
+    - Qt-specific: missing QStringLiteral, unhandled QJsonObject access
+    - Performance: QString passed by value
+    - Security: hardcoded credentials, SQL injection, command injection
+    - Style: using namespace std, magic numbers, commented-out code
+
+  Output is a structured markdown report:
+    ## Code Review: N file(s), +X/-Y lines
+
+    ### Critical (C)
+    - [ ] `file:line`: description -- fix suggestion
+
+    ### Warning (W)
+    - [ ] `file:line`: description -- fix suggestion
+
+    ### Info (I)
+    - `file:line`: description
+
+    ### Summary
+    - Files reviewed: N
+    - Issues found: C critical, W warnings, I info
+    - Overall: PASS / NEEDS ATTENTION
+
+  No LLM calls are made. All checks are QRegularExpression-based.

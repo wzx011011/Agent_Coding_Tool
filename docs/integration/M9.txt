@@ -1,0 +1,39 @@
+M9 Integration — /doctor Command
+=================================
+
+This file lists all changes required to integrate the /doctor command
+into the build and runtime.
+
+1. src/framework/CMakeLists.txt
+   ----------------------------
+   Add the following files to the act_framework library sources:
+
+     commands/doctor_command.cpp
+     commands/doctor_command.h
+
+2. tests/CMakeLists.txt
+   ---------------------
+   Add the following test source file to act_framework_tests:
+
+     framework/DoctorCommandTest.cpp
+
+3. app/cli/main.cpp (or wherever commands are registered)
+   -------------------------------------------------------
+   After CliRepl construction, register the command:
+
+     #include "framework/commands/doctor_command.h"
+
+     // Get output callback from CliRepl (connect to outputLine signal or
+     // use a lambda that calls your output function):
+     auto doctorOutput = [&repl](const QString &line) {
+         // Emit via CliRepl output mechanism, e.g.:
+         emit repl.outputLine(line);
+     };
+
+     act::framework::commands::DoctorCommand::registerTo(
+         repl.commandRegistry(), *process, doctorOutput);
+
+   The IProcess reference must outlive the CommandRegistry.
+
+4. No other files need modification. The DoctorCommand is self-contained
+   and follows the CommandRegistry handler pattern.
