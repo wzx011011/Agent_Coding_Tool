@@ -1,0 +1,24 @@
+M2: Persistent Memory System
+=============================
+
+New Files (source):
+  src/harness/memory_manager.h
+  src/harness/memory_manager.cpp
+
+New Files (tests):
+  tests/harness/MemoryManagerTest.cpp
+
+Required Changes to src/harness/CMakeLists.txt:
+  Add to add_library(act_harness STATIC ...):
+    memory_manager.cpp
+    memory_manager.h
+
+Required Changes to tests/CMakeLists.txt:
+  Add to add_executable(act_harness_tests ...):
+    harness/MemoryManagerTest.cpp
+
+Dependencies:
+  Qt6::Core (QDir, QFile, QTextStream, QDateTime, QMutex)
+  spdlog
+
+No changes needed to app/cli/main.cpp.
