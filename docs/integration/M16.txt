@@ -1,0 +1,84 @@
+M16: MCP (Model Context Protocol) Client
+==========================================
+
+Status: Implemented
+Date: 2026-04-02
+
+Overview
+--------
+Implements an MCP client that discovers and calls external tools via JSON-RPC 2.0
+protocol over stdio transport. Provides integration of external tool servers with
+the ACT agent system.
+
+Architecture
+------------
+Three main components:
+
+1. McpTransport (abstract base) + McpStdioTransport (stdio implementation)
+   - Located: src/infrastructure/mcp_transport.{h,cpp}
+   - Abstract transport interface for JSON-RPC communication
+   - McpStdioTransport launches a subprocess (QProcess) and communicates via
+     stdin/stdout using newline-delimited JSON-RPC messages
+   - Supports notification handlers for server-initiated messages
+   - Response correlation via request IDs
+
+2. McpClient (protocol handler)
+   - Located: src/infrastructure/mcp_client.{h,cpp}
+   - Handles MCP protocol flow: initialize -> tools/list -> tools/call
+   - Also supports resources/list and resources/read
+   - Caches discovered tools for performance
+   - Thread-safe via std::mutex
+   - Follows MCP spec 2024-10-08
+
+3. McpToolAdapter (ITool wrapper)
+   - Located: src/harness/mcp_tool_adapter.{h,cpp}
+   - Adapts MCP tools as ITool instances for the ACT agent
+   - PermissionLevel::Network (external tools)
+   - Thread-safe (delegates to mutex-guarded McpClient)
+
+JSON-RPC Protocol
+-----------------
+- Protocol version: jsonrpc = "2.0"
+- MCP spec version: 2024-10-08
+- Sequential integer request IDs starting at 1
+- Methods implemented:
+  - initialize / notifications/initialized
+  - tools/list, tools/call
+  - resources/list, resources/read
+  - shutdown
+
+Files Created
+-------------
+- src/infrastructure/mcp_transport.h
+- src/infrastructure/mcp_transport.cpp
+- src/infrastructure/mcp_client.h
+- src/infrastructure/mcp_client.cpp
+- src/harness/mcp_tool_adapter.h
+- src/harness/mcp_tool_adapter.cpp
+- tests/infrastructure/McpClientTest.cpp
+- docs/integration/M16.txt
+
+Test Coverage
+-------------
+- McpClient: initialize, discoverTools, callTool, listResources, readResource,
+  shutdown, caching, error handling, request ID increment
+- McpStdioTransport: construction, connect failure, send before connect,
+  close without connect
+- McpToolAdapter: name, description, schema, permission level, thread safety,
+  execute success/error, multiple content items, empty content,
+  uninitialized client
+- Mock transport used throughout (no real subprocess launch)
+
+Dependencies
+------------
+- Qt6::Core (QProcess, QJsonObject)
+- spdlog (logging)
+- GTest (testing)
+
+Future Work
+-----------
+- SSE transport implementation using HttpNetwork
+- sendNotification() on McpTransport for notifications/initialized
+- McpServerConfig-driven factory for creating McpClient instances
+- Integration with ToolRegistry for auto-discovery
+- Support for prompts/list and prompts/cancelled

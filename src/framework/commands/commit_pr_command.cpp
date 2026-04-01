@@ -237,7 +237,7 @@ void CommitPrCommand::registerTo(CommandRegistry &registry,
             {
                 output(TerminalStyle::errorMessage(
                     QStringLiteral("COMMIT_FAILED"),
-                    QStringLiteral("git commit failed:\n%1").arg(commitOutput.trimmed())));
+                    QStringLiteral("[COMMIT_FAILED] git commit failed:\n%1").arg(commitOutput.trimmed())));
                 return true;
             }
 
@@ -257,7 +257,7 @@ void CommitPrCommand::registerTo(CommandRegistry &registry,
             {
                 output(TerminalStyle::errorMessage(
                     QStringLiteral("PUSH_FAILED"),
-                    QStringLiteral("git push failed:\n%1").arg(pushOutput.trimmed())));
+                    QStringLiteral("[PUSH_FAILED] git push failed:\n%1").arg(pushOutput.trimmed())));
                 return true;
             }
 
@@ -299,7 +299,7 @@ void CommitPrCommand::registerTo(CommandRegistry &registry,
             {
                 output(TerminalStyle::errorMessage(
                     QStringLiteral("PR_FAILED"),
-                    QStringLiteral("gh pr create failed:\n%1").arg(prOutput.trimmed())));
+                    QStringLiteral("[PR_FAILED] gh pr create failed:\n%1").arg(prOutput.trimmed())));
                 return true;
             }
 

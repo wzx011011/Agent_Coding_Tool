@@ -1,93 +1,97 @@
 add_library(act_harness STATIC
-    harness.cpp
-    interfaces.h
-    tool_registry.cpp
-    tool_registry.h
-    permission_manager.cpp
-    permission_manager.h
     context_manager.cpp
     context_manager.h
+    cost_tracker.cpp
+    cost_tracker.h
+    cron_manager.cpp
+    cron_manager.h
+    file_checkpoint.cpp
+    file_checkpoint.h
+    harness.cpp
+    hook_manager.cpp
+    hook_manager.h
+    hook_types.h
+    interfaces.h
+    mcp_tool_adapter.cpp
+    mcp_tool_adapter.h
+    memory_manager.cpp
+    memory_manager.h
+    permission_manager.cpp
+    permission_manager.h
+    task_manager.cpp
+    task_manager.h
+    tool_registry.cpp
+    tool_registry.h
+    tools/ask_user_tool.cpp
+    tools/ask_user_tool.h
+    tools/ask_user_v2_tool.cpp
+    tools/ask_user_v2_tool.h
+    tools/brief_tool.cpp
+    tools/brief_tool.h
+    tools/build_tool.cpp
+    tools/build_tool.h
+    tools/diagnostic_tool.cpp
+    tools/diagnostic_tool.h
+    tools/diff_view_tool.cpp
+    tools/diff_view_tool.h
+    tools/directory_tool.cpp
+    tools/directory_tool.h
+    tools/enter_plan_mode_tool.cpp
+    tools/enter_plan_mode_tool.h
+    tools/enter_worktree_tool.cpp
+    tools/enter_worktree_tool.h
+    tools/exit_plan_mode_tool.cpp
+    tools/exit_plan_mode_tool.h
+    tools/exit_worktree_tool.cpp
+    tools/exit_worktree_tool.h
+    tools/file_delete_tool.cpp
+    tools/file_delete_tool.h
+    tools/file_edit_tool.cpp
+    tools/file_edit_tool.h
     tools/file_read_tool.cpp
     tools/file_read_tool.h
     tools/file_write_tool.cpp
     tools/file_write_tool.h
-    tools/file_edit_tool.cpp
-    tools/file_edit_tool.h
-    tools/grep_tool.cpp
-    tools/grep_tool.h
-    tools/glob_tool.cpp
-    tools/glob_tool.h
-    tools/shell_exec_tool.cpp
-    tools/shell_exec_tool.h
-    tools/git_status_tool.cpp
-    tools/git_status_tool.h
-    tools/git_diff_tool.cpp
-    tools/git_diff_tool.h
-    tools/git_commit_tool.cpp
-    tools/git_commit_tool.h
-    tools/git_log_tool.cpp
-    tools/git_log_tool.h
     tools/git_branch_tool.cpp
     tools/git_branch_tool.h
-    tools/diff_view_tool.cpp
-    tools/diff_view_tool.h
+    tools/git_commit_tool.cpp
+    tools/git_commit_tool.h
+    tools/git_diff_tool.cpp
+    tools/git_diff_tool.h
+    tools/git_log_tool.cpp
+    tools/git_log_tool.h
+    tools/git_status_tool.cpp
+    tools/git_status_tool.h
+    tools/glob_tool.cpp
+    tools/glob_tool.h
+    tools/grep_tool.cpp
+    tools/grep_tool.h
+    tools/notebook_edit_tool.cpp
+    tools/notebook_edit_tool.h
     tools/repo_map_tool.cpp
     tools/repo_map_tool.h
-    tools/file_delete_tool.cpp
-    tools/file_delete_tool.h
-    tools/directory_tool.cpp
-    tools/directory_tool.h
-    tools/build_tool.cpp
-    tools/build_tool.h
-    tools/test_runner_tool.cpp
-    tools/test_runner_tool.h
-    tools/ask_user_tool.cpp
-    tools/ask_user_tool.h
-    tools/diagnostic_tool.cpp
-    tools/diagnostic_tool.h
-    tools/web_fetch_tool.cpp
-    tools/web_fetch_tool.h
-    tools/todo_write_tool.cpp
-    tools/todo_write_tool.h
-    tools/subagent_tool.cpp
-    tools/subagent_tool.h
+    tools/shell_exec_tool.cpp
+    tools/shell_exec_tool.h
     tools/skill_tool.cpp
     tools/skill_tool.h
-    tools/enter_plan_mode_tool.cpp
-    tools/enter_plan_mode_tool.h
-    tools/exit_plan_mode_tool.cpp
-    tools/exit_plan_mode_tool.h
-    task_manager.cpp
-    task_manager.h
+    tools/subagent_tool.cpp
+    tools/subagent_tool.h
     tools/task_create_tool.cpp
     tools/task_create_tool.h
     tools/task_get_tool.cpp
     tools/task_get_tool.h
-    tools/task_update_tool.cpp
-    tools/task_update_tool.h
     tools/task_list_tool.cpp
     tools/task_list_tool.h
-    memory_manager.cpp
-    memory_manager.h
+    tools/task_update_tool.cpp
+    tools/task_update_tool.h
+    tools/test_runner_tool.cpp
+    tools/test_runner_tool.h
+    tools/todo_write_tool.cpp
+    tools/todo_write_tool.h
+    tools/web_fetch_tool.cpp
+    tools/web_fetch_tool.h
     tools/web_search_tool.cpp
     tools/web_search_tool.h
-    cost_tracker.cpp
-    cost_tracker.h
-    hook_types.h
-    hook_manager.cpp
-    hook_manager.h
-    tools/brief_tool.cpp
-    tools/brief_tool.h
-    tools/notebook_edit_tool.cpp
-    tools/notebook_edit_tool.h
-    tools/enter_worktree_tool.cpp
-    tools/enter_worktree_tool.h
-    tools/exit_worktree_tool.cpp
-    tools/exit_worktree_tool.h
-    file_checkpoint.cpp
-    file_checkpoint.h
-    mcp_tool_adapter.cpp
-    mcp_tool_adapter.h
 )
 
 target_include_directories(act_harness

@@ -184,7 +184,7 @@ void analyzeDiff(const QString &diffOutput, QList<ReviewFinding> &findings)
     {
         // Detect file header: "--- a/path/to/file.cpp" or "+++ b/path/to/file.cpp"
         static const QRegularExpression fileAddedRe(
-            QStringLiteral(R"(^\+\+\+ b/(.+)$))");
+            QStringLiteral(R"(^\+\+\+ b/(.+)$))"));
         auto fileMatch = fileAddedRe.match(line);
         if (fileMatch.hasMatch())
         {
@@ -250,7 +250,7 @@ void countDiffLines(const QString &diffOutput, int &ins, int &del)
 int countFiles(const QString &diffOutput)
 {
     int count = 0;
-    static const QRegularExpression fileRe(QStringLiteral(R"(^\+\+\+ b/(.+)$)"));
+    static const QRegularExpression fileRe(QString(R"(^\+\+\+ b/(.+)$)"));
     const auto lines = diffOutput.split(QLatin1Char('\n'));
     for (const auto &line : lines)
     {
@@ -298,7 +298,7 @@ void ReviewCommand::registerTo(CommandRegistry &registry,
             {
                 output(TerminalStyle::errorMessage(
                     QStringLiteral("GIT_ERROR"),
-                    QStringLiteral("Failed to run git diff. Are you in a git repository?")));
+                    QStringLiteral("[GIT_ERROR] Failed to run git diff. Are you in a git repository?")));
                 return true;
             }
 

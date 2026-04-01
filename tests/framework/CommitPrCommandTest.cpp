@@ -3,6 +3,7 @@
 #include "framework/command_registry.h"
 #include "framework/commands/commit_pr_command.h"
 #include "framework/terminal_style.h"
+#include "infrastructure/interfaces.h"
 
 using namespace act::framework;
 

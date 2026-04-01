@@ -52,6 +52,17 @@ add_library(act_framework STATIC
     raw_terminal.h
     terminal_style.cpp
     terminal_style.h
+    parallel_subagent.cpp
+    parallel_subagent.h
+    plugin_types.h
+    plugin_system.cpp
+    plugin_system.h
+    commands/commit_pr_command.cpp
+    commands/commit_pr_command.h
+    commands/review_command.cpp
+    commands/review_command.h
+    session_serializer.cpp
+    session_serializer.h
 )
 
 target_include_directories(act_framework

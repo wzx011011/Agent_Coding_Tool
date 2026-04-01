@@ -3,6 +3,7 @@
 #include "framework/command_registry.h"
 #include "framework/commands/review_command.h"
 #include "framework/terminal_style.h"
+#include "infrastructure/interfaces.h"
 
 using namespace act::framework;
 
@@ -211,6 +212,8 @@ TEST_F(ReviewCommandTest, DetectsHardcodedCredential)
         registry, proc,
         [&](const QString &line) { output.append(line); });
 
+    registry.execute(QStringLiteral("review"), {});
+
     QString combined = output.join(QLatin1Char('\n'));
     EXPECT_TRUE(combined.contains(QStringLiteral("Critical")));
     EXPECT_TRUE(combined.contains(QStringLiteral("credential")));
@@ -234,6 +237,8 @@ TEST_F(ReviewCommandTest, DetectsRawNew)
     commands::ReviewCommand::registerTo(
         registry, proc,
         [&](const QString &line) { output.append(line); });
+
+    registry.execute(QStringLiteral("review"), {});
 
     QString combined = output.join(QLatin1Char('\n'));
     EXPECT_TRUE(combined.contains(QStringLiteral("raw new")) ||
@@ -259,6 +264,8 @@ TEST_F(ReviewCommandTest, DetectsUsingNamespaceStd)
     commands::ReviewCommand::registerTo(
         registry, proc,
         [&](const QString &line) { output.append(line); });
+
+    registry.execute(QStringLiteral("review"), {});
 
     QString combined = output.join(QLatin1Char('\n'));
     EXPECT_TRUE(combined.contains(QStringLiteral("using namespace std")));

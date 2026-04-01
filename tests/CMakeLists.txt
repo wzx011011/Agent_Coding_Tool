@@ -38,6 +38,9 @@ add_executable(act_framework_tests
     framework/RuntimeTraceTest.cpp
     framework/TerminalStyleTest.cpp
     framework/PlanModeTest.cpp
+    framework/SessionSerializerTest.cpp
+    framework/ParallelSubagentTest.cpp
+    framework/PluginSystemTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
 target_include_directories(act_framework_tests PRIVATE ${ACT_TEST_HELPERS_DIR})
@@ -133,10 +136,13 @@ add_executable(act_harness_tests
     harness/HookManagerTest.cpp
     harness/BriefToolTest.cpp
     harness/NotebookEditToolTest.cpp
+    harness/AskUserV2ToolTest.cpp
+    harness/CronManagerTest.cpp
     harness/WorktreeToolTest.cpp
     harness/FileCheckpointTest.cpp
 )
 target_link_libraries(act_harness_tests PRIVATE act_harness act_framework GTest::gtest_main)
+target_include_directories(act_harness_tests PRIVATE ${ACT_TEST_HELPERS_DIR})
 gtest_discover_tests(act_harness_tests
     PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
@@ -271,3 +277,27 @@ gtest_discover_tests(act_live_provider_tests
     PROPERTIES TIMEOUT 30
     DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
 )
+
+# Git workflow command tests (M12 + M13)
+add_executable(act_git_workflow_tests
+    framework/CommitPrCommandTest.cpp
+    framework/ReviewCommandTest.cpp
+    ${ACT_SOURCE_DIR}/framework/commands/commit_pr_command.cpp
+    ${ACT_SOURCE_DIR}/framework/commands/review_command.cpp
+    ${ACT_SOURCE_DIR}/framework/command_registry.cpp
+    ${ACT_SOURCE_DIR}/framework/terminal_style.cpp
+)
+target_include_directories(act_git_workflow_tests PRIVATE ${ACT_SOURCE_DIR} ${ACT_TEST_HELPERS_DIR})
+target_link_libraries(act_git_workflow_tests PRIVATE act_framework GTest::gtest_main)
+set_source_files_properties(
+    framework/CommitPrCommandTest.cpp
+    framework/ReviewCommandTest.cpp
+    ${ACT_SOURCE_DIR}/framework/commands/commit_pr_command.cpp
+    ${ACT_SOURCE_DIR}/framework/commands/review_command.cpp
+    PROPERTIES CXX_SCAN_FOR_MODULES OFF
+)
+gtest_discover_tests(act_git_workflow_tests
+    PROPERTIES TIMEOUT ${ACT_TEST_TIMEOUT}
+    DISCOVERY_MODE ${ACT_TEST_DISCOVERY_MODE}
+)
+

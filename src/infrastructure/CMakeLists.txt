@@ -8,6 +8,10 @@ add_library(act_infrastructure STATIC
     infrastructure.cpp
     http_network.cpp
     http_network.h
+    mcp_client.cpp
+    mcp_client.h
+    mcp_transport.cpp
+    mcp_transport.h
     sse_parser.cpp
     sse_parser.h
     interfaces.h
