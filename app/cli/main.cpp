@@ -32,19 +32,23 @@
 #include "harness/context_manager.h"
 #include "harness/permission_manager.h"
 #include "harness/tool_registry.h"
+#include "harness/cron_manager.h"
+#include "harness/file_checkpoint.h"
+#include "harness/memory_manager.h"
+#include "harness/task_manager.h"
 #include "harness/tools/ask_user_tool.h"
-#include "harness/tools/diagnostic_tool.h"
-#include "harness/tools/todo_write_tool.h"
-#include "harness/tools/subagent_tool.h"
-#include "harness/tools/skill_tool.h"
-#include "harness/tools/enter_plan_mode_tool.h"
-#include "harness/tools/exit_plan_mode_tool.h"
-#include "harness/tools/diff_view_tool.h"
-#include "harness/tools/file_edit_tool.h"
-#include "harness/tools/file_delete_tool.h"
-#include "harness/tools/directory_tool.h"
+#include "harness/tools/ask_user_v2_tool.h"
+#include "harness/tools/brief_tool.h"
 #include "harness/tools/build_tool.h"
-#include "harness/tools/test_runner_tool.h"
+#include "harness/tools/diagnostic_tool.h"
+#include "harness/tools/diff_view_tool.h"
+#include "harness/tools/directory_tool.h"
+#include "harness/tools/enter_plan_mode_tool.h"
+#include "harness/tools/enter_worktree_tool.h"
+#include "harness/tools/exit_plan_mode_tool.h"
+#include "harness/tools/exit_worktree_tool.h"
+#include "harness/tools/file_delete_tool.h"
+#include "harness/tools/file_edit_tool.h"
 #include "harness/tools/file_read_tool.h"
 #include "harness/tools/file_write_tool.h"
 #include "harness/tools/git_branch_tool.h"
@@ -54,11 +58,27 @@
 #include "harness/tools/git_status_tool.h"
 #include "harness/tools/glob_tool.h"
 #include "harness/tools/grep_tool.h"
+#include "harness/tools/notebook_edit_tool.h"
 #include "harness/tools/repo_map_tool.h"
 #include "harness/tools/shell_exec_tool.h"
+#include "harness/tools/skill_tool.h"
+#include "harness/tools/subagent_tool.h"
+#include "harness/tools/task_create_tool.h"
+#include "harness/tools/task_get_tool.h"
+#include "harness/tools/task_list_tool.h"
+#include "harness/tools/task_update_tool.h"
+#include "harness/tools/test_runner_tool.h"
+#include "harness/tools/todo_write_tool.h"
 #include "harness/tools/web_fetch_tool.h"
+#include "harness/tools/web_search_tool.h"
 #include "infrastructure/interfaces.h"
 #include "infrastructure/http_network.h"
+#include "framework/commands/commit_pr_command.h"
+#include "framework/commands/copy_command.h"
+#include "framework/commands/diff_command.h"
+#include "framework/commands/doctor_command.h"
+#include "framework/commands/review_command.h"
+#include "framework/session_serializer.h"
 #include "services/ai_engine.h"
 #include "services/config_manager.h"
 #include "tui_app.h"
@@ -521,6 +541,29 @@ int main(int argc, char *argv[]) {
     }
     registry->registerTool(std::make_unique<act::harness::WebFetchTool>(*webFetchNetwork));
 
+    // M1: Task management tools
+    auto taskManager = std::make_unique<act::harness::TaskManager>();
+    registry->registerTool(std::make_unique<act::harness::TaskCreateTool>(*taskManager));
+    registry->registerTool(std::make_unique<act::harness::TaskGetTool>(*taskManager));
+    registry->registerTool(std::make_unique<act::harness::TaskUpdateTool>(*taskManager));
+    registry->registerTool(std::make_unique<act::harness::TaskListTool>(*taskManager));
+
+    // M3: Web search tool (reuses HttpNetwork infrastructure)
+    registry->registerTool(std::make_unique<act::harness::WebSearchTool>(*webFetchNetwork));
+
+    // M8: Worktree tools
+    registry->registerTool(std::make_unique<act::harness::EnterWorktreeTool>(*process, QDir::currentPath()));
+    registry->registerTool(std::make_unique<act::harness::ExitWorktreeTool>(*process, QDir::currentPath()));
+
+    // M11: Notebook edit tool
+    registry->registerTool(std::make_unique<act::harness::NotebookEditTool>(*fileSystem, QDir::currentPath()));
+
+    // M15: Brief tool (LLM-based summarization)
+    registry->registerTool(std::make_unique<act::harness::BriefTool>(*engine));
+
+    // M18: AskUserV2 (enhanced multi-question tool)
+    registry->registerTool(std::make_unique<act::harness::AskUserV2Tool>());
+
     permissions->setAutoApproved(act::core::PermissionLevel::Read, true);
     permissions->setAutoApproved(act::core::PermissionLevel::Write, true);
     // Exec remains opt-in -- shell commands require user confirmation
@@ -597,6 +640,94 @@ int main(int argc, char *argv[]) {
         std::make_unique<act::harness::EnterPlanModeTool>(repl.agentLoop()));
     registry->registerTool(
         std::make_unique<act::harness::ExitPlanModeTool>(repl.agentLoop()));
+
+    // --- Register slash commands ---
+    {
+        // Output callback adapter: routes command output through CliRepl
+        auto cmdOutput = [&repl](const QString &line) {
+            QMetaObject::invokeMethod(&repl, [&, line]() {
+                emit repl.outputLine(line);
+            });
+        };
+
+        // M9: /doctor command
+        act::framework::commands::DoctorCommand::registerTo(
+            repl.commandRegistry(), *process, cmdOutput);
+
+        // M12: /commit-and-pr command
+        act::framework::commands::CommitPrCommand::registerTo(
+            repl.commandRegistry(), *process, cmdOutput);
+
+        // M13: /review command
+        act::framework::commands::ReviewCommand::registerTo(
+            repl.commandRegistry(), *process, cmdOutput);
+
+        // M20: /diff command
+        act::framework::commands::DiffCommand::registerTo(
+            repl.commandRegistry(), *process, cmdOutput);
+
+        // M21: /copy command
+        auto historyGetter = [&repl]() -> const QList<act::core::LLMMessage> & {
+            return repl.agentLoop().messages();
+        };
+        act::framework::commands::CopyCommand::registerTo(
+            repl.commandRegistry(), *process, cmdOutput, historyGetter);
+
+        // M22: /sleep command via CronManager
+        auto cronManager = std::make_unique<act::harness::CronManager>();
+        repl.commandRegistry().registerCommand(
+            QStringLiteral("sleep"),
+            QStringLiteral("Schedule a delayed wake-up (e.g. /sleep 5m, /sleep 2h)"),
+            [cron = cronManager.get()](const QStringList &args) -> bool {
+                if (args.isEmpty()) return false;
+                QString duration = args.join(QStringLiteral(" "));
+                auto minutes = act::harness::CronManager::parseDurationToMinutes(duration);
+                if (minutes <= 0) {
+                    spdlog::warn("Invalid /sleep duration: {}", duration.toStdString());
+                    return false;
+                }
+                QString id = cron->createCron(
+                    QStringLiteral("sleep"), QStringLiteral("Wake up"), false);
+                spdlog::info("Sleep scheduled: id={}, duration={}m", id.toStdString(), minutes);
+                return true;
+            });
+
+        // M14: File checkpoint for /rewind
+        auto fileCheckpoint = std::make_unique<act::harness::FileCheckpoint>(QDir::currentPath());
+        repl.commandRegistry().registerCommand(
+            QStringLiteral("rewind"),
+            QStringLiteral("Restore a file checkpoint (use --list to see available)"),
+            [ckpt = fileCheckpoint.get()](const QStringList &args) -> bool {
+                if (args.isEmpty()) {
+                    // Restore most recent
+                    auto checkpoints = ckpt->listCheckpoints();
+                    if (checkpoints.isEmpty()) return false;
+                    return ckpt->restore(checkpoints.first().id);
+                }
+                if (args.size() == 1 && args[0] == QStringLiteral("--list")) {
+                    auto checkpoints = ckpt->listCheckpoints();
+                    for (const auto &cp : checkpoints) {
+                        spdlog::info("{}: {} ({})", cp.id.toStdString(),
+                                     cp.filePath.toStdString(), cp.operation.toStdString());
+                    }
+                    return true;
+                }
+                if (args.size() == 1 && args[0] == QStringLiteral("--clean")) {
+                    ckpt->cleanup(0);
+                    return true;
+                }
+                // args[0] is index or checkpoint ID
+                bool ok = false;
+                int idx = args[0].toInt(&ok);
+                if (ok && idx > 0) {
+                    auto checkpoints = ckpt->listCheckpoints();
+                    if (idx <= checkpoints.size()) {
+                        return ckpt->restore(checkpoints[idx - 1].id);
+                    }
+                }
+                return ckpt->restore(args[0]);
+            });
+    }
 
     {
         QList<QJsonObject> toolDefs;

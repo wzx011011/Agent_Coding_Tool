@@ -41,6 +41,9 @@ add_executable(act_framework_tests
     framework/SessionSerializerTest.cpp
     framework/ParallelSubagentTest.cpp
     framework/PluginSystemTest.cpp
+    framework/DoctorCommandTest.cpp
+    framework/CopyCommandTest.cpp
+    framework/DiffCommandTest.cpp
 )
 target_link_libraries(act_framework_tests PRIVATE act_framework GTest::gtest_main)
 target_include_directories(act_framework_tests PRIVATE ${ACT_TEST_HELPERS_DIR})

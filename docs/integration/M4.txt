@@ -1,0 +1,50 @@
+M4: Hook System Integration
+============================
+
+Files:
+  src/harness/hook_types.h     - Type definitions (HookEventType, HookCommand, HookEntry, HookContext, HookResult)
+  src/harness/hook_manager.h   - HookManager class declaration
+  src/harness/hook_manager.cpp - HookManager implementation
+  tests/harness/HookManagerTest.cpp - Unit tests
+
+Hook Types:
+  - Shell: Execute bash command via QProcess (5s timeout). Non-zero exit blocks tool execution.
+  - Prompt: Inject text into conversation as feedback.
+  - HTTP: POST/GET JSON payload of HookContext to URL. Non-2xx blocks tool execution.
+
+Event Types:
+  - PreToolUse, PostToolUse, UserPromptSubmit, Notification, SessionStart, SessionStop
+
+Config Format (JSON):
+  {
+    "hooks": {
+      "PreToolUse": [
+        {
+          "matcher": "shell_exec",
+          "hooks": [
+            {"type": "bash", "command": "echo 'Running shell command'"},
+            {"type": "prompt", "prompt": "Be careful with shell commands"}
+          ]
+        }
+      ],
+      "PostToolUse": [
+        {
+          "matcher": "",
+          "hooks": [
+            {"type": "http", "url": "http://localhost:8080/hook", "method": "POST"}
+          ]
+        }
+      ]
+    }
+  }
+
+Integration Points:
+  - AgentLoop calls hookManager.fireEvent(PreToolUse) before tool execution
+  - AgentLoop calls hookManager.fireEvent(PostToolUse) after tool execution
+  - CliRepl calls hookManager.fireEvent(UserPromptSubmit) on user input
+  - Session start/stop events fired from session lifecycle
+
+Dependencies:
+  - Qt6::Core (QProcess, QJsonDocument, QRegularExpression)
+  - cpp-httplib (for HTTP hook execution)
+  - spdlog (logging)

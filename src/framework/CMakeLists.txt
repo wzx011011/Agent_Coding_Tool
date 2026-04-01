@@ -59,6 +59,12 @@ add_library(act_framework STATIC
     plugin_system.h
     commands/commit_pr_command.cpp
     commands/commit_pr_command.h
+    commands/copy_command.cpp
+    commands/copy_command.h
+    commands/diff_command.cpp
+    commands/diff_command.h
+    commands/doctor_command.cpp
+    commands/doctor_command.h
     commands/review_command.cpp
     commands/review_command.h
     session_serializer.cpp

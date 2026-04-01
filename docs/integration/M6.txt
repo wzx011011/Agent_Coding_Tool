@@ -1,0 +1,80 @@
+M6: CostTracker
+================
+
+Module: act::harness
+Files:
+  - src/harness/cost_tracker.h
+  - src/harness/cost_tracker.cpp
+  - tests/harness/CostTrackerTest.cpp
+
+Registration:
+  Add to src/harness/CMakeLists.txt sources:
+    cost_tracker.cpp
+    cost_tracker.h
+
+  Add test to tests/CMakeLists.txt act_harness_tests:
+    harness/CostTrackerTest.cpp
+
+Dependencies:
+  - QtCore (QJsonObject, QDateTime, QMap, QMutex)
+
+Usage:
+  CostTracker is a standalone utility, not an ITool. Instantiate it where
+  session management lives (e.g. AgentLoop, SessionManager).
+
+  When LLM response includes usage data (input_tokens, output_tokens):
+    CostTracker tracker;
+    tracker.recordRequest("claude-sonnet-4-6", {input, output, 0, 0});
+
+  Retrieve summary at any time:
+    QJsonObject summary = tracker.sessionSummary();
+
+/cost Command Handler:
+  The CLI or REPL should provide a /cost command:
+
+  /cost           — Show session cost summary:
+    - Total requests
+    - Total estimated cost
+    - Token breakdown (input, output, cache_read, cache_write)
+    - Cost by model
+
+  /cost --detail  — Show per-request breakdown:
+    - Each request with model, tokens, cost, timestamp
+
+  Implementation sketch:
+    if (input == "/cost") {
+        auto summary = tracker.sessionSummary();
+        // format and display summary
+    } else if (input == "/cost --detail") {
+        auto history = tracker.requestHistory();
+        // format and display each entry
+    }
+
+Model Pricing (per 1M tokens, approximate):
+  claude-sonnet-4-6  input $3.00   output $15.00
+  claude-opus-4-6    input $15.00  output $75.00
+  claude-haiku-4-5   input $0.80   output $4.00
+  gpt-4o             input $2.50   output $10.00
+  glm-4-plus         input $1.50   output $7.50
+
+  Unknown models use default pricing: input $3.00, output $15.00.
+
+Thread Safety:
+  All public methods are guarded by std::mutex. Safe to call from
+  multiple threads (e.g. async LLM responses).
+
+sessionSummary() JSON Structure:
+  {
+    "total_requests": 5,
+    "total_cost": 0.1234,
+    "total_tokens": {
+      "input": 50000,
+      "output": 25000,
+      "cache_read": 1000,
+      "cache_write": 500
+    },
+    "cost_by_model": {
+      "claude-sonnet-4-6": 0.09,
+      "gpt-4o": 0.0334
+    }
+  }

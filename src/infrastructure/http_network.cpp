@@ -84,12 +84,14 @@ void HttpNetwork::applyHeaders(
     httplib::Client &client,
     const QMap<QString, QString> &headersMap)
 {
+    httplib::Headers headers;
     for (auto it = headersMap.constBegin();
          it != headersMap.constEnd(); ++it)
     {
-        client.set_default_headers({it.key().toStdString(),
-                                     it.value().toStdString()});
+        headers.emplace(it.key().toStdString(),
+                        it.value().toStdString());
     }
+    client.set_default_headers(std::move(headers));
 }
 
 QString HttpNetwork::toSchemeHost(const QString &url)
@@ -214,9 +216,20 @@ bool HttpNetwork::sseRequest(
 
     SseParser parser;
 
+    // Capture body for content provider
+    std::string bodyStr = body.toStdString();
+    size_t bodySize = bodyStr.size();
+
     auto result = client->Post(
         path.toStdString(),
-        body.toStdString(),
+        bodySize,
+        [&bodyStr](size_t offset, size_t length, httplib::DataSink &sink) -> bool
+        {
+            size_t remaining = bodyStr.size() - offset;
+            size_t toWrite = (std::min)(length, remaining);
+            sink.write(bodyStr.data() + offset, toWrite);
+            return true;
+        },
         "application/json",
         [&](const char *data, size_t len) -> bool
         {
