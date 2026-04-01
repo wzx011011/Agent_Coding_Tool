@@ -1,0 +1,42 @@
+M15: BriefTool
+===============
+
+Component: act::harness::BriefTool
+Files:
+  - src/harness/tools/brief_tool.h
+  - src/harness/tools/brief_tool.cpp
+  - tests/harness/BriefToolTest.cpp
+
+Description:
+  ITool implementation that compresses long text into short summaries.
+  Designed for sub-agent communication where context window space is limited.
+
+Schema:
+  {
+    "type": "object",
+    "required": ["content"],
+    "properties": {
+      "content": { "type": "string", "description": "Text to compress" },
+      "max_tokens": { "type": "integer", "description": "Max output tokens (default 200)" }
+    }
+  }
+
+Constants:
+  - DEFAULT_MAX_TOKENS = 200
+  - TIMEOUT_SECONDS = 30
+  - MIN_CONTENT_LENGTH = 50
+
+Behavior:
+  1. Validates content param (non-empty string).
+  2. Content shorter than 50 chars is returned as-is (no LLM call).
+  3. Longer content triggers a synchronous LLM call with a summarization prompt.
+  4. Timeout after 30 seconds returns an error.
+  5. Permission level: Read (no destructive operations).
+  6. Not thread-safe (uses QEventLoop for synchronous LLM call).
+
+Integration:
+  Register with ToolRegistry alongside other tools. The tool depends on
+  IAIEngine, which should be the same engine instance used by AgentLoop.
+
+Example tool registration:
+  registry.registerTool(std::make_unique<BriefTool>(engine));

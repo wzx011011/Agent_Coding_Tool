@@ -1,0 +1,41 @@
+M7: Session Export/Import
+=========================
+
+Component: act::framework::SessionSerializer
+Files:
+  - src/framework/session_serializer.h
+  - src/framework/session_serializer.cpp
+  - tests/framework/SessionSerializerTest.cpp
+
+Description:
+  Serialize/deserialize conversation history to/from JSON files.
+  Supports metadata (model, provider, token counts, duration, timestamp)
+  and Markdown export for human-readable output.
+
+JSON Format:
+  {
+    "format": "act-session-v1",
+    "metadata": { "model", "provider", "totalTokens", "inputTokens",
+                  "outputTokens", "durationMs", "exportedAt", "exportFormat" },
+    "messages": [
+      { "role": "system|user|assistant|tool", "content": "...",
+        "toolCallId": "...",  // role == tool
+        "toolCalls": [...]    // role == assistant
+      }
+    ]
+  }
+
+CLI Integration (commands to add to CliRepl):
+  /export <path>  - Export current session to JSON file
+  /import <path>  - Import session from JSON file (replaces current messages)
+  /export-md <path> - Export current session as Markdown
+
+Usage in CliRepl:
+  The /export and /import commands use SessionSerializer::saveToFile() and
+  loadFromFile(). After import, the loaded messages can be fed into AgentLoop
+  via restoreCheckpoint() or direct message list replacement.
+
+Example:
+  /export session_backup.json
+  /import session_backup.json
+  /export-md session_notes.md
