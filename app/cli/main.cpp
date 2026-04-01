@@ -587,6 +587,17 @@ int main(int argc, char *argv[]) {
         permissions->setPermissionCallback(permissionCallback);
     }
 
+    // --- Create CLI REPL ---
+    act::framework::ResumeManager resumeManager;
+    act::framework::CliRepl repl(*engine, *registry, *permissions, *context,
+                                  switcher.get(), config.get(), &resumeManager);
+
+    // Register plan mode tools (need AgentLoop reference from repl)
+    registry->registerTool(
+        std::make_unique<act::harness::EnterPlanModeTool>(repl.agentLoop()));
+    registry->registerTool(
+        std::make_unique<act::harness::ExitPlanModeTool>(repl.agentLoop()));
+
     {
         QList<QJsonObject> toolDefs;
         for (const auto &toolName : registry->listTools()) {
@@ -602,17 +613,6 @@ int main(int argc, char *argv[]) {
         }
         engine->setToolDefinitions(toolDefs);
     }
-
-    // --- Create CLI REPL ---
-    act::framework::ResumeManager resumeManager;
-    act::framework::CliRepl repl(*engine, *registry, *permissions, *context,
-                                  switcher.get(), config.get(), &resumeManager);
-
-    // Register plan mode tools (need AgentLoop reference from repl)
-    registry->registerTool(
-        std::make_unique<act::harness::EnterPlanModeTool>(repl.agentLoop()));
-    registry->registerTool(
-        std::make_unique<act::harness::ExitPlanModeTool>(repl.agentLoop()));
 
     // --- Build system prompt ---
     QString systemPrompt;
