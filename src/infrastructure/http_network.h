@@ -4,7 +4,9 @@
 #include <QMap>
 #include <QString>
 
+#include <atomic>
 #include <functional>
+#include <memory>
 
 #include "infrastructure/sse_parser.h"
 
@@ -16,8 +18,11 @@ class Client;
 namespace act::infrastructure
 {
 
+/// Default per-request timeout in seconds.
+inline constexpr int kDefaultTimeoutSeconds = 120;
+
 /// HTTP client implementation using cpp-httplib.
-/// Supports regular POST requests and SSE streaming.
+/// Supports regular POST/GET requests and SSE streaming.
 class HttpNetwork
 {
 public:
@@ -29,9 +34,15 @@ public:
     void setTimeoutSeconds(int seconds);
     void setDefaultHeaders(const QMap<QString, QString> &headers);
 
+    /// Control whether SSL server certificate verification is enabled.
+    /// Default: true. Set to false only for development/testing.
+    void setSslVerificationEnabled(bool enabled);
+
+    [[nodiscard]] bool sslVerificationEnabled() const;
+
     /// Synchronous HTTP POST request.
     /// Returns true on success, false on network error.
-    bool httpRequest(
+    [[nodiscard]] bool httpRequest(
         const QByteArray &body,
         const QMap<QString, QString> &headers,
         int &statusCode,
@@ -39,7 +50,7 @@ public:
 
     /// Synchronous HTTP GET request.
     /// Returns true on success, false on network error.
-    bool httpGet(
+    [[nodiscard]] bool httpGet(
         const QString &url,
         const QMap<QString, QString> &headers,
         int &statusCode,
@@ -49,7 +60,7 @@ public:
     /// onEvent is called for each parsed SSE event.
     /// onComplete is called when the stream ends.
     /// onError is called on failure.
-    bool sseRequest(
+    [[nodiscard]] bool sseRequest(
         const QByteArray &body,
         const QMap<QString, QString> &headers,
         std::function<void(const SseEvent &)> onEvent,
@@ -59,16 +70,33 @@ public:
     void cancel();
 
 private:
+    /// Create and configure an httplib::Client for the given scheme+host.
+    [[nodiscard]] std::unique_ptr<httplib::Client> createClient(
+        const QString &schemeHost) const;
+
+    /// Merge request-specific headers with default headers.
+    /// Request-specific headers take precedence.
+    /// Returns merged headers as a QMap (used to construct httplib::Headers
+    /// internally in the .cpp).
+    [[nodiscard]] QMap<QString, QString> mergeHeadersMap(
+        const QMap<QString, QString> &requestHeaders) const;
+
+    /// Convert QMap to httplib::Headers and apply to client.
+    static void applyHeaders(
+        httplib::Client &client,
+        const QMap<QString, QString> &headersMap);
+
     static QString toSchemeHost(const QString &url);
     static QString toPath(const QString &url);
 
     QString m_baseUrl;
     QString m_proxyHost;
     int m_proxyPort = 0;
-    int m_timeoutSeconds = 120;
+    int m_timeoutSeconds = kDefaultTimeoutSeconds;
     QMap<QString, QString> m_defaultHeaders;
-    bool m_cancelled = false;
-    bool m_inSseCallback = false;  // Guard against reentrant processEvents
+    std::atomic<bool> m_cancelled{false};
+    std::atomic<bool> m_inSseCallback{false};
+    bool m_sslVerificationEnabled = true;
 };
 
 } // namespace act::infrastructure

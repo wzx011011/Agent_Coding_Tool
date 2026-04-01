@@ -1,7 +1,5 @@
 #include "infrastructure/http_network.h"
 
-#include <sstream>
-
 #include <QCoreApplication>
 
 #include <httplib.h>
@@ -36,9 +34,66 @@ void HttpNetwork::setDefaultHeaders(const QMap<QString, QString> &headers)
     m_defaultHeaders = headers;
 }
 
+void HttpNetwork::setSslVerificationEnabled(bool enabled)
+{
+    m_sslVerificationEnabled = enabled;
+}
+
+bool HttpNetwork::sslVerificationEnabled() const
+{
+    return m_sslVerificationEnabled;
+}
+
+std::unique_ptr<httplib::Client> HttpNetwork::createClient(
+    const QString &schemeHost) const
+{
+    auto client = std::make_unique<httplib::Client>(schemeHost.toStdString());
+    client->set_connection_timeout(m_timeoutSeconds);
+    client->set_read_timeout(m_timeoutSeconds);
+    client->set_write_timeout(m_timeoutSeconds);
+
+#ifdef CPPHTTPLIB_SSL_ENABLED
+    client->enable_server_certificate_verification(m_sslVerificationEnabled);
+#endif
+
+    if (!m_proxyHost.isEmpty() && m_proxyPort > 0)
+        client->set_proxy(m_proxyHost.toStdString(), m_proxyPort);
+
+    return client;
+}
+
+QMap<QString, QString> HttpNetwork::mergeHeadersMap(
+    const QMap<QString, QString> &requestHeaders) const
+{
+    QMap<QString, QString> merged;
+    for (auto it = m_defaultHeaders.constBegin();
+         it != m_defaultHeaders.constEnd(); ++it)
+    {
+        if (!merged.contains(it.key()))
+            merged.insert(it.key(), it.value());
+    }
+    for (auto it = requestHeaders.constBegin();
+         it != requestHeaders.constEnd(); ++it)
+    {
+        merged.insert(it.key(), it.value());
+    }
+    return merged;
+}
+
+void HttpNetwork::applyHeaders(
+    httplib::Client &client,
+    const QMap<QString, QString> &headersMap)
+{
+    for (auto it = headersMap.constBegin();
+         it != headersMap.constEnd(); ++it)
+    {
+        client.set_default_headers({it.key().toStdString(),
+                                     it.value().toStdString()});
+    }
+}
+
 QString HttpNetwork::toSchemeHost(const QString &url)
 {
-    // Extract scheme+host from URL, e.g., "https://api.anthropic.com"
     QString u = url;
     if (u.startsWith(QStringLiteral("https://")))
         u = u.mid(8);
@@ -79,30 +134,12 @@ bool HttpNetwork::httpRequest(
     QString schemeHost = toSchemeHost(m_baseUrl);
     QString path = toPath(m_baseUrl);
 
-    httplib::Client client(schemeHost.toStdString());
-    client.set_connection_timeout(m_timeoutSeconds);
-    client.set_read_timeout(m_timeoutSeconds);
-    client.set_write_timeout(m_timeoutSeconds);
+    auto client = createClient(schemeHost);
+    auto headersMap = mergeHeadersMap(headers);
+    applyHeaders(*client, headersMap);
 
-#ifdef CPPHTTPLIB_SSL_ENABLED
-    client.enable_server_certificate_verification(false);
-#endif
-
-    if (!m_proxyHost.isEmpty() && m_proxyPort > 0)
-        client.set_proxy(m_proxyHost.toStdString(), m_proxyPort);
-
-    httplib::Headers reqHeaders;
-    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
-        reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
-    for (auto it = m_defaultHeaders.constBegin(); it != m_defaultHeaders.constEnd(); ++it)
-    {
-        if (!reqHeaders.contains(it.key().toStdString()))
-            reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
-    }
-
-    auto result = client.Post(
+    auto result = client->Post(
         path.toStdString(),
-        reqHeaders,
         body.toStdString(),
         "application/json");
 
@@ -130,28 +167,11 @@ bool HttpNetwork::httpGet(
     QString schemeHost = toSchemeHost(url);
     QString path = toPath(url);
 
-    httplib::Client client(schemeHost.toStdString());
-    client.set_connection_timeout(m_timeoutSeconds);
-    client.set_read_timeout(m_timeoutSeconds);
-    client.set_write_timeout(m_timeoutSeconds);
+    auto client = createClient(schemeHost);
+    auto headersMap = mergeHeadersMap(headers);
+    applyHeaders(*client, headersMap);
 
-#ifdef CPPHTTPLIB_SSL_ENABLED
-    client.enable_server_certificate_verification(false);
-#endif
-
-    if (!m_proxyHost.isEmpty() && m_proxyPort > 0)
-        client.set_proxy(m_proxyHost.toStdString(), m_proxyPort);
-
-    httplib::Headers reqHeaders;
-    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
-        reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
-    for (auto it = m_defaultHeaders.constBegin(); it != m_defaultHeaders.constEnd(); ++it)
-    {
-        if (!reqHeaders.contains(it.key().toStdString()))
-            reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
-    }
-
-    auto result = client.Get(path.toStdString(), reqHeaders);
+    auto result = client->Get(path.toStdString());
 
     if (!result)
     {
@@ -178,40 +198,24 @@ bool HttpNetwork::sseRequest(
     if (m_baseUrl.isEmpty())
     {
         if (onError)
-            onError(QStringLiteral("INVALID_URL"), QStringLiteral("Base URL is empty"));
+            onError(QStringLiteral("INVALID_URL"),
+                     QStringLiteral("Base URL is empty"));
         return false;
     }
 
     QString schemeHost = toSchemeHost(m_baseUrl);
     QString path = toPath(m_baseUrl);
 
-    httplib::Client client(schemeHost.toStdString());
-    client.set_connection_timeout(m_timeoutSeconds);
-    client.set_read_timeout(m_timeoutSeconds);
-    client.set_write_timeout(m_timeoutSeconds);
-
-#ifdef CPPHTTPLIB_SSL_ENABLED
-    client.enable_server_certificate_verification(false);
-#endif
-
-    if (!m_proxyHost.isEmpty() && m_proxyPort > 0)
-        client.set_proxy(m_proxyHost.toStdString(), m_proxyPort);
-
-    httplib::Headers reqHeaders;
-    reqHeaders.insert({"Accept", "text/event-stream"});
-    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
-        reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
-    for (auto it = m_defaultHeaders.constBegin(); it != m_defaultHeaders.constEnd(); ++it)
-    {
-        if (!reqHeaders.contains(it.key().toStdString()))
-            reqHeaders.insert({it.key().toStdString(), it.value().toStdString()});
-    }
+    auto client = createClient(schemeHost);
+    auto headersMap = mergeHeadersMap(headers);
+    headersMap.insert(QStringLiteral("Accept"),
+                      QStringLiteral("text/event-stream"));
+    applyHeaders(*client, headersMap);
 
     SseParser parser;
 
-    auto result = client.Post(
+    auto result = client->Post(
         path.toStdString(),
-        reqHeaders,
         body.toStdString(),
         "application/json",
         [&](const char *data, size_t len) -> bool
@@ -231,8 +235,8 @@ bool HttpNetwork::sseRequest(
             // get a chance to run during the synchronous HTTP read.
             // Guard against reentrancy: a slot triggered here must not
             // re-enter the SSE callback (e.g. by cancelling the request).
-            if (!m_inSseCallback) {
-                m_inSseCallback = true;
+            if (!m_inSseCallback.exchange(true))
+            {
                 QCoreApplication::processEvents(QEventLoop::AllEvents, 0);
                 m_inSseCallback = false;
             }

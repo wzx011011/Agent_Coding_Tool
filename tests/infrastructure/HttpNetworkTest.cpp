@@ -93,3 +93,18 @@ TEST(HttpNetworkTest, CancelDoesNotCrash)
     net.cancel();
     // No crash expected
 }
+
+TEST(HttpNetworkTest, SslVerificationEnabledByDefault)
+{
+    HttpNetwork net;
+    EXPECT_TRUE(net.sslVerificationEnabled());
+}
+
+TEST(HttpNetworkTest, SslVerificationCanBeDisabled)
+{
+    HttpNetwork net;
+    net.setSslVerificationEnabled(false);
+    EXPECT_FALSE(net.sslVerificationEnabled());
+    net.setSslVerificationEnabled(true);
+    EXPECT_TRUE(net.sslVerificationEnabled());
+}
