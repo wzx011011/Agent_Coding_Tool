@@ -242,7 +242,7 @@ TEST(TerminalStyleTest, ErrorMessageOffFormat)
     setColorEnabled(false);
     QString result = errorMessage(
         QStringLiteral("TIMEOUT"), QStringLiteral("Request timed out"));
-    EXPECT_EQ(result, QStringLiteral("[Error] Request timed out"));
+    EXPECT_EQ(result, QStringLiteral("[Error] TIMEOUT: Request timed out"));
 }
 
 TEST(TerminalStyleTest, PermissionRequestOffFormat)

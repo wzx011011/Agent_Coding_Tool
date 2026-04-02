@@ -199,7 +199,7 @@ QString toolCallCompleted(const QString &name,
 
 QString errorMessage(const QString &code, const QString &msg)
 {
-    return boldRed(QStringLiteral("[Error] ")) + msg;
+    return boldRed(QStringLiteral("[Error] %1: ").arg(code)) + msg;
 }
 
 QString permissionRequest(const QString &tool, const QString &level)

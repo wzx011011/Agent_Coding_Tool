@@ -3,7 +3,6 @@
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QDir>
-#include <QEnvironmentVariables>
 #include <QStorageInfo>
 
 #include "framework/command_registry.h"

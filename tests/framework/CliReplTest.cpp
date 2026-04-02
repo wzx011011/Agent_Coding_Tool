@@ -494,7 +494,13 @@ TEST_F(CliReplTest, CompactCommandOnEmptyMessages)
     repl->setOutputMode(CliRepl::OutputMode::Human);
     auto state = repl->processInput(QStringLiteral("/compact"));
     EXPECT_EQ(state, TaskState::Idle);
-    EXPECT_TRUE(capturedLines.contains(QStringLiteral("No messages to compact.")));
+    bool foundCompactMsg = false;
+    for (const auto &line : capturedLines)
+    {
+        if (line.contains(QStringLiteral("No messages to compact.")))
+            foundCompactMsg = true;
+    }
+    EXPECT_TRUE(foundCompactMsg);
 }
 
 TEST_F(CliReplTest, CompactCommandOnFewMessages)

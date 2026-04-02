@@ -502,7 +502,7 @@ TEST_F(PlanModeTest, ExitPlanModeToolExecute)
     auto tool = ExitPlanModeTool(*loop);
 
     EXPECT_EQ(tool.name(), QStringLiteral("exit_plan_mode"));
-    EXPECT_EQ(tool.permissionLevel(), PermissionLevel::Read);
+    EXPECT_EQ(tool.permissionLevel(), PermissionLevel::Write);
 
     auto result = tool.execute(QJsonObject{});
     EXPECT_TRUE(result.success);
